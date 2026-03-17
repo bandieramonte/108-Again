@@ -5,12 +5,12 @@ export const db = SQLite.openDatabaseSync("ngondro.db")
 export function initializeDatabase() {
 
   db.execSync(`
-
   CREATE TABLE IF NOT EXISTS practices (
     id TEXT PRIMARY KEY,
     name TEXT,
     targetCount INTEGER,
-    orderIndex INTEGER
+    orderIndex INTEGER,
+    imageKey TEXT
   );
 
   CREATE TABLE IF NOT EXISTS sessions (

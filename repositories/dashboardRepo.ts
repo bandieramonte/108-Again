@@ -1,38 +1,40 @@
 import { db } from "../database/db";
 
 export type DashboardPracticeRow = {
-    id: string;
-    name: string;
-    targetCount: number;
-    total: number;
-    today: number;
+  id: string;
+  name: string;
+  targetCount: number;
+  total: number;
+  today: number;
+  imageKey?: string | null;
 };
 
 export function getDashboardPracticeRows(): DashboardPracticeRow[] {
 
-    return db.getAllSync(`
+  return db.getAllSync(`
     SELECT
-      p.id,
-      p.name,
-      p.targetCount,
+    p.id,
+    p.name,
+    p.targetCount,
+    MAX(p.imageKey) as imageKey,
 
-      COALESCE(SUM(s.count),0) as total,
+    COALESCE(SUM(s.count),0) as total,
 
-      COALESCE(SUM(
-        CASE
-          WHEN s.isAdjustment = 0
-          AND date(s.createdAt/1000,'unixepoch') = date('now')
-          THEN s.count
-          ELSE 0
-        END
-      ),0) as today
+    COALESCE(SUM(
+      CASE
+        WHEN s.isAdjustment = 0
+        AND date(s.createdAt/1000,'unixepoch') = date('now')
+        THEN s.count
+        ELSE 0
+      END
+    ),0) as today
 
-    FROM practices p
-    LEFT JOIN sessions s
-      ON p.id = s.practiceId
+  FROM practices p
+  LEFT JOIN sessions s
+    ON p.id = s.practiceId
 
-    GROUP BY p.id
-    ORDER BY p.orderIndex
+  GROUP BY p.id
+  ORDER BY p.orderIndex
   `) as DashboardPracticeRow[];
 
 }

@@ -32,7 +32,8 @@ export function restoreBackupData(data: any) {
             p.id,
             p.name,
             p.targetCount,
-            p.orderIndex
+            p.orderIndex,
+            p.imageKey ?? null
         );
 
     });

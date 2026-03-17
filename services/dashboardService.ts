@@ -7,6 +7,7 @@ type DashboardPracticeRow = {
     targetCount: number;
     total: number;
     today: number;
+    imageKey?: string | null;
 };
 
 export function getDashboardPractices(): DashboardPracticeRow[] {

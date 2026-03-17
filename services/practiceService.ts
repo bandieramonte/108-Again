@@ -60,3 +60,11 @@ export function getPracticeEditData(id: string) {
 export function getPracticeName(id: string) {
     return practiceRepo.getPracticeName(id);
 }
+
+export function getPractice(id: string) {
+    return practiceRepo.getPracticeById(id);
+}
+
+export function getAllPractices() {
+    return practiceRepo.getAllPractices();
+}

@@ -5,37 +5,36 @@ type PracticeRow = {
     name: string;
     targetCount: number;
     orderIndex: number;
-};
-
-type PracticeSummaryRow = {
-    name: string;
-    targetCount: number;
+    imageKey?: string | null;
 };
 
 type MaxOrderRow = {
     maxOrder: number | null;
 };
 
-export function getPracticeById(id: string): PracticeSummaryRow {
+export function getPracticeById(id: string): PracticeRow {
     return db.getAllSync(
-        `SELECT name, targetCount FROM practices WHERE id = ?`,
+        `SELECT id, name, targetCount, orderIndex, imageKey
+         FROM practices
+         WHERE id = ?`,
         id
-    )[0] as PracticeSummaryRow;
+    )[0] as PracticeRow;
 }
 
 export function getAllPractices(): PracticeRow[] {
     return db.getAllSync(
-        `SELECT id, name, targetCount, orderIndex FROM practices ORDER BY orderIndex`
+        `SELECT id, name, targetCount, orderIndex, imageKey FROM practices ORDER BY orderIndex`
     ) as PracticeRow[];
 }
 
-export function insertPractice(id: string, name: string, target: number, orderIndex: number): void {
+export function insertPractice(id: string, name: string, target: number, orderIndex: number, imageKey?: string | null): void {
     db.runSync(
-        `INSERT INTO practices (id,name,targetCount,orderIndex) VALUES (?,?,?,?)`,
+        `INSERT INTO practices (id,name,targetCount,orderIndex, imageKey) VALUES (?,?,?,?,?)`,
         id,
         name,
         target,
-        orderIndex
+        orderIndex,
+        imageKey ?? null
     );
 }
 

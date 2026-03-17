@@ -1,9 +1,9 @@
-import { useFocusEffect } from "@react-navigation/native";
 import * as Localization from "expo-localization";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { Alert, Button, Dimensions, FlatList, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import { Alert, Button, Dimensions, FlatList, Image, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import Svg, { Line, Rect, Text as SvgText } from "react-native-svg";
+import { practiceImages } from "../../constants/practiceImages";
 import * as practiceService from "../../services/practiceService";
 import * as sessionService from "../../services/sessionService";
 
@@ -13,10 +13,8 @@ type Session = {
     createdAt: number;
 };
 
-export default function PracticeDetail() {
-
+export default function PracticeContent({ practiceId }: { practiceId: string }) {
     const router = useRouter();
-    const { id } = useLocalSearchParams();
     const [practiceName, setPracticeName] = useState("");
     const [sessions, setSessions] = useState<Session[]>([]);
     const [total, setTotal] = useState(0);
@@ -28,20 +26,36 @@ export default function PracticeDetail() {
     >([]);
     const [editingValues, setEditingValues] = useState<Record<string, string>>({});
     const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+    const [imageKey, setImageKey] = useState<string | null>(null);
+    const [ratio, setRatio] = useState(1);
+    const { width } = useWindowDimensions();
 
-    useFocusEffect(
-        useCallback(() => {
+    useEffect(() => {
+        if (imageKey && practiceImages[imageKey]) {
+            const source = Image.resolveAssetSource(practiceImages[imageKey]);
 
-            const name = practiceService.getPracticeName(id as string);
-
-            if (name) {
-                setPracticeName(name);
+            if (source?.width && source?.height) {
+                setRatio(source.width / source.height);
             }
+        }
+    }, [imageKey]);
 
+    useEffect(() => {
+        const practice = practiceService.getPractice(practiceId);
+
+        if (practice) {
+            setPracticeName(practice.name);
+            setImageKey(practice.imageKey ?? null);
+        }
+
+        const timeout = setTimeout(() => {
             loadSessions();
             loadDailyData(rangeDays);
-        }, [rangeDays, viewMode])
-    );
+        }, 0);
+
+        return () => clearTimeout(timeout);
+
+    }, [practiceId, rangeDays, viewMode]);
 
     useEffect(() => {
         loadSessions();
@@ -49,7 +63,7 @@ export default function PracticeDetail() {
 
     function loadSessions() {
 
-        const rows = sessionService.getSessionsForPractice(id as string) as Session[];
+        const rows = sessionService.getSessionsForPractice(practiceId) as Session[];
         setSessions(rows);
 
         const total = rows.reduce((sum, s) => sum + s.count, 0);
@@ -57,7 +71,7 @@ export default function PracticeDetail() {
     }
 
     function addSession(count: number) {
-        sessionService.addSession(id as string, count);
+        sessionService.addSession(practiceId, count);
         loadSessions();
         loadDailyData(rangeDays);
     }
@@ -81,7 +95,7 @@ export default function PracticeDetail() {
 
     function deletePractice() {
 
-        practiceService.deletePractice(id as string);
+        practiceService.deletePractice(practiceId);
         router.replace("/");
 
     }
@@ -91,11 +105,11 @@ export default function PracticeDetail() {
         const data =
             viewMode === "table"
                 ? sessionService.getDailyPracticeDataWithAdjustments(
-                    id as string,
+                    practiceId,
                     days
                 )
                 : sessionService.getDailyPracticeData(
-                    id as string,
+                    practiceId,
                     days
                 );
 
@@ -289,7 +303,7 @@ export default function PracticeDetail() {
             alert("Please enter a whole number");
             return;
         }
-        sessionService.adjustDayTotal(id as string, date, newValue);
+        sessionService.adjustDayTotal(practiceId, date, newValue);
 
         loadSessions();
         loadDailyData(rangeDays);
@@ -337,102 +351,119 @@ export default function PracticeDetail() {
     return (
 
         <ScrollView
-            style={styles.container}
-            contentContainerStyle={{ paddingBottom: 40 }}
+            style={{ marginTop: 24 }}
+            contentContainerStyle={{
+                paddingBottom: 40,
+                alignItems: "stretch"
+            }}
         >
             <Text style={styles.title}>
                 {practiceName}
             </Text>
 
-            <Text style={styles.total}>
-                Total: {total}
-            </Text>
-
-            <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
-
-                <Button
-                    title="Edit"
-                    onPress={() =>
-                        router.push({
-                            pathname: "/edit-practice",
-                            params: {
-                                id,
-                                practiceName
-                            }
-                        })
-                    }
+            {imageKey && practiceImages[imageKey] && (
+                <Image
+                    source={practiceImages[imageKey]}
+                    style={{
+                        width: width,
+                        alignSelf: "center",
+                        marginBottom: 15
+                    }}
+                    resizeMode="contain"
                 />
+            )}
 
-                <Button
-                    title="Delete"
-                    color="red"
-                    onPress={confirmDelete}
-                />
+            <View style={{ paddingHorizontal: 20 }}>
 
-            </View>
-
-            <View style={styles.addSection}>
-
-                <Text style={styles.sectionTitle}>
-                    Add repetitions
+                <Text style={styles.total}>
+                    Total: {total}
                 </Text>
 
-                <View style={styles.buttonRow}>
-                    <Button title="+1" onPress={() => addSession(1)} />
-                    <Button title="+27" onPress={() => addSession(27)} />
-                    <Button title="+108" onPress={() => addSession(108)} />
+                <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
+
+                    <Button
+                        title="Edit"
+                        onPress={() =>
+                            router.push({
+                                pathname: "/edit-practice",
+                                params: {
+                                    id: practiceId,
+                                    practiceName
+                                }
+                            })
+                        }
+                    />
+
+                    <Button
+                        title="Delete"
+                        color="red"
+                        onPress={confirmDelete}
+                    />
+
                 </View>
 
-                <TextInput
-                    placeholder="Custom count"
-                    keyboardType="numeric"
-                    value={customValue}
-                    onChangeText={setCustomValue}
-                    style={styles.input}
-                />
+                <View style={styles.addSection}>
 
-                <Button
-                    title="Add custom"
-                    onPress={() => addSession(Number(customValue))}
-                />
+                    <Text style={styles.sectionTitle}>
+                        Add repetitions
+                    </Text>
 
-            </View>
-
-            <Text style={styles.total}>
-                Practice History
-            </Text>
-            <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
-
-                <Button
-                    title="Chart"
-                    onPress={() => setViewMode("chart")}
-                />
-
-                <Button
-                    title="Table"
-                    onPress={() => setViewMode("table")}
-                />
-
-            </View>
-
-            <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
-                <Button title="10d" onPress={() => { setRangeDays(10); loadDailyData(10); }} />
-                <Button title="30d" onPress={() => { setRangeDays(30); loadDailyData(30); }} />
-                <Button title="90d" onPress={() => { setRangeDays(90); loadDailyData(90); }} />
-            </View>
-
-            {dailyData.every(d => d.total === 0)
-                ? <Text>No practice recorded in this period.</Text>
-                : (
-                    <View key={dailyData.length}>
-                        {viewMode === "chart"
-                            ? renderChart()
-                            : renderTable()
-                        }
+                    <View style={styles.buttonRow}>
+                        <Button title="+1" onPress={() => addSession(1)} />
+                        <Button title="+27" onPress={() => addSession(27)} />
+                        <Button title="+108" onPress={() => addSession(108)} />
                     </View>
-                )
-            }
 
+                    <TextInput
+                        placeholder="Custom count"
+                        keyboardType="numeric"
+                        value={customValue}
+                        onChangeText={setCustomValue}
+                        style={styles.input}
+                    />
+
+                    <Button
+                        title="Add custom"
+                        onPress={() => addSession(Number(customValue))}
+                    />
+
+                </View>
+
+                <Text style={styles.total}>
+                    Practice History
+                </Text>
+                <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
+
+                    <Button
+                        title="Chart"
+                        onPress={() => setViewMode("chart")}
+                    />
+
+                    <Button
+                        title="Table"
+                        onPress={() => setViewMode("table")}
+                    />
+
+                </View>
+
+                <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
+                    <Button title="10d" onPress={() => { setRangeDays(10); loadDailyData(10); }} />
+                    <Button title="30d" onPress={() => { setRangeDays(30); loadDailyData(30); }} />
+                    <Button title="90d" onPress={() => { setRangeDays(90); loadDailyData(90); }} />
+                </View>
+
+                {dailyData.every(d => d.total === 0)
+                    ? <Text>No practice recorded in this period.</Text>
+                    : (
+                        <View key={dailyData.length}>
+                            {viewMode === "chart"
+                                ? renderChart()
+                                : renderTable()
+                            }
+                        </View>
+                    )
+                }
+            </View>
         </ScrollView>
     );
 }
@@ -440,14 +471,19 @@ export default function PracticeDetail() {
 const styles = StyleSheet.create({
 
     container: {
-        padding: 20,
         marginTop: 60
+    },
+
+    contentContainerStyle: {
+        padding: 20,
+        paddingBottom: 40
     },
 
     title: {
         fontSize: 24,
         fontWeight: "bold",
-        marginBottom: 20
+        textAlign: "center",
+        marginBottom: 12
     },
 
     total: {
@@ -489,6 +525,6 @@ const styles = StyleSheet.create({
         minWidth: 60,
         textAlign: "right",
         paddingVertical: 2
-    }
+    },
 
 });

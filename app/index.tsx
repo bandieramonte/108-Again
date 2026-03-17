@@ -3,6 +3,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   Button,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +11,7 @@ import {
   View
 } from "react-native";
 import * as Progress from "react-native-progress";
+import { practiceImages } from "../constants/practiceImages";
 import * as dashboardService from "../services/dashboardService";
 import * as sessionService from "../services/sessionService";
 
@@ -19,6 +21,7 @@ type Practice = {
   targetCount: number;
   total: number;
   today: number;
+  imageKey?: string | null;
 };
 
 export default function Dashboard() {
@@ -60,7 +63,7 @@ export default function Dashboard() {
 
     <ScrollView style={styles.container}>
 
-      <Text style={{ marginBottom: 20 }}>
+      <Text style={{ marginBottom: 20, fontWeight: "bold", fontStyle: "italic" }}>
         Streak: {streak} {streak === 1 ? "day" : "days"}
       </Text>
 
@@ -77,35 +80,43 @@ export default function Dashboard() {
             <TouchableOpacity
               onPress={() =>
                 router.push({
-                  pathname: "/practice/[id]",
+                  pathname: "/practice",
                   params: {
-                    id: practice.id,
-                    name: practice.name
+                    id: practice.id
                   }
                 })
               }
             >
 
-              <Text style={styles.practiceName}>
-                {practice.name}
-              </Text>
+              <View style={styles.row}>
+                {practice.imageKey && practiceImages[practice.imageKey] && (
+                  <Image
+                    source={practiceImages[practice.imageKey]}
+                    style={styles.icon}
+                    resizeMode="contain"
+                  />
+                )}
 
-              <Progress.Bar
-                progress={currentCycleProgress}
-                width={null}
-                height={10}
-              />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.practiceName}>
+                    {practice.name}
+                  </Text>
 
+                  <Progress.Bar
+                    progress={currentCycleProgress}
+                    width={null}
+                    height={10}
+                  />
 
-              <Text style={styles.countText}>
-                {practice.total + ' ' + (!!cycleSize ? '/ ' + cycleSize * (completedCycles + 1) : '')}
-              </Text>
+                  <Text style={styles.countText}>
+                    {practice.total + ' ' + (!!cycleSize ? '/ ' + cycleSize * (completedCycles + 1) : '')}
+                  </Text>
 
-
-
-              <Text style={{ fontSize: 12, color: "#666" }}>
-                Today: {practice.today}
-              </Text>
+                  <Text style={{ fontSize: 12, color: "#666" }}>
+                    Today: {practice.today}
+                  </Text>
+                </View>
+              </View>
 
             </TouchableOpacity>
 
@@ -129,7 +140,8 @@ const styles = StyleSheet.create({
 
   container: {
     padding: 20,
-    marginTop: 60,
+    marginTop: 12,
+    marginBottom: 10,
   },
 
   title: {
@@ -155,6 +167,18 @@ const styles = StyleSheet.create({
   quickButtons: {
     marginTop: 6,
     alignItems: "flex-start"
+  },
+
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  icon: {
+    width: 70,
+    height: 70,
+    borderRadius: 8,
   }
 
 });
