@@ -18,7 +18,8 @@ export function initializeDatabase() {
     practiceId TEXT,
     count INTEGER,
     createdAt INTEGER,
-    isAdjustment INTEGER
+    isAdjustment INTEGER,
+    affectsAnalytics INTEGER
   );
 `);
 }

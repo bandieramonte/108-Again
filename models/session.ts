@@ -4,4 +4,5 @@ export type PracticeSession = {
   count: number
   createdAt: number
   isAdjustment: number
+  affectsAnalytics: number
 }

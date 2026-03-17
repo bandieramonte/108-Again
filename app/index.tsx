@@ -30,8 +30,6 @@ export default function Dashboard() {
   useFocusEffect(
     useCallback(() => {
 
-      // appService.initializeApp();
-
       refreshDashboard();
 
     }, [])

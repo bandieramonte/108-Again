@@ -56,7 +56,8 @@ export function restoreBackupData(data: any) {
             practiceId,
             s.count,
             s.createdAt,
-            s.isAdjustment ?? 0
+            s.isAdjustment ?? 0,
+            s.affectsAnalytics ?? 1
         );
 
     });

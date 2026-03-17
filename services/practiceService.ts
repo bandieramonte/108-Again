@@ -31,7 +31,8 @@ export function updatePractice(id: string, name: string, target: number, newTota
             id,
             difference,
             Date.now(),
-            1   // adjustment
+            1,   // adjustment
+            0   // does not affect analytics
         );
     }
 }

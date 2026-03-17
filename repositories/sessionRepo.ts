@@ -16,16 +16,18 @@ export function insertSession(
     practiceId: string,
     count: number,
     createdAt: number,
-    isAdjustment: number = 0
+    isAdjustment: number = 0,
+    affectsAnalytics: number = 1
 ) {
     db.runSync(
-        `INSERT INTO sessions (id, practiceId, count, createdAt, isAdjustment)
-     VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO sessions (id, practiceId, count, createdAt, isAdjustment, affectsAnalytics)
+     VALUES (?, ?, ?, ?, ?, ?)`,
         id,
         practiceId,
         count,
         createdAt,
-        isAdjustment
+        isAdjustment,
+        affectsAnalytics
     );
 }
 
@@ -55,8 +57,8 @@ export function getPracticeTotal(practiceId: string): PracticeTotalRow {
 export function getDailyTotals(practiceId: string) {
     return db.getAllSync(`
     SELECT
-      date(CAST(createdAt/1000 AS INTEGER),'unixepoch','localtime') as day,
-      SUM(CASE WHEN isAdjustment = 0 THEN count ELSE 0 END) as total
+    date(createdAt/1000,'unixepoch') as day,
+    SUM(CASE WHEN affectsAnalytics = 1 THEN count ELSE 0 END) as total
     FROM sessions
     WHERE practiceId = ?
     GROUP BY day
@@ -69,6 +71,7 @@ export function getSessionsForBackup() {
       s.count,
       s.createdAt,
       s.isAdjustment,
+      s.affectsAnalytics,
       p.name AS practiceName,
       p.orderIndex
     FROM sessions s
@@ -86,7 +89,18 @@ export function getSessionDays() {
     SELECT DISTINCT
       date(createdAt/1000,'unixepoch') as day
     FROM sessions
-    WHERE isAdjustment = 0
+    WHERE COALESCE(affectsAnalytics,1) = 1
     ORDER BY day DESC
   `) as { day: string }[];
+}
+
+export function getDailyTotalsWithAdjustments(practiceId: string) {
+    return db.getAllSync(`
+    SELECT
+    date(createdAt/1000,'unixepoch') as day,
+    SUM(CASE WHEN affectsAnalytics = 1 THEN count ELSE 0 END) as total
+    FROM sessions
+    WHERE practiceId = ?
+    GROUP BY day
+  `, practiceId) as { day: string; total: number }[];
 }

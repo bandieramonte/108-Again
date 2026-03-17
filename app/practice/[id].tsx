@@ -26,6 +26,8 @@ export default function PracticeDetail() {
     const [dailyData, setDailyData] = useState<
         { date: string; total: number }[]
     >([]);
+    const [editingValues, setEditingValues] = useState<Record<string, string>>({});
+    const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
     useFocusEffect(
         useCallback(() => {
@@ -38,7 +40,7 @@ export default function PracticeDetail() {
 
             loadSessions();
             loadDailyData(rangeDays);
-        }, [rangeDays])
+        }, [rangeDays, viewMode])
     );
 
     useEffect(() => {
@@ -86,12 +88,18 @@ export default function PracticeDetail() {
 
     function loadDailyData(days: number) {
 
-        const data = sessionService.getDailyPracticeData(
-            id as string,
-            days
-        );
-        setDailyData(data);
+        const data =
+            viewMode === "table"
+                ? sessionService.getDailyPracticeDataWithAdjustments(
+                    id as string,
+                    days
+                )
+                : sessionService.getDailyPracticeData(
+                    id as string,
+                    days
+                );
 
+        setDailyData(data);
     }
 
 
@@ -116,86 +124,175 @@ export default function PracticeDetail() {
 
         const width = Dimensions.get("window").width - 40;
         const height = 220;
-
-        const padding = { top: 10, bottom: 30, left: 30, right: 10 };
-
+        const padding = { top: 30, bottom: 30, left: 30, right: 10 };
         const chartWidth = width - padding.left - padding.right;
         const chartHeight = height - padding.top - padding.bottom;
-
         const values = dailyData.map(d => d.total);
         const maxValue = Math.max(...values, 1);
-
+        const steps = 4;
+        const stepValue = Math.ceil(maxValue / steps / 10) * 10;
+        const yTicks = Array.from({ length: steps + 1 }, (_, i) => i * stepValue);
         const barWidth = chartWidth / dailyData.length;
-
         const labelCount = 4;
         const step = Math.max(1, Math.ceil(dailyData.length / labelCount));
-
-        const yScale = (value: number) =>
-            (value / maxValue) * chartHeight;
+        const yScale = (value: number) => (value / maxValue) * chartHeight;
+        const tooltipWidth = 40;
+        const tooltipHeight = 20;
+        const tooltipOffset = 6;
 
         return (
-            <Svg width={width} height={height}>
+            <View
+                onStartShouldSetResponder={() => true}
+                onResponderRelease={() => setSelectedIndex(null)}
+            >
+                <Svg width={width} height={height}>
 
-                {/* grid lines */}
-                {[0, 0.25, 0.5, 0.75, 1].map((p, i) => {
-                    const y = padding.top + chartHeight * (1 - p);
+                    {/* Y-axis labels */}
+                    {yTicks.map((value, i) => {
+                        const y =
+                            padding.top +
+                            chartHeight -
+                            (value / maxValue) * chartHeight;
 
-                    return (
-                        <Line
-                            key={i}
-                            x1={padding.left}
-                            x2={width - padding.right}
-                            y1={y}
-                            y2={y}
-                            stroke="#ddd"
-                            strokeDasharray="3,3"
-                        />
-                    );
-                })}
+                        return (
+                            <SvgText
+                                key={`y-label-${i}`}
+                                x={padding.left - 5}
+                                y={y + 4}
+                                fontSize="10"
+                                textAnchor="end"
+                                fill="#666"
+                            >
+                                {value}
+                            </SvgText>
+                        );
+                    })}
 
-                {/* bars */}
-                {dailyData.map((d, i) => {
+                    {/* grid lines */}
+                    {[0, 0.25, 0.5, 0.75, 1].map((p, i) => {
+                        const y = padding.top + chartHeight * (1 - p);
 
-                    const barHeight = yScale(d.total);
+                        return (
+                            <Line
+                                key={i}
+                                x1={padding.left}
+                                x2={width - padding.right}
+                                y1={y}
+                                y2={y}
+                                stroke="#ddd"
+                                strokeDasharray="3,3"
+                            />
+                        );
+                    })}
 
-                    const x = padding.left + i * barWidth;
-                    const y = padding.top + chartHeight - barHeight;
+                    {/* bars */}
+                    {dailyData.map((d, i) => {
 
-                    return (
-                        <Rect
-                            key={d.date}
-                            x={x}
-                            y={y}
-                            width={barWidth * 0.7}
-                            height={barHeight}
-                            fill="#3b82f6"
-                        />
-                    );
-                })}
+                        const barHeight = yScale(d.total);
 
-                {/* x-axis labels */}
-                {dailyData.map((d, i) => {
+                        const x = padding.left + i * barWidth;
+                        const y = padding.top + chartHeight - barHeight;
 
-                    if (i % step !== 0 && i !== dailyData.length - 1) return null;
+                        return (
+                            <Rect
+                                key={d.date}
+                                x={x}
+                                y={y}
+                                width={barWidth * 0.7}
+                                height={barHeight}
+                                fill={selectedIndex === i ? "#1d4ed8" : "#3b82f6"}
+                                onPress={() => setSelectedIndex(i)}
+                            />
+                        );
+                    })}
 
-                    const x = padding.left + i * barWidth + barWidth * 0.35;
+                    {/* Tooltip with background */}
+                    {selectedIndex !== null && (() => {
 
-                    return (
-                        <SvgText
-                            key={`label-${i}`}
-                            x={x}
-                            y={height - 10}
-                            fontSize="10"
-                            textAnchor="middle"
-                            fill="#444"
-                        >
-                            {formatShortDate(d.date)}
-                        </SvgText>
-                    );
-                })}
+                        const d = dailyData[selectedIndex];
+                        const barHeight = yScale(d.total);
 
-            </Svg>
+                        const xCenter = padding.left + selectedIndex * barWidth + barWidth * 0.35;
+                        const yBarTop = padding.top + chartHeight - barHeight;
+
+                        // --- prevent clipping at top ---
+                        const yTooltip = Math.max(
+                            padding.top,
+                            yBarTop - tooltipHeight - tooltipOffset
+                        );
+
+                        return (
+                            <>
+                                {/* background */}
+                                <Rect
+                                    x={xCenter - tooltipWidth / 2}
+                                    y={yTooltip}
+                                    width={tooltipWidth}
+                                    height={tooltipHeight}
+                                    rx={4}
+                                    fill="#111"
+                                    opacity={0.85}
+                                />
+
+                                {/* text */}
+                                <SvgText
+                                    x={xCenter}
+                                    y={yTooltip + tooltipHeight / 2 + 4}
+                                    fontSize="11"
+                                    textAnchor="middle"
+                                    fill="#fff"
+                                    fontWeight="bold"
+                                >
+                                    {d.total}
+                                </SvgText>
+                            </>
+                        );
+                    })()}
+
+                    {/* x-axis labels */}
+                    {dailyData.map((d, i) => {
+
+                        if (i % step !== 0 && i !== dailyData.length - 1) return null;
+
+                        const x = padding.left + i * barWidth + barWidth * 0.35;
+
+                        return (
+                            <SvgText
+                                key={`label-${i}`}
+                                x={x}
+                                y={height - 10}
+                                fontSize="10"
+                                textAnchor="middle"
+                                fill="#444"
+                            >
+                                {formatShortDate(d.date)}
+                            </SvgText>
+                        );
+                    })}
+
+                </Svg>
+
+            </View>
+
         );
+    }
+
+    function handleEdit(date: string, newValue: number) {
+        if (!Number.isFinite(newValue)) return;
+
+        if (newValue < 0) {
+            alert("Value cannot be negative");
+            return;
+        }
+
+        if (!Number.isInteger(newValue)) {
+            alert("Please enter a whole number");
+            return;
+        }
+        sessionService.adjustDayTotal(id as string, date, newValue);
+
+        loadSessions();
+        loadDailyData(rangeDays);
     }
 
     function renderTable() {
@@ -206,9 +303,30 @@ export default function PracticeDetail() {
                 renderItem={({ item }) => (
                     <View style={styles.row}>
                         <Text>
-                            {new Date(item.date + "T00:00:00").toLocaleDateString()}
+                            {formatShortDate(item.date)}
                         </Text>
-                        <Text>{item.total}</Text>
+                        <TextInput
+                            value={editingValues[item.date] ?? String(item.total)}
+                            keyboardType="numeric"
+                            style={styles.editableCell}
+                            onChangeText={(text) => {
+                                setEditingValues(prev => ({
+                                    ...prev,
+                                    [item.date]: text
+                                }));
+                            }}
+                            onEndEditing={() => {
+                                const value = Number(editingValues[item.date]);
+                                handleEdit(item.date, value);
+
+                                // clear editing state
+                                setEditingValues(prev => {
+                                    const copy = { ...prev };
+                                    delete copy[item.date];
+                                    return copy;
+                                });
+                            }}
+                        />
                     </View>
                 )}
                 scrollEnabled={false}
@@ -364,5 +482,13 @@ const styles = StyleSheet.create({
         padding: 8,
         marginBottom: 10
     },
+
+    editableCell: {
+        borderBottomWidth: 1,
+        borderColor: "#aaa",
+        minWidth: 60,
+        textAlign: "right",
+        paddingVertical: 2
+    }
 
 });
