@@ -6,6 +6,7 @@ type PracticeRow = {
     targetCount: number;
     orderIndex: number;
     imageKey?: string | null;
+    defaultAddCount?: number | null;
 };
 
 type MaxOrderRow = {
@@ -14,7 +15,7 @@ type MaxOrderRow = {
 
 export function getPracticeById(id: string): PracticeRow {
     return db.getAllSync(
-        `SELECT id, name, targetCount, orderIndex, imageKey
+        `SELECT id, name, targetCount, orderIndex, imageKey, defaultAddCount
          FROM practices
          WHERE id = ?`,
         id
@@ -23,18 +24,26 @@ export function getPracticeById(id: string): PracticeRow {
 
 export function getAllPractices(): PracticeRow[] {
     return db.getAllSync(
-        `SELECT id, name, targetCount, orderIndex, imageKey FROM practices ORDER BY orderIndex`
+        `SELECT id, name, targetCount, orderIndex, imageKey, defaultAddCount FROM practices ORDER BY orderIndex`
     ) as PracticeRow[];
 }
 
-export function insertPractice(id: string, name: string, target: number, orderIndex: number, imageKey?: string | null): void {
+export function insertPractice(
+    id: string,
+    name: string,
+    target: number,
+    orderIndex: number,
+    imageKey?: string | null,
+    defaultAddCount: number = 108
+): void {
     db.runSync(
-        `INSERT INTO practices (id,name,targetCount,orderIndex, imageKey) VALUES (?,?,?,?,?)`,
+        `INSERT INTO practices (id,name,targetCount,orderIndex, imageKey, defaultAddCount) VALUES (?,?,?,?,?,?)`,
         id,
         name,
         target,
         orderIndex,
-        imageKey ?? null
+        imageKey ?? null,
+        defaultAddCount
     );
 }
 
@@ -66,4 +75,12 @@ export function getPracticeName(id: string) {
 
 export function deleteAllPractices() {
     db.execSync(`DELETE FROM practices`);
+}
+
+export function updatePracticeDefaultAddCount(id: string, defaultAddCount: number): void {
+    db.runSync(
+        `UPDATE practices SET defaultAddCount = ? WHERE id = ?`,
+        defaultAddCount,
+        id
+    );
 }

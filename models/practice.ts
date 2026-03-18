@@ -4,4 +4,5 @@ export type Practice = {
   targetCount: number
   orderIndex: number
   imageKey?: string | null
+  defaultAddCount: number
 }

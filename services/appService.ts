@@ -1,5 +1,8 @@
 import { db, initializeDatabase } from "../database/db";
 import { seedPractices } from "../database/seed";
+import * as practiceRepo from "../repositories/practiceRepo";
+import * as sessionRepo from "../repositories/sessionRepo";
+import { emit } from "../utils/events";
 
 export function initializeApp() {
 
@@ -13,4 +16,20 @@ export function initializeApp() {
         seedPractices();
     }
 
+}
+
+export function restoreDefaults() {
+    db.execSync("BEGIN TRANSACTION");
+
+    try {
+        sessionRepo.deleteAllSessions();
+        practiceRepo.deleteAllPractices();
+        seedPractices();
+
+        db.execSync("COMMIT");
+        emit();
+    } catch (error) {
+        db.execSync("ROLLBACK");
+        throw error;
+    }
 }

@@ -29,6 +29,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     const [imageKey, setImageKey] = useState<string | null>(null);
     const [ratio, setRatio] = useState(1);
     const { width } = useWindowDimensions();
+    const [defaultAddCount, setDefaultAddCount] = useState("");
 
     useEffect(() => {
         if (imageKey && practiceImages[imageKey]) {
@@ -42,7 +43,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
 
     useEffect(() => {
         const practice = practiceService.getPractice(practiceId);
-
+        setDefaultAddCount(String(practice.defaultAddCount ?? 108));
         if (practice) {
             setPracticeName(practice.name);
             setImageKey(practice.imageKey ?? null);
@@ -346,6 +347,28 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                 scrollEnabled={false}
             />
         );
+    }
+
+    function saveDefaultAddCount() {
+        const value = Number(defaultAddCount);
+
+        if (!Number.isFinite(value)) {
+            alert("Please enter a valid number");
+            return;
+        }
+
+        if (!Number.isInteger(value)) {
+            alert("Please enter a whole number");
+            return;
+        }
+
+        if (value <= 0) {
+            alert("Value must be greater than zero");
+            return;
+        }
+
+        practiceService.updatePracticeDefaultAddCount(practiceId, value);
+        setDefaultAddCount(String(value));
     }
 
     return (

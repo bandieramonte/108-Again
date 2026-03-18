@@ -1,5 +1,6 @@
 import { randomUUID } from "expo-crypto";
 import * as sessionRepo from "../repositories/sessionRepo";
+import { emit } from "../utils/events";
 
 export function addSession(practiceId: string, count: number) {
 
@@ -11,7 +12,7 @@ export function addSession(practiceId: string, count: number) {
         0,  // isAdjustment
         1 // affectsAnalytics
     );
-
+    emit();
 }
 
 export function getSessionsForPractice(practiceId: string) {
@@ -72,6 +73,7 @@ export function adjustDayTotal(
         1, // adjustment
         1, // affects analytics
     );
+    emit();
 }
 
 export function getDailyPracticeDataWithAdjustments(

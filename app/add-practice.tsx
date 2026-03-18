@@ -10,6 +10,7 @@ export default function AddPractice() {
 
     const [name, setName] = useState("");
     const [target, setTarget] = useState("111111");
+    const [defaultAdd, setDefaultAdd] = useState("108");
 
     function savePractice() {
 
@@ -22,7 +23,11 @@ export default function AddPractice() {
         SELECT MAX(orderIndex) as maxOrder FROM practices
         `) as { maxOrder: number }[];
 
-        practiceService.createPractice(name, Number(target));
+        practiceService.createPractice(
+            name,
+            Number(target),
+            Number(defaultAdd) || 108
+        );
         router.back();
     }
 
@@ -43,6 +48,14 @@ export default function AddPractice() {
                 placeholder="Target count"
                 value={target}
                 onChangeText={setTarget}
+                keyboardType="numeric"
+                style={styles.input}
+            />
+
+            <TextInput
+                placeholder="Repetitions per sessions"
+                value={defaultAdd}
+                onChangeText={setDefaultAdd}
                 keyboardType="numeric"
                 style={styles.input}
             />

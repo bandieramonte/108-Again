@@ -10,7 +10,8 @@ export function initializeDatabase() {
     name TEXT,
     targetCount INTEGER,
     orderIndex INTEGER,
-    imageKey TEXT
+    imageKey TEXT,
+    defaultAddCount INTEGER
   );
 
   CREATE TABLE IF NOT EXISTS sessions (

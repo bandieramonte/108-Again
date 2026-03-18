@@ -13,9 +13,10 @@ import {
 type Props = {
     onExport: () => void;
     onImport: () => void;
+    onRestoreDefaults: () => void;
 };
 
-export default function HeaderMenu({ onExport, onImport }: Props) {
+export default function HeaderMenu({ onExport, onImport, onRestoreDefaults }: Props) {
 
     const router = useRouter();
     const [open, setOpen] = useState(false);
@@ -34,14 +35,12 @@ export default function HeaderMenu({ onExport, onImport }: Props) {
                 onRequestClose={() => setOpen(false)}
             >
 
-                {/* background overlay */}
                 <TouchableOpacity
                     style={styles.overlay}
                     activeOpacity={1}
                     onPress={() => setOpen(false)}
                 >
 
-                    {/* menu */}
                     <View style={styles.menu}>
 
                         <Pressable
@@ -74,6 +73,16 @@ export default function HeaderMenu({ onExport, onImport }: Props) {
                             <Text>Import Backup</Text>
                         </Pressable>
 
+                        <Pressable
+                            style={styles.item}
+                            onPress={() => {
+                                setOpen(false);
+                                onRestoreDefaults();
+                            }}
+                        >
+                            <Text style={styles.destructiveText}>Restore Defaults</Text>
+                        </Pressable>
+
                     </View>
 
                 </TouchableOpacity>
@@ -101,12 +110,16 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         width: 180,
         elevation: 5,
-        marginTop: 4   // small gap from dots
+        marginTop: 4
     },
 
     item: {
         paddingVertical: 10,
         paddingHorizontal: 15
     },
+
+    destructiveText: {
+        color: "#c62828"
+    }
 
 });

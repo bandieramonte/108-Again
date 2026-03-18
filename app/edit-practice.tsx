@@ -11,12 +11,14 @@ export default function EditPractice() {
     const [name, setName] = useState("");
     const [target, setTarget] = useState("");
     const [total, setTotal] = useState("");
+    const [defaultAdd, setDefaultAdd] = useState("");
 
     useEffect(() => {
         const data = practiceService.getPracticeEditData(id as string);
         setName(data.name);
         setTarget(String(data.targetCount));
         setTotal(String(data.total));
+        setDefaultAdd(String(data.defaultAddCount ?? 108));
     }, []);
 
     function save() {
@@ -31,6 +33,11 @@ export default function EditPractice() {
             name,
             Number(target),
             Number(total)
+        );
+
+        practiceService.updatePracticeDefaultAddCount(
+            id as string,
+            Number(defaultAdd) || 108
         );
 
         router.back();
@@ -61,6 +68,14 @@ export default function EditPractice() {
             <TextInput
                 value={total}
                 onChangeText={setTotal}
+                keyboardType="numeric"
+                style={styles.input}
+            />
+
+            <Text>Repetitions per sessions</Text>
+            <TextInput
+                value={defaultAdd}
+                onChangeText={setDefaultAdd}
                 keyboardType="numeric"
                 style={styles.input}
             />

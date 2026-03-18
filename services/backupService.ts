@@ -33,7 +33,8 @@ export function restoreBackupData(data: any) {
             p.name,
             p.targetCount,
             p.orderIndex,
-            p.imageKey ?? null
+            p.imageKey ?? null,
+            p.defaultAddCount ?? 108
         );
 
     });

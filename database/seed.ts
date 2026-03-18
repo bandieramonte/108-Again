@@ -8,12 +8,13 @@ export function seedPractices() {
   if (result.length === 0) {
     DEFAULT_PRACTICES.forEach(p => {
       db.runSync(
-        "INSERT INTO practices (id, name, targetCount, orderIndex, imageKey) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO practices (id, name, targetCount, orderIndex, imageKey, defaultAddCount) VALUES (?, ?, ?, ?, ?, ?)",
         randomUUID(),
         p.name,
         p.targetCount,
         p.orderIndex,
-        p.imageKey
+        p.imageKey,
+        p.defaultAddCount ?? 108
       )
     })
   }

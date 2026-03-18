@@ -2,8 +2,9 @@ import { randomUUID } from "expo-crypto";
 import { db } from "../database/db";
 import * as practiceRepo from "../repositories/practiceRepo";
 import * as sessionRepo from "../repositories/sessionRepo";
+import { emit } from "../utils/events";
 
-export function createPractice(name: string, target: number) {
+export function createPractice(name: string, target: number, defaultAddCount: number = 108) {
 
     const orderResult = practiceRepo.getMaxOrderIndex();
     const nextOrder = (orderResult.maxOrder ?? 0) + 1;
@@ -12,8 +13,11 @@ export function createPractice(name: string, target: number) {
         randomUUID(),
         name,
         target,
-        nextOrder
+        nextOrder,
+        null,
+        defaultAddCount
     );
+    emit();
 }
 
 export function updatePractice(id: string, name: string, target: number, newTotal: number) {
@@ -35,6 +39,7 @@ export function updatePractice(id: string, name: string, target: number, newTota
             0   // does not affect analytics
         );
     }
+    emit();
 }
 
 export function deletePractice(id: string) {
@@ -42,6 +47,7 @@ export function deletePractice(id: string) {
     sessionRepo.deleteSessionsByPractice(id);
     practiceRepo.deletePractice(id);
     db.execSync("COMMIT");
+    emit();
 }
 
 export function getPracticeEditData(id: string) {
@@ -53,7 +59,8 @@ export function getPracticeEditData(id: string) {
     return {
         name: practice.name,
         targetCount: practice.targetCount,
-        total: totalResult.total
+        total: totalResult.total,
+        defaultAddCount: practice.defaultAddCount ?? 108
     };
 }
 
@@ -67,4 +74,9 @@ export function getPractice(id: string) {
 
 export function getAllPractices() {
     return practiceRepo.getAllPractices();
+}
+
+export function updatePracticeDefaultAddCount(id: string, defaultAddCount: number) {
+    practiceRepo.updatePracticeDefaultAddCount(id, defaultAddCount);
+    emit();
 }

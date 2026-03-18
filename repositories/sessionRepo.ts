@@ -86,10 +86,12 @@ export function deleteAllSessions() {
 
 export function getSessionDays() {
     return db.getAllSync(`
-    SELECT DISTINCT
+    SELECT
       date(createdAt/1000,'unixepoch') as day
     FROM sessions
     WHERE COALESCE(affectsAnalytics,1) = 1
+    GROUP BY date(createdAt/1000,'unixepoch')
+    HAVING COALESCE(SUM(count), 0) > 0
     ORDER BY day DESC
   `) as { day: string }[];
 }

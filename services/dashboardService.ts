@@ -8,6 +8,7 @@ type DashboardPracticeRow = {
     total: number;
     today: number;
     imageKey?: string | null;
+    defaultAddCount?: number | null;
 };
 
 export function getDashboardPractices(): DashboardPracticeRow[] {
@@ -21,15 +22,24 @@ export function getCurrentStreak(): number {
     let currentStreak = 0;
 
     const today = new Date();
-    let checkDate = new Date(today);
+    let checkDate = new Date(Date.UTC(
+        today.getUTCFullYear(),
+        today.getUTCMonth(),
+        today.getUTCDate()
+    ));
 
     for (let i = 0; i < rows.length; i++) {
 
-        const rowDate = new Date(rows[i].day);
+        const expectedDay =
+            checkDate.getUTCFullYear() +
+            "-" +
+            String(checkDate.getUTCMonth() + 1).padStart(2, "0") +
+            "-" +
+            String(checkDate.getUTCDate()).padStart(2, "0");
 
-        if (rowDate.toDateString() === checkDate.toDateString()) {
+        if (rows[i].day === expectedDay) {
             currentStreak++;
-            checkDate.setDate(checkDate.getDate() - 1);
+            checkDate.setUTCDate(checkDate.getUTCDate() - 1);
         } else {
             break;
         }
