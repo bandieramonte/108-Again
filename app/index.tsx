@@ -2,7 +2,7 @@ import { subscribe } from "@/utils/events";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import * as Progress from "react-native-progress";
 import { practiceImages } from "../constants/practiceImages";
 import * as dashboardService from "../services/dashboardService";
@@ -32,6 +32,14 @@ export default function Dashboard() {
   const [showQuickAddHint, setShowQuickAddHint] = useState(false);
   const quickAddRefs = useRef<Record<string, View | null>>({});
   const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
+  const previousReachedRef = useRef<Record<string, boolean>>({});
+  const celebrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [celebratingPracticeId, setCelebratingPracticeId] = useState<string | null>(null);
+  const sparkle1 = useRef(new Animated.Value(0)).current;
+  const sparkle2 = useRef(new Animated.Value(0)).current;
+  const sparkle3 = useRef(new Animated.Value(0)).current;
+  const celebrationFade = useRef(new Animated.Value(1)).current;
+  const sparkleAnimationsRef = useRef<Animated.CompositeAnimation[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -40,6 +48,17 @@ export default function Dashboard() {
 
     }, [])
   );
+
+  useEffect(() => {
+    return () => {
+      if (celebrationTimeoutRef.current) {
+        clearTimeout(celebrationTimeoutRef.current);
+      }
+
+      sparkleAnimationsRef.current.forEach(animation => animation.stop());
+      sparkleAnimationsRef.current = [];
+    };
+  }, []);
 
   useEffect(() => {
 
@@ -81,8 +100,92 @@ export default function Dashboard() {
     });
   }
 
+  function isReached(practice: Practice) {
+    return practice.total >= practice.targetCount;
+  }
+
+  function startCelebration(practiceId: string) {
+    if (celebrationTimeoutRef.current) {
+      clearTimeout(celebrationTimeoutRef.current);
+    }
+
+    sparkleAnimationsRef.current.forEach(animation => animation.stop());
+    sparkleAnimationsRef.current = [];
+
+    setCelebratingPracticeId(practiceId);
+
+    celebrationFade.setValue(1);
+    sparkle1.setValue(0);
+    sparkle2.setValue(0);
+    sparkle3.setValue(0);
+
+    const makeSparkle = (value: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(value, {
+            toValue: 1,
+            duration: 900,
+            useNativeDriver: true,
+          }),
+          Animated.timing(value, {
+            toValue: 0,
+            duration: 900,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+
+    const a1 = makeSparkle(sparkle1, 0);
+    const a2 = makeSparkle(sparkle2, 180);
+    const a3 = makeSparkle(sparkle3, 360);
+
+    sparkleAnimationsRef.current = [a1, a2, a3];
+
+    a1.start();
+    a2.start();
+    a3.start();
+
+    celebrationTimeoutRef.current = setTimeout(() => {
+      Animated.timing(celebrationFade, {
+        toValue: 0,
+        duration: 2000,
+        useNativeDriver: true,
+      }).start(() => {
+        sparkleAnimationsRef.current.forEach(animation => animation.stop());
+        sparkleAnimationsRef.current = [];
+        setCelebratingPracticeId(null);
+
+        setTimeout(() => {
+          celebrationFade.setValue(1);
+          sparkle1.setValue(0);
+          sparkle2.setValue(0);
+          sparkle3.setValue(0);
+        }, 0);
+      });
+    }, 3000);
+  }
+
+  function maybeTriggerReachedCelebration(rows: Practice[]) {
+    const nextReachedMap: Record<string, boolean> = {};
+
+    for (const practice of rows) {
+      const reachedNow = isReached(practice);
+      const reachedBefore = previousReachedRef.current[practice.id] ?? false;
+
+      nextReachedMap[practice.id] = reachedNow;
+
+      if (reachedNow && !reachedBefore) {
+        startCelebration(practice.id);
+      }
+    }
+
+    previousReachedRef.current = nextReachedMap;
+  }
+
   function refreshDashboard() {
     const rows = dashboardService.getDashboardPractices();
+    maybeTriggerReachedCelebration(rows);
     setPractices(rows);
     setStreak(dashboardService.getCurrentStreak());
   }
@@ -153,6 +256,44 @@ export default function Dashboard() {
     });
   }
 
+  function renderCelebrationOverlay() {
+    const sparkleStyle = (value: Animated.Value, translateX: number, translateY: number) => ({
+      opacity: value.interpolate({
+        inputRange: [0, 0.2, 0.8, 1],
+        outputRange: [0, 1, 1, 0],
+      }),
+      transform: [
+        { translateX },
+        {
+          translateY: value.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, translateY],
+          }),
+        },
+        {
+          scale: value.interpolate({
+            inputRange: [0, 0.5, 1],
+            outputRange: [0.6, 1.1, 0.8],
+          }),
+        },
+      ],
+    });
+
+    return (
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.celebrationOverlay,
+          { opacity: celebrationFade }
+        ]}
+      >
+        <Animated.Text style={[styles.sparkle, sparkleStyle(sparkle1, 12, -18)]}>✦</Animated.Text>
+        <Animated.Text style={[styles.sparkle, sparkleStyle(sparkle2, 48, -34)]}>✦</Animated.Text>
+        <Animated.Text style={[styles.sparkle, sparkleStyle(sparkle3, 84, -22)]}>✦</Animated.Text>
+      </Animated.View>
+    );
+  }
+
   return (
 
     <ScrollView style={styles.container}>
@@ -163,15 +304,13 @@ export default function Dashboard() {
 
       {practices.map((practice) => {
 
-        const cycleSize = practice.targetCount;
-        const completedCycles = Math.floor(practice.total / cycleSize);
-        const currentCycleProgress = (practice.total % cycleSize) / cycleSize;
+        const currentCycleProgress = practice.total > practice.targetCount ? 1 : (practice.total % practice.targetCount) / practice.targetCount;
         const expectedTargetDate = getExpectedTargetDate(practice);
 
         return (
 
           <View key={practice.id} style={styles.card}>
-
+            {celebratingPracticeId === practice.id && renderCelebrationOverlay()}
             <TouchableOpacity
               onPress={() =>
                 router.push({
@@ -211,9 +350,28 @@ export default function Dashboard() {
                     Today: {practice.today}
                   </Text>
 
-                  <Text style={{ fontSize: 12, color: "#666", marginTop: 2 }}>
-                    Target date: {expectedTargetDate ?? "No estimate"}
-                  </Text>
+                  <View style={styles.targetDateRow}>
+                    <Text
+                      style={
+                        !!practice.imageKey
+                          ? { fontSize: 12, color: "#666", marginTop: 2 }
+                          : { fontSize: 12, color: "#666", marginTop: 2, marginBottom: 10 }
+                      }
+                    >
+                      Target date: {expectedTargetDate ?? "No estimate"}
+                    </Text>
+
+                    {expectedTargetDate === "Reached" && celebratingPracticeId === practice.id && (
+                      <Animated.Text
+                        style={[
+                          styles.congratsText,
+                          { opacity: celebrationFade }
+                        ]}
+                      >
+                        Congratulations!!
+                      </Animated.Text>
+                    )}
+                  </View>
                 </View>
               </View>
 
@@ -341,6 +499,7 @@ const styles = StyleSheet.create({
 
   card: {
     marginBottom: 25,
+    position: "relative",
   },
 
   practiceName: {
@@ -474,6 +633,37 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 13,
     textAlign: "center",
+  },
+
+  targetDateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+
+  congratsText: {
+    fontSize: 12,
+    color: "#7c3aed",
+    fontWeight: "700",
+    marginTop: 2,
+  },
+
+  celebrationOverlay: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    bottom: 8,
+    left: 8,
+    pointerEvents: "none",
+    zIndex: 20,
+  },
+
+  sparkle: {
+    position: "absolute",
+    fontSize: 16,
+    color: "#a78bfa",
+    fontWeight: "700",
   },
 
 });
