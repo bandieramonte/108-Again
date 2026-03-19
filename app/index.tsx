@@ -204,7 +204,7 @@ export default function Dashboard() {
                   />
 
                   <Text style={styles.countText}>
-                    {practice.total + ' ' + (!!cycleSize ? '/ ' + cycleSize * (completedCycles + 1) : '')}
+                    {practice.total + ' ' + (!!practice.targetCount ? '/ ' + practice.targetCount : '')}
                   </Text>
 
                   <Text style={{ fontSize: 12, color: "#666" }}>

@@ -1,7 +1,9 @@
+import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Localization from "expo-localization";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { Alert, Button, Dimensions, FlatList, Image, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, Animated, Button, Dimensions, FlatList, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import Svg, { Line, Rect, Text as SvgText } from "react-native-svg";
 import { practiceImages } from "../../constants/practiceImages";
 import * as practiceService from "../../services/practiceService";
@@ -30,6 +32,11 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     const [ratio, setRatio] = useState(1);
     const { width } = useWindowDimensions();
     const [defaultAddCount, setDefaultAddCount] = useState("");
+    const [menuOpen, setMenuOpen] = useState(false);
+    const rotateAnim = useRef(new Animated.Value(0)).current;
+    const titleRowRef = useRef<View | null>(null);
+    const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+    const [showTableTooltip, setShowTableTooltip] = useState(false);
 
     useEffect(() => {
         if (imageKey && practiceImages[imageKey]) {
@@ -42,12 +49,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     }, [imageKey]);
 
     useEffect(() => {
-        const practice = practiceService.getPractice(practiceId);
-        setDefaultAddCount(String(practice.defaultAddCount ?? 108));
-        if (practice) {
-            setPracticeName(practice.name);
-            setImageKey(practice.imageKey ?? null);
-        }
+        loadPracticeData();
 
         const timeout = setTimeout(() => {
             loadSessions();
@@ -61,6 +63,46 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     useEffect(() => {
         loadSessions();
     }, []);
+
+    useEffect(() => {
+        let showTimeout: ReturnType<typeof setTimeout> | null = null;
+        let hideTimeout: ReturnType<typeof setTimeout> | null = null;
+
+        async function maybeShowTableTooltip() {
+            if (viewMode !== "table") return;
+
+            const seen = await AsyncStorage.getItem("practiceTableTooltipSeen");
+            if (seen) return;
+
+            showTimeout = setTimeout(async () => {
+                setShowTableTooltip(true);
+                await AsyncStorage.setItem("practiceTableTooltipSeen", "true");
+
+                hideTimeout = setTimeout(() => {
+                    setShowTableTooltip(false);
+                }, 5000);
+            }, 500);
+        }
+
+        maybeShowTableTooltip();
+
+        if (viewMode !== "table") {
+            setShowTableTooltip(false);
+        }
+
+        return () => {
+            if (showTimeout) clearTimeout(showTimeout);
+            if (hideTimeout) clearTimeout(hideTimeout);
+        };
+    }, [viewMode]);
+
+    useFocusEffect(
+        useCallback(() => {
+            loadPracticeData();
+            loadSessions();
+            loadDailyData(rangeDays);
+        }, [practiceId, rangeDays, viewMode])
+    );
 
     function loadSessions() {
 
@@ -77,7 +119,18 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         loadDailyData(rangeDays);
     }
 
+    function loadPracticeData() {
+        const practice = practiceService.getPractice(practiceId);
+
+        if (practice) {
+            setPracticeName(practice.name);
+            setImageKey(practice.imageKey ?? null);
+            setDefaultAddCount(String(practice.defaultAddCount ?? 108));
+        }
+    }
+
     function confirmDelete() {
+        closeMenu();
 
         Alert.alert(
             "Delete practice?",
@@ -91,7 +144,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                 }
             ]
         );
-
     }
 
     function deletePractice() {
@@ -349,27 +401,53 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         );
     }
 
-    function saveDefaultAddCount() {
-        const value = Number(defaultAddCount);
+    function openEditPractice() {
+        setMenuOpen(false);
 
-        if (!Number.isFinite(value)) {
-            alert("Please enter a valid number");
-            return;
-        }
-
-        if (!Number.isInteger(value)) {
-            alert("Please enter a whole number");
-            return;
-        }
-
-        if (value <= 0) {
-            alert("Value must be greater than zero");
-            return;
-        }
-
-        practiceService.updatePracticeDefaultAddCount(practiceId, value);
-        setDefaultAddCount(String(value));
+        router.push({
+            pathname: "/edit-practice",
+            params: {
+                id: practiceId,
+                practiceName
+            }
+        });
     }
+
+    function toggleMenu() {
+        if (menuOpen) {
+            closeMenu();
+            return;
+        }
+
+        const target = titleRowRef.current;
+        if (!target) return;
+
+        (target as any).measureInWindow((x: number, y: number, width: number, height: number) => {
+            setMenuAnchor({ x, y, width, height });
+            setMenuOpen(true);
+
+            Animated.timing(rotateAnim, {
+                toValue: 1,
+                duration: 180,
+                useNativeDriver: true,
+            }).start();
+        });
+    }
+
+    function closeMenu() {
+        setMenuOpen(false);
+
+        Animated.timing(rotateAnim, {
+            toValue: 0,
+            duration: 180,
+            useNativeDriver: true,
+        }).start();
+    }
+
+    const chevronRotation = rotateAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["0deg", "180deg"],
+    });
 
     return (
 
@@ -379,51 +457,45 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                 paddingBottom: 40,
                 alignItems: "stretch"
             }}
+            keyboardShouldPersistTaps="handled"
         >
-            <Text style={styles.title}>
-                {practiceName}
-            </Text>
+            <Pressable onPress={menuOpen ? closeMenu : undefined}>
 
+                <View style={styles.titleMenuWrapper}>
+                    <Pressable
+                        ref={titleRowRef}
+                        style={styles.titleRow}
+                        onPress={toggleMenu}
+                    >
+                        <Text style={styles.title}>
+                            {practiceName}
+                        </Text>
+
+                        <Animated.View style={{ transform: [{ rotate: chevronRotation }] }}>
+                            <MaterialIcons name="keyboard-arrow-down" size={28} color="#333" />
+                        </Animated.View>
+                    </Pressable>
+                </View>
+            </Pressable>
             {imageKey && practiceImages[imageKey] && (
-                <Image
-                    source={practiceImages[imageKey]}
-                    style={{
-                        width: width,
-                        alignSelf: "center",
-                        marginBottom: 15
-                    }}
-                    resizeMode="contain"
-                />
+                <View style={styles.imageWrapper}>
+                    <Image
+                        source={practiceImages[imageKey]}
+                        style={{
+                            width: width,
+                            alignSelf: "center",
+                            marginBottom: 15
+                        }}
+                        resizeMode="contain"
+                    />
+                </View>
             )}
 
-            <View style={{ paddingHorizontal: 20 }}>
+            <View style={styles.contentBlock}>
 
                 <Text style={styles.total}>
                     Total: {total}
                 </Text>
-
-                <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
-
-                    <Button
-                        title="Edit"
-                        onPress={() =>
-                            router.push({
-                                pathname: "/edit-practice",
-                                params: {
-                                    id: practiceId,
-                                    practiceName
-                                }
-                            })
-                        }
-                    />
-
-                    <Button
-                        title="Delete"
-                        color="red"
-                        onPress={confirmDelete}
-                    />
-
-                </View>
 
                 <View style={styles.addSection}>
 
@@ -455,19 +527,32 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                 <Text style={styles.total}>
                     Practice History
                 </Text>
-                <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
+                <View style={{ flexDirection: "row", gap: 10, zIndex: 100 }}>
+                    <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
 
-                    <Button
-                        title="Chart"
-                        onPress={() => setViewMode("chart")}
-                    />
+                        <Button
+                            title="Chart"
+                            onPress={() => setViewMode("chart")}
+                        />
 
-                    <Button
-                        title="Table"
-                        onPress={() => setViewMode("table")}
-                    />
+                        <Button
+                            title="Table"
+                            onPress={() => setViewMode("table")}
+                        />
+
+                    </View>
+                    <View style={{ position: "relative", width: "100%" }}>
+                        {showTableTooltip && (
+                            <View style={styles.tableTooltip}>
+                                <Text style={styles.tableTooltipText}>
+                                    Tip: You can edit any day’s total by tapping on its count.
+                                </Text>
+                            </View>
+                        )}
+                    </View>
 
                 </View>
+
 
                 <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
                     <Button title="10d" onPress={() => { setRangeDays(10); loadDailyData(10); }} />
@@ -487,6 +572,43 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                     )
                 }
             </View>
+
+            <Modal
+                visible={menuOpen}
+                transparent
+                animationType="fade"
+                onRequestClose={closeMenu}
+            >
+                <Pressable style={styles.menuOverlay} onPress={closeMenu}>
+                    {menuAnchor && (
+                        <View
+                            style={[
+                                styles.dropdownMenuModal,
+                                {
+                                    top: menuAnchor.y + menuAnchor.height + 8,
+                                    left: Math.max(20, menuAnchor.x + menuAnchor.width / 2 - 110),
+                                }
+                            ]}
+                        >
+                            <Pressable
+                                style={styles.dropdownItem}
+                                onPress={openEditPractice}
+                            >
+                                <MaterialIcons name="edit" size={18} color="#333" />
+                                <Text style={styles.dropdownText}>Edit practice</Text>
+                            </Pressable>
+
+                            <Pressable
+                                style={styles.dropdownItem}
+                                onPress={confirmDelete}
+                            >
+                                <MaterialIcons name="delete-outline" size={18} color="#c62828" />
+                                <Text style={styles.dropdownDeleteText}>Delete practice</Text>
+                            </Pressable>
+                        </View>
+                    )}
+                </Pressable>
+            </Modal>
         </ScrollView>
     );
 }
@@ -506,7 +628,6 @@ const styles = StyleSheet.create({
         fontSize: 24,
         fontWeight: "bold",
         textAlign: "center",
-        marginBottom: 12
     },
 
     total: {
@@ -549,5 +670,84 @@ const styles = StyleSheet.create({
         textAlign: "right",
         paddingVertical: 2
     },
+
+    titleMenuWrapper: {
+        paddingHorizontal: 20,
+    },
+
+    titleRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 4,
+        alignSelf: "center",
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 999,
+        backgroundColor: "#f3f4f6",
+    },
+
+    menuOverlay: {
+        flex: 1,
+    },
+
+    dropdownMenuModal: {
+        position: "absolute",
+        width: 220,
+        backgroundColor: "white",
+        borderRadius: 10,
+        paddingVertical: 6,
+        shadowColor: "#000",
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 8,
+    },
+
+    dropdownItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+    },
+
+    dropdownText: {
+        fontSize: 15,
+        color: "#333",
+    },
+
+    dropdownDeleteText: {
+        fontSize: 15,
+        color: "#c62828",
+    },
+
+    imageWrapper: {
+        zIndex: 1,
+        elevation: 1,
+    },
+
+    contentBlock: {
+        paddingHorizontal: 20,
+        zIndex: 1,
+        elevation: 1,
+    },
+
+    tableTooltip: {
+        alignSelf: "flex-start",
+        backgroundColor: "#111",
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        borderRadius: 8,
+        marginBottom: 16,
+        maxWidth: 280,
+        position: "absolute",
+        width: 180
+    },
+
+    tableTooltipText: {
+        color: "white",
+        fontSize: 13,
+    }
 
 });

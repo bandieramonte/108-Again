@@ -72,7 +72,7 @@ export default function EditPractice() {
                 style={styles.input}
             />
 
-            <Text>Repetitions per sessions</Text>
+            <Text>Repetitions per session</Text>
             <TextInput
                 value={defaultAdd}
                 onChangeText={setDefaultAdd}
