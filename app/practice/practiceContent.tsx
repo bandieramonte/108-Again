@@ -9,6 +9,7 @@ import { practiceImages } from "../../constants/practiceImages";
 import { useReachedCelebration } from "../../hooks/useReachedCelebration";
 import * as practiceService from "../../services/practiceService";
 import * as sessionService from "../../services/sessionService";
+import { subscribeData } from "../../utils/events";
 
 type Session = {
     id: string;
@@ -47,6 +48,8 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         updateReachedState,
         isCelebrating,
     } = useReachedCelebration();
+    const practiceRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     useEffect(() => {
         if (imageKey && practiceImages[imageKey]) {
             const source = Image.resolveAssetSource(practiceImages[imageKey]);
@@ -58,14 +61,21 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     }, [imageKey]);
 
     useEffect(() => {
-        loadPracticeData();
+        schedulePracticeRefresh();
 
-        const timeout = setTimeout(() => {
-            loadDailyData(rangeDays);
-        }, 0);
+        return () => {
+            if (practiceRefreshTimeoutRef.current) {
+                clearTimeout(practiceRefreshTimeoutRef.current);
+            }
+        };
+    }, [practiceId, rangeDays, viewMode]);
 
-        return () => clearTimeout(timeout);
+    useEffect(() => {
+        const unsubscribe = subscribeData(() => {
+            schedulePracticeRefresh();
+        });
 
+        return unsubscribe;
     }, [practiceId, rangeDays, viewMode]);
 
     useEffect(() => {
@@ -102,16 +112,29 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
 
     useFocusEffect(
         useCallback(() => {
-            loadPracticeData();
-            loadDailyData(rangeDays);
+            schedulePracticeRefresh();
         }, [practiceId, rangeDays, viewMode])
     );
+
+    function schedulePracticeRefresh() {
+        if (practiceRefreshTimeoutRef.current) {
+            clearTimeout(practiceRefreshTimeoutRef.current);
+        }
+
+        practiceRefreshTimeoutRef.current = setTimeout(() => {
+            practiceRefreshTimeoutRef.current = null;
+            loadPracticeData();
+            loadDailyData(rangeDays);
+        }, 0);
+    }
 
     function loadSessions(overrideTargetCount?: number) {
         const rows = sessionService.getSessionsForPractice(practiceId) as Session[];
         setSessions(rows);
 
-        const nextTotal = rows.reduce((sum, s) => sum + s.count, 0);
+        const totalResult = sessionService.getPracticeTotal(practiceId);
+        const nextTotal = totalResult.total;
+
         setTotal(nextTotal);
 
         const effectiveTargetCount = overrideTargetCount ?? targetCount;
@@ -127,8 +150,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
 
     function addSession(count: number) {
         sessionService.addSession(practiceId, count);
-        loadSessions();
-        loadDailyData(rangeDays);
     }
 
     function loadPracticeData() {
@@ -371,9 +392,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
             return;
         }
         sessionService.adjustDayTotal(practiceId, date, newValue);
-
-        loadSessions();
-        loadDailyData(rangeDays);
     }
 
     function renderTable() {
@@ -583,6 +601,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                         value={customValue}
                         onChangeText={setCustomValue}
                         style={styles.input}
+                        placeholderTextColor="#999"
                     />
 
                     <Button
@@ -623,22 +642,17 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
 
 
                 <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
-                    <Button title="10d" onPress={() => { setRangeDays(10); loadDailyData(10); }} />
-                    <Button title="30d" onPress={() => { setRangeDays(30); loadDailyData(30); }} />
-                    <Button title="90d" onPress={() => { setRangeDays(90); loadDailyData(90); }} />
+                    <Button title="10d" onPress={() => { setRangeDays(10); }} />
+                    <Button title="30d" onPress={() => { setRangeDays(30); }} />
+                    <Button title="90d" onPress={() => { setRangeDays(90); }} />
                 </View>
 
-                {dailyData.every(d => d.total === 0)
-                    ? <Text>No practice recorded in this period.</Text>
-                    : (
-                        <View key={dailyData.length}>
-                            {viewMode === "chart"
-                                ? renderChart()
-                                : renderTable()
-                            }
-                        </View>
-                    )
-                }
+                <View key={dailyData.length}>
+                    {viewMode === "chart"
+                        ? renderChart()
+                        : renderTable()
+                    }
+                </View>
             </View>
 
             <Modal
@@ -727,7 +741,8 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: "#ccc",
         padding: 8,
-        marginBottom: 10
+        marginBottom: 10,
+        color: "black"
     },
 
     editableCell: {
@@ -735,7 +750,8 @@ const styles = StyleSheet.create({
         borderColor: "#aaa",
         minWidth: 60,
         textAlign: "right",
-        paddingVertical: 2
+        paddingVertical: 2,
+        color: "black"
     },
 
     titleMenuWrapper: {

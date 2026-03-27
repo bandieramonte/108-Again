@@ -1,5 +1,5 @@
 import { getBackupData, restoreBackupData } from "@/services/backupService";
-import { emit } from "@/utils/events";
+import { emitDataChanged } from "@/utils/events";
 import * as DocumentPicker from "expo-document-picker";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
@@ -45,7 +45,7 @@ export async function importBackup(onComplete?: () => void) {
 
         alert("Backup restored successfully");
 
-        emit();
+        emitDataChanged();
     }
 
     Alert.alert(

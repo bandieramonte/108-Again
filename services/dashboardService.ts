@@ -12,7 +12,16 @@ type DashboardPracticeRow = {
 };
 
 export function getDashboardPractices(): DashboardPracticeRow[] {
-    return dashboardRepo.getDashboardPracticeRows();
+    const rows = dashboardRepo.getDashboardPracticeRows();
+
+    return rows.map(row => {
+        const totalResult = sessionRepo.getPracticeTotal(row.id);
+
+        return {
+            ...row,
+            total: totalResult.total
+        };
+    });
 }
 
 export function getCurrentStreak(): number {
@@ -22,24 +31,37 @@ export function getCurrentStreak(): number {
     let currentStreak = 0;
 
     const today = new Date();
-    let checkDate = new Date(Date.UTC(
-        today.getUTCFullYear(),
-        today.getUTCMonth(),
-        today.getUTCDate()
-    ));
+
+    let checkDate = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate()
+    );
+
+    const todayString =
+        checkDate.getFullYear() +
+        "-" +
+        String(checkDate.getMonth() + 1).padStart(2, "0") +
+        "-" +
+        String(checkDate.getDate()).padStart(2, "0");
+
+    // If no practice today, start from yesterday
+    if (rows.length === 0 || rows[0].day !== todayString) {
+        checkDate.setDate(checkDate.getDate() - 1);
+    }
 
     for (let i = 0; i < rows.length; i++) {
 
         const expectedDay =
-            checkDate.getUTCFullYear() +
+            checkDate.getFullYear() +
             "-" +
-            String(checkDate.getUTCMonth() + 1).padStart(2, "0") +
+            String(checkDate.getMonth() + 1).padStart(2, "0") +
             "-" +
-            String(checkDate.getUTCDate()).padStart(2, "0");
+            String(checkDate.getDate()).padStart(2, "0");
 
         if (rows[i].day === expectedDay) {
             currentStreak++;
-            checkDate.setUTCDate(checkDate.getUTCDate() - 1);
+            checkDate.setDate(checkDate.getDate() - 1);
         } else {
             break;
         }

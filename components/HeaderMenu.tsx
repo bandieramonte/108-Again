@@ -7,46 +7,133 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View
+    View,
 } from "react-native";
 
 type Props = {
     onExport: () => void;
     onImport: () => void;
     onRestoreDefaults: () => void;
+    isAuthenticated: boolean;
+    firstName: string | null;
+    onSignOut: () => void;
 };
 
-export default function HeaderMenu({ onExport, onImport, onRestoreDefaults }: Props) {
-
+export default function HeaderMenu({
+    onExport,
+    onImport,
+    onRestoreDefaults,
+    isAuthenticated,
+    onSignOut,
+}: Props) {
     const router = useRouter();
-    const [open, setOpen] = useState(false);
+    const [moreOpen, setMoreOpen] = useState(false);
+    const [accountOpen, setAccountOpen] = useState(false);
 
     return (
-        <View style={{ marginRight: 10 }}>
+        <View style={styles.container}>
+            <Pressable
+                onPress={() => {
+                    if (isAuthenticated) {
+                        router.push("/account");
+                    } else {
+                        setAccountOpen(true);
+                    }
+                }}
+                hitSlop={10}
+                style={({ pressed }) => [
+                    styles.iconButton,
+                    pressed && { opacity: 0.5 }
+                ]}
+            >
+                <MaterialIcons name="account-circle" size={24} />
+            </Pressable>
 
-            <Pressable onPress={() => setOpen(true)}>
+            <Pressable
+                onPress={() => setMoreOpen(true)}
+                hitSlop={10}
+                style={styles.iconButton}
+            >
                 <MaterialIcons name="more-vert" size={24} />
             </Pressable>
 
             <Modal
-                visible={open}
+                visible={accountOpen}
                 transparent
                 animationType="fade"
-                onRequestClose={() => setOpen(false)}
+                onRequestClose={() => setAccountOpen(false)}
             >
-
                 <TouchableOpacity
                     style={styles.overlay}
                     activeOpacity={1}
-                    onPress={() => setOpen(false)}
+                    onPress={() => setAccountOpen(false)}
                 >
-
                     <View style={styles.menu}>
+                        {isAuthenticated ? (
+                            <>
+                                <Pressable
+                                    style={styles.item}
+                                    onPress={() => {
+                                        setAccountOpen(false);
+                                        router.push("/account");
+                                    }}
+                                >
+                                    <Text>Account</Text>
+                                </Pressable>
 
+                                <Pressable
+                                    style={styles.item}
+                                    onPress={() => {
+                                        setAccountOpen(false);
+                                        onSignOut();
+                                    }}
+                                >
+                                    <Text>Sign Out</Text>
+                                </Pressable>
+                            </>
+                        ) : (
+                            <>
+                                <Pressable
+                                    style={styles.item}
+                                    onPress={() => {
+                                        setAccountOpen(false);
+                                        router.push("/sign-in");
+                                    }}
+                                >
+                                    <Text>Sign In</Text>
+                                </Pressable>
+
+                                <Pressable
+                                    style={styles.item}
+                                    onPress={() => {
+                                        setAccountOpen(false);
+                                        router.push("/sign-up");
+                                    }}
+                                >
+                                    <Text>Sign Up</Text>
+                                </Pressable>
+                            </>
+                        )}
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+
+            <Modal
+                visible={moreOpen}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setMoreOpen(false)}
+            >
+                <TouchableOpacity
+                    style={styles.overlay}
+                    activeOpacity={1}
+                    onPress={() => setMoreOpen(false)}
+                >
+                    <View style={styles.menu}>
                         <Pressable
                             style={styles.item}
                             onPress={() => {
-                                setOpen(false);
+                                setMoreOpen(false);
                                 router.push("/add-practice");
                             }}
                         >
@@ -56,7 +143,7 @@ export default function HeaderMenu({ onExport, onImport, onRestoreDefaults }: Pr
                         <Pressable
                             style={styles.item}
                             onPress={() => {
-                                setOpen(false);
+                                setMoreOpen(false);
                                 onExport();
                             }}
                         >
@@ -66,7 +153,7 @@ export default function HeaderMenu({ onExport, onImport, onRestoreDefaults }: Pr
                         <Pressable
                             style={styles.item}
                             onPress={() => {
-                                setOpen(false);
+                                setMoreOpen(false);
                                 onImport();
                             }}
                         >
@@ -76,24 +163,29 @@ export default function HeaderMenu({ onExport, onImport, onRestoreDefaults }: Pr
                         <Pressable
                             style={styles.item}
                             onPress={() => {
-                                setOpen(false);
+                                setMoreOpen(false);
                                 onRestoreDefaults();
                             }}
                         >
                             <Text style={styles.destructiveText}>Restore Defaults</Text>
                         </Pressable>
-
                     </View>
-
                 </TouchableOpacity>
-
             </Modal>
-
         </View>
     );
 }
 
 const styles = StyleSheet.create({
+    container: {
+        marginRight: 10,
+        flexDirection: "row",
+        alignItems: "center",
+    },
+
+    iconButton: {
+        paddingLeft: 8,
+    },
 
     overlay: {
         flex: 1,
@@ -101,25 +193,24 @@ const styles = StyleSheet.create({
         alignItems: "flex-end",
         paddingTop: 55,
         paddingRight: 6,
-        backgroundColor: "rgba(0,0,0,0.1)"
+        backgroundColor: "rgba(0,0,0,0.1)",
     },
 
     menu: {
         backgroundColor: "white",
         borderRadius: 6,
         paddingVertical: 10,
-        width: 180,
+        width: 190,
         elevation: 5,
-        marginTop: 4
+        marginTop: 4,
     },
 
     item: {
         paddingVertical: 10,
-        paddingHorizontal: 15
+        paddingHorizontal: 15,
     },
 
     destructiveText: {
-        color: "#c62828"
-    }
-
+        color: "#c62828",
+    },
 });

@@ -18,12 +18,10 @@ export function getDashboardPracticeRows(): DashboardPracticeRow[] {
     p.name,
     p.targetCount,
     MAX(p.imageKey) as imageKey,
-
-    COALESCE(SUM(s.count),0) as total,
-
+    0 as total,
     COALESCE(SUM(
       CASE
-        WHEN s.isAdjustment = 0
+        WHEN (s.isAdjustment = 0 OR s.affectsAnalytics = 1)
         AND date(s.createdAt/1000,'unixepoch') = date('now')
         THEN s.count
         ELSE 0

@@ -1,4 +1,4 @@
-import { subscribe } from "@/utils/events";
+import { subscribeData } from "@/utils/events";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -41,25 +41,25 @@ export default function Dashboard() {
     updateReachedState,
     isCelebrating,
   } = useReachedCelebration();
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useFocusEffect(
     useCallback(() => {
-
-      refreshDashboard();
-
+      scheduleDashboardRefresh();
     }, [])
   );
 
   useEffect(() => {
+    const unsubscribe = subscribeData(() => {
+      scheduleDashboardRefresh();
+    });
 
-    const refresh = () => {
-      refreshDashboard();
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+      unsubscribe();
     };
-
-    const unsubscribe = subscribe(refresh);
-
-    return unsubscribe;
-
   }, []);
 
   async function maybeShowQuickAddHint(practiceId: string) {
@@ -90,6 +90,17 @@ export default function Dashboard() {
     });
   }
 
+  function scheduleDashboardRefresh() {
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+    }
+
+    refreshTimeoutRef.current = setTimeout(() => {
+      refreshTimeoutRef.current = null;
+      refreshDashboard();
+    }, 0);
+  }
+
   function refreshDashboard() {
     const rows = dashboardService.getDashboardPractices();
     updateReachedState(
@@ -105,7 +116,6 @@ export default function Dashboard() {
 
   async function quickAdd(practiceId: string, count: number) {
     sessionService.addSession(practiceId, count);
-    refreshDashboard();
     await maybeShowQuickAddHint(practiceId);
   }
 
@@ -141,7 +151,6 @@ export default function Dashboard() {
     setSelectedPracticeId(null);
     setSelectedPracticeName("");
     setDefaultAddInput("");
-    refreshDashboard();
   }
 
   function getExpectedTargetDate(practice: Practice) {

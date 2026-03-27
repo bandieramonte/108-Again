@@ -2,11 +2,15 @@ import { db, initializeDatabase } from "../database/db";
 import { seedPractices } from "../database/seed";
 import * as practiceRepo from "../repositories/practiceRepo";
 import * as sessionRepo from "../repositories/sessionRepo";
-import { emit } from "../utils/events";
+import * as authService from "../services/authService";
+import { emitDataChanged } from "../utils/events";
+import { initializeNetworkListener } from "./networkService";
+import { initializeSyncRetry } from "./syncService";
 
-export function initializeApp() {
-
+export async function initializeApp() {
     initializeDatabase();
+    initializeNetworkListener();
+    initializeSyncRetry();
 
     const existing = db.getAllSync(
         `SELECT COUNT(*) as count FROM practices`
@@ -16,6 +20,7 @@ export function initializeApp() {
         seedPractices();
     }
 
+    await authService.initializeAuth();
 }
 
 export function restoreDefaults() {
@@ -27,7 +32,7 @@ export function restoreDefaults() {
         seedPractices();
 
         db.execSync("COMMIT");
-        emit();
+        emitDataChanged();
     } catch (error) {
         db.execSync("ROLLBACK");
         throw error;

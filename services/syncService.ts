@@ -1,0 +1,387 @@
+import { supabase } from "@/lib/supabase";
+import * as deletedRecordRepo from "@/repositories/deletedRecordRepo";
+import * as practiceRepo from "@/repositories/practiceRepo";
+import * as sessionRepo from "@/repositories/sessionRepo";
+import { emitDataChanged, emitSyncChanged } from "@/utils/events";
+import { getIsOnline, subscribeOnline } from "./networkService";
+
+export type SyncState =
+    | "idle"
+    | "syncing"
+    | "success"
+    | "error"
+    | "offline";
+
+let syncState: SyncState = "idle";
+let syncInFlight: Promise<void> | null = null;
+let scheduledSyncTimeout: ReturnType<typeof setTimeout> | null = null;
+let scheduledUserId: string | null = null;
+
+function setSyncState(next: SyncState) {
+    syncState = next;
+    emitSyncChanged();
+}
+
+export function getSyncState(): SyncState {
+    return syncState;
+}
+
+export async function claimAnonymousLocalDataIfNeeded(userId: string | null) {
+    if (!userId) return;
+
+    const now = Date.now();
+
+    practiceRepo.backfillLegacyPracticesForUser(userId, now);
+    sessionRepo.backfillLegacySessionsForUser(userId, now);
+}
+
+async function pushPendingPractices(userId: string) {
+    const rows = practiceRepo.getDirtyPractices(userId);
+
+    if (rows.length === 0) return;
+
+    const payload = rows.map((row) => ({
+        id: row.id,
+        user_id: userId,
+        name: row.name,
+        target_count: row.targetCount,
+        order_index: row.orderIndex,
+        image_key: row.imageKey ?? null,
+        default_add_count: row.defaultAddCount ?? 108,
+        updated_at: new Date(row.updatedAt ?? Date.now()).toISOString(),
+        deleted_at: null,
+    }));
+
+    const { error } = await supabase
+        .from("practices")
+        .upsert(payload, { onConflict: "id" });
+
+    if (error) {
+        throw error;
+    }
+
+    const syncedAt = Date.now();
+
+    for (const row of rows) {
+        practiceRepo.markPracticeSynced(row.id, syncedAt);
+    }
+}
+
+async function pushPendingSessions(userId: string) {
+    const rows = sessionRepo.getDirtySessions(userId);
+
+    if (rows.length === 0) return;
+
+    const payload = rows.map((row) => ({
+        id: row.id,
+        user_id: userId,
+        practice_id: row.practiceId,
+        count: row.count,
+        created_at: new Date(row.createdAt).toISOString(),
+        is_adjustment: !!row.isAdjustment,
+        affects_analytics: !!row.affectsAnalytics,
+        updated_at: new Date(row.updatedAt ?? Date.now()).toISOString(),
+        deleted_at: null,
+    }));
+
+    const { error } = await supabase
+        .from("sessions")
+        .upsert(payload, { onConflict: "id" });
+
+    if (error) {
+        throw error;
+    }
+
+    const syncedAt = Date.now();
+
+    for (const row of rows) {
+        sessionRepo.markSessionSynced(row.id, syncedAt);
+    }
+}
+
+async function pushPendingDeletions(userId: string) {
+    const rows = deletedRecordRepo.getPendingDeletedRecords(userId);
+    for (const row of rows) {
+        const tableName =
+            row.entityType === "practice" ? "practices" : "sessions";
+
+        let payload: any = {
+            id: row.recordId,
+            user_id: userId,
+            updated_at: new Date(row.deletedAt).toISOString(),
+            deleted_at: new Date(row.deletedAt).toISOString(),
+        };
+
+        try {
+            // -------------------------
+            // SESSION DELETION
+            // -------------------------
+            if (row.entityType === "session") {
+                if (!row.payload) {
+                    console.error("Missing payload for session deletion", row);
+                    continue;
+                }
+
+                const parsed = JSON.parse(row.payload);
+
+                if (!parsed.practiceId || !parsed.createdAt) {
+                    console.error("Invalid session payload", parsed);
+                    continue;
+                }
+
+                payload = {
+                    ...payload,
+                    practice_id: parsed.practiceId,
+                    created_at: new Date(parsed.createdAt).toISOString(),
+
+                    // required NOT NULL fields
+                    count: 0,
+                    is_adjustment: false,
+                    affects_analytics: false,
+                };
+            }
+
+            // -------------------------
+            // PRACTICE DELETION
+            // -------------------------
+            if (row.entityType === "practice") {
+                if (!row.payload) {
+                    console.error("Missing payload for practice deletion", row);
+                    continue;
+                }
+
+                const parsed = JSON.parse(row.payload);
+
+                if (
+                    !parsed.name ||
+                    parsed.targetCount == null ||
+                    parsed.orderIndex == null
+                ) {
+                    console.error("Invalid practice payload", parsed);
+                    continue;
+                }
+
+                payload = {
+                    ...payload,
+                    name: parsed.name,
+                    target_count: parsed.targetCount,
+                    order_index: parsed.orderIndex,
+                    image_key: parsed.imageKey ?? null,
+                    default_add_count: parsed.defaultAddCount ?? 108,
+                };
+            }
+
+            const { data, error } = await supabase
+                .from(tableName)
+                .upsert(payload, { onConflict: "id" })
+                .select();
+
+            if (error) {
+                console.error("Deletion sync failed payload:", payload);
+                throw error;
+            }
+
+            if (!data || data.length === 0) {
+                console.warn("Deletion upsert had no effect", payload);
+            }
+
+            deletedRecordRepo.markDeletedRecordSynced(row.id);
+        } catch (err) {
+            console.error("pushPendingDeletions error for row:", row, err);
+            throw err;
+        }
+    }
+}
+
+async function pullPractices(userId: string) {
+    const { data, error } = await supabase
+        .from("practices")
+        .select(`
+        id,
+        user_id,
+        name,
+        target_count,
+        order_index,
+        image_key,
+        default_add_count,
+        updated_at,
+        deleted_at
+    `)
+        .eq("user_id", userId)
+        .or("deleted_at.is.null,deleted_at.gt." + new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString()) // keep very recent deletions only
+        .order("order_index", { ascending: true });
+
+    if (error) {
+        throw error;
+    }
+
+    for (const row of data ?? []) {
+        const local = practiceRepo.getPracticeById(row.id as string);
+
+        const remoteUpdatedAt = new Date(row.updated_at as string).getTime();
+        const localUpdatedAt = local?.updatedAt ?? 0;
+        const localIsPending = local?.syncStatus === "pending" || local?.syncStatus === "failed";
+
+        if (!local) {
+            practiceRepo.upsertPracticeFromRemote(row as any);
+            continue;
+        }
+
+        if (row.deleted_at) {
+            practiceRepo.deletePractice(row.id as string);
+            continue;
+        }
+
+        if (!localIsPending && remoteUpdatedAt >= localUpdatedAt) {
+            practiceRepo.upsertPracticeFromRemote(row as any);
+        }
+    }
+}
+
+async function pullSessions(userId: string) {
+    const { data, error } = await supabase
+        .from("sessions")
+        .select(`
+      id,
+      user_id,
+      practice_id,
+      count,
+      created_at,
+      is_adjustment,
+      affects_analytics,
+      updated_at,
+      deleted_at
+    `)
+        .eq("user_id", userId)
+        .or("deleted_at.is.null,deleted_at.gt." + new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString()) // keep very recent deletions only
+        .order("created_at", { ascending: true });
+
+    if (error) {
+        throw error;
+    }
+
+    const localSessionsById = new Map(
+        sessionRepo.getAllSessionsForSync().map((row) => [row.id, row])
+    );
+
+    for (const row of data ?? []) {
+        const local = localSessionsById.get(row.id as string);
+
+        const remoteUpdatedAt = new Date(row.updated_at as string).getTime();
+        const localUpdatedAt = local?.updatedAt ?? 0;
+        const localIsPending = local?.syncStatus === "pending" || local?.syncStatus === "failed";
+
+        if (!local) {
+            sessionRepo.upsertSessionFromRemote(row as any);
+            continue;
+        }
+
+        if (row.deleted_at) {
+            sessionRepo.deleteSessionById(row.id as string);
+            continue;
+        }
+
+        if (!localIsPending && remoteUpdatedAt >= localUpdatedAt) {
+            sessionRepo.upsertSessionFromRemote(row as any);
+        }
+    }
+}
+
+export async function syncNow(userId: string | null) {
+    if (!userId) {
+        return;
+    }
+
+    if (!getIsOnline()) {
+        console.log("Skipping sync — offline");
+        setSyncState("offline");
+        return;
+    }
+
+    setSyncState("syncing");
+
+    try {
+        await claimAnonymousLocalDataIfNeeded(userId);
+        await pushPendingPractices(userId);
+        await pushPendingSessions(userId);
+        await pushPendingDeletions(userId);
+        await pullPractices(userId);
+        await pullSessions(userId);
+        emitDataChanged();
+        setSyncState("success");
+    } catch (error) {
+        console.error("syncNow error", error);
+
+        setSyncState("error");
+
+        // schedule retry
+        if (userId) {
+            scheduledUserId = userId;
+        }
+
+        throw error;
+    } finally {
+        emitSyncChanged();
+    }
+}
+
+export async function requestSync(userId: string | null) {
+    if (!userId) return;
+
+    scheduledUserId = userId;
+
+    if (scheduledSyncTimeout) {
+        clearTimeout(scheduledSyncTimeout);
+    }
+
+    scheduledSyncTimeout = setTimeout(() => {
+        const nextUserId = scheduledUserId;
+        scheduledSyncTimeout = null;
+        scheduledUserId = null;
+
+        if (!nextUserId) return;
+
+        if (syncInFlight) {
+            // queue another sync after current finishes
+            scheduledUserId = userId;
+            return;
+        }
+
+        syncInFlight = (async () => {
+            try {
+                await syncNow(nextUserId);
+            } finally {
+                syncInFlight = null;
+            }
+        })();
+    }, 2000);
+}
+
+export function initializeSyncRetry() {
+    subscribeOnline(() => {
+        if (scheduledUserId) {
+            console.log("Back online → retrying sync");
+            void requestSync(scheduledUserId);
+        }
+    });
+}
+
+export function getSyncLabel(state: SyncState): string {
+    switch (state) {
+        case "syncing":
+            return "Syncing...";
+        case "success":
+            return "Up to date";
+        case "error":
+            return "Sync failed";
+        case "offline":
+            return "Offline";
+        default:
+            return "Idle";
+    }
+}
+
+export async function resetLocalSyncState() {
+    practiceRepo.resetAllSyncState();
+    sessionRepo.resetAllSyncState();
+}
