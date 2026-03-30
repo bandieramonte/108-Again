@@ -1,7 +1,6 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Button, StyleSheet, Text, TextInput, View } from "react-native";
-import { db } from "../database/db";
 import * as practiceService from "../services/practiceService";
 
 export default function AddPractice() {
@@ -19,16 +18,18 @@ export default function AddPractice() {
             return;
         }
 
-        const orderResult = db.getAllSync(`
-        SELECT MAX(orderIndex) as maxOrder FROM practices
-        `) as { maxOrder: number }[];
+        try {
+            practiceService.createPractice(
+                name,
+                Number(target),
+                Number(defaultAdd) || 108
+            );
 
-        practiceService.createPractice(
-            name,
-            Number(target),
-            Number(defaultAdd) || 108
-        );
-        router.back();
+            router.back();
+
+        } catch (error: any) {
+            alert(error.message);
+        }
     }
 
     return (

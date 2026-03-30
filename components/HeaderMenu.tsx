@@ -1,7 +1,9 @@
+import * as practiceService from "@/services/practiceService";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
+    Alert,
     Modal,
     Pressable,
     StyleSheet,
@@ -133,6 +135,19 @@ export default function HeaderMenu({
                         <Pressable
                             style={styles.item}
                             onPress={() => {
+                                const practices = practiceService.getAllPractices();
+
+                                if (practices.length >= 10) {
+                                    setMoreOpen(false);
+
+                                    Alert.alert(
+                                        "Maximum reached",
+                                        "You can only have up to 10 practices."
+                                    );
+
+                                    return;
+                                }
+
                                 setMoreOpen(false);
                                 router.push("/add-practice");
                             }}

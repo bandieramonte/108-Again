@@ -25,6 +25,12 @@ export function createPractice(
     target: number,
     defaultAddCount: number = 108
 ) {
+    const practices = practiceRepo.getAllPractices();
+
+    if (practices.length >= 10) {
+        throw new Error("Maximum of 10 practices reached.");
+    }
+
     const orderResult = practiceRepo.getMaxOrderIndex();
     const nextOrder = (orderResult.maxOrder ?? 0) + 1;
     const syncMetadata = getWriteSyncMetadata();
