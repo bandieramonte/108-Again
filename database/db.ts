@@ -54,7 +54,13 @@ export function initializeDatabase() {
       syncStatus TEXT NOT NULL,
       payload TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS app_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
   `);
+
 
   addColumnIfMissing("practices", "imageKey", "imageKey TEXT");
   addColumnIfMissing("practices", "defaultAddCount", "defaultAddCount INTEGER");

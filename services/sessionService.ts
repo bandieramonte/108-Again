@@ -190,3 +190,12 @@ export function getDailyPracticeDataWithAdjustments(
 export function getPracticeTotal(practiceId: string) {
     return sessionRepo.getPracticeTotal(practiceId);
 }
+
+export function getCalendarDailyData(practiceId: string) {
+    const rows = sessionRepo.getDailyTotals(practiceId);
+
+    return rows.map(r => ({
+        date: r.day,
+        count: r.total
+    }));
+}

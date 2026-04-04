@@ -2,8 +2,9 @@ import { subscribeData } from "@/utils/events";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import * as Progress from "react-native-progress";
+import QuickAddEditor from "../components/QuickAddEditor";
 import { practiceImages } from "../constants/practiceImages";
 import { useReachedCelebration } from "../hooks/useReachedCelebration";
 import * as dashboardService from "../services/dashboardService";
@@ -153,31 +154,6 @@ export default function Dashboard() {
     setDefaultAddInput("");
   }
 
-  function getExpectedTargetDate(practice: Practice) {
-    const dailyAmount = practice.defaultAddCount ?? 108;
-
-    if (!Number.isFinite(dailyAmount) || dailyAmount <= 0) {
-      return null;
-    }
-
-    const remaining = practice.targetCount - practice.total;
-
-    if (remaining <= 0) {
-      return "Reached";
-    }
-
-    const daysNeeded = Math.ceil(remaining / dailyAmount);
-
-    const targetDate = new Date();
-    targetDate.setDate(targetDate.getDate() + daysNeeded);
-
-    return targetDate.toLocaleDateString("en-US", {
-      month: "long",
-      day: "2-digit",
-      year: "numeric",
-    });
-  }
-
   function renderCelebrationOverlay() {
     const sparkleStyle = (value: Animated.Value, translateX: number, translateY: number) => ({
       opacity: value.interpolate({
@@ -227,8 +203,21 @@ export default function Dashboard() {
       {practices.map((practice) => {
 
         const currentCycleProgress = practice.total >= practice.targetCount ? 1 : (practice.total % practice.targetCount) / practice.targetCount;
-        const expectedTargetDate = getExpectedTargetDate(practice);
+        const targetDate =
+          practiceService.getExpectedTargetDate(
+            practice.targetCount,
+            practice.total,
+            practice.defaultAddCount
+          );
 
+        const expectedTargetDate =
+          targetDate
+            ? targetDate.toLocaleDateString("en-US", {
+              month: "long",
+              day: "2-digit",
+              year: "numeric"
+            })
+            : null;
         return (
 
           <View key={practice.id} style={styles.card}>
@@ -330,51 +319,13 @@ export default function Dashboard() {
         );
       })}
 
-      <Modal
+      <QuickAddEditor
         visible={editDefaultOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setEditDefaultOpen(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Edit repetitions per session</Text>
-
-            <Text style={styles.modalSubtitle}>
-              {selectedPracticeName}
-            </Text>
-
-            <TextInput
-              value={defaultAddInput}
-              onChangeText={setDefaultAddInput}
-              keyboardType="numeric"
-              style={styles.modalInput}
-              placeholder="Repetitions per session"
-            />
-
-            <View style={styles.modalButtons}>
-              <Pressable
-                style={styles.modalButton}
-                onPress={() => {
-                  setEditDefaultOpen(false);
-                  setSelectedPracticeId(null);
-                  setSelectedPracticeName("");
-                  setDefaultAddInput("");
-                }}
-              >
-                <Text>Cancel</Text>
-              </Pressable>
-
-              <Pressable
-                style={styles.modalButton}
-                onPress={saveDefaultAddAmount}
-              >
-                <Text>Save</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        practiceId={selectedPracticeId}
+        practiceName={selectedPracticeName}
+        defaultValue={Number(defaultAddInput)}
+        onClose={() => setEditDefaultOpen(false)}
+      />
 
       {showQuickAddHint && tooltipPosition && (
         <Pressable

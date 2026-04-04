@@ -1,5 +1,6 @@
 import { db, initializeDatabase } from "../database/db";
 import { seedPractices } from "../database/seed";
+import * as appMetaRepo from "../repositories/appMetaRepo";
 import * as deletedRecordRepo from "../repositories/deletedRecordRepo";
 import * as practiceRepo from "../repositories/practiceRepo";
 import * as sessionRepo from "../repositories/sessionRepo";
@@ -13,6 +14,7 @@ export async function initializeApp() {
     initializeDatabase();
     initializeNetworkListener();
     initializeSyncRetry();
+    ensureInstallDate();
 
     const existing = db.getAllSync(
         `SELECT COUNT(*) as count FROM practices`
@@ -37,6 +39,10 @@ export async function restoreDefaults() {
         deletedRecordRepo.deleteAllDeletedRecords();
 
         seedPractices();
+        appMetaRepo.setMeta(
+        "lastRestoreDate",
+        new Date().toISOString()
+        );
 
         db.execSync("COMMIT");
 
@@ -51,4 +57,32 @@ export async function restoreDefaults() {
         db.execSync("ROLLBACK");
         throw error;
     }
+}
+
+export function getCalendarStartDate(): Date {
+
+  const restore =
+    appMetaRepo.getMeta("lastRestoreDate");
+
+  const install =
+    appMetaRepo.getMeta("installDate");
+
+  const date =
+    restore ?? install ?? new Date().toISOString();
+
+  return new Date(date);
+}
+
+export function ensureInstallDate() {
+
+  const existing =
+    appMetaRepo.getMeta("installDate");
+
+  if (!existing) {
+
+    appMetaRepo.setMeta(
+      "installDate",
+      new Date().toISOString()
+    );
+  }
 }

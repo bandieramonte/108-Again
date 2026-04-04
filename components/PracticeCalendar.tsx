@@ -1,0 +1,381 @@
+import { FlashList } from "@shopify/flash-list";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+
+type DayData = {
+    date: string;
+    count: number;
+};
+
+type Props = {
+    data: DayData[];
+    startDate: Date;
+    endDate: Date;
+    onEditDay: (date: string, value: number) => void;
+};
+
+const WEEK_HEIGHT = 50;
+const VISIBLE_WEEKS = 5;
+
+export default function PracticeCalendar({
+    data,
+    startDate,
+    endDate,
+    onEditDay
+}: Props) {
+
+    const dataMap = useMemo(() => {
+        return new Map(data.map(d => [d.date, d.count]));
+    }, [data]);
+
+    const baseWeekStart = useMemo(() => {
+        return getWeekStart(startDate);
+    }, [startDate]);
+
+    const endWeekIndex = useMemo(() => {
+        const diffDays =
+            (endDate.getTime() - baseWeekStart.getTime()) /
+            (1000 * 60 * 60 * 24);
+
+        return Math.floor(diffDays / 7);
+    }, [endDate, baseWeekStart]);
+    const [visibleEndWeek, setVisibleEndWeek] = useState(endWeekIndex);
+    const totalWeeks = visibleEndWeek + 1;
+
+    useEffect(() => {
+        setVisibleEndWeek(endWeekIndex);
+    }, [endWeekIndex]);
+
+    const [visibleMonth, setVisibleMonth] = useState("");
+
+
+    const [editingDate, setEditingDate] = useState<string | null>(null);
+    const [editingValue, setEditingValue] = useState("");
+
+    const handleScroll = useRef((event: any) => {
+
+        const offsetY =
+            event.nativeEvent.contentOffset.y;
+
+        const firstVisibleIndex =
+            Math.floor(offsetY / WEEK_HEIGHT);
+
+        const dominantIndex =
+            firstVisibleIndex +
+            Math.floor(VISIBLE_WEEKS / 2);
+
+        const month =
+            getMonthFromWeek(dominantIndex);
+
+        setVisibleMonth(prev =>
+            prev === month ? prev : month
+        );
+
+    }).current;
+
+    const todayString = useMemo(() => {
+        return formatDate(new Date());
+    }, []);
+
+    const endDateString = useMemo(() => {
+        return formatDate(endDate);
+    }, [endDate]);
+
+    useEffect(() => {
+
+        const dominantIndex =
+            Math.floor(VISIBLE_WEEKS / 2);
+
+        const month =
+            getMonthFromWeek(dominantIndex);
+
+        setVisibleMonth(month);
+
+    }, [startDate]);
+
+    function formatMonth(date: Date) {
+        return date.toLocaleDateString(undefined, {
+            month: "long",
+            year: "numeric"
+        });
+    }
+
+    function getMonthFromWeek(index: number) {
+
+        const start = new Date(baseWeekStart);
+        start.setUTCDate(start.getUTCDate() + index * 7);
+
+        return formatMonth(start);
+    }
+
+    function getWeekStart(date: Date) {
+
+        const d = new Date(date);
+
+        const day = d.getDay();
+
+        // convert Sunday (0) → 7
+        const adjusted = day === 0 ? 7 : day;
+
+        // shift to Monday
+        d.setDate(d.getDate() - adjusted + 1);
+
+        return d;
+    }
+
+    function getWeek(index: number) {
+
+        const start = new Date(baseWeekStart);
+        start.setUTCDate(start.getUTCDate() + index * 7);
+
+        const week = [];
+
+        for (let i = 0; i < 7; i++) {
+
+            const d = new Date(start);
+            d.setUTCDate(start.getUTCDate() + i);
+
+            const date =
+                d.getUTCFullYear() +
+                "-" +
+                String(d.getUTCMonth() + 1).padStart(2, "0") +
+                "-" +
+                String(d.getUTCDate()).padStart(2, "0");
+
+            week.push({
+                date,
+                count: dataMap.get(date) ?? 0
+            });
+        }
+
+        return week;
+    }
+
+    function isEditable(date: string) {
+        const today = formatDate(new Date());
+        return date <= today;
+    }
+
+    function formatDate(date: Date) {
+        return (
+            date.getUTCFullYear() +
+            "-" +
+            String(date.getUTCMonth() + 1).padStart(2, "0") +
+            "-" +
+            String(date.getUTCDate()).padStart(2, "0")
+        );
+    }
+
+    const weekIndexes = useMemo(
+        () => Array.from({ length: totalWeeks }, (_, i) => i),
+        [totalWeeks]
+    );
+
+    return (
+        <View style={styles.container}>
+
+            <Text style={styles.monthHeader}>
+                {visibleMonth}
+            </Text>
+
+            <View style={styles.weekHeader}>
+                {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+                    <Text key={i} style={styles.weekHeaderText}>
+                        {d}
+                    </Text>
+                ))}
+            </View>
+
+            <FlashList<number>
+                onScroll={handleScroll}
+                scrollEventThrottle={16}
+                nestedScrollEnabled
+                data={weekIndexes}
+                keyExtractor={(i) => String(i)}
+
+                renderItem={({ item }) => {
+
+                    const week = getWeek(item);
+
+                    return (
+                        <View style={styles.weekRow}>
+                            {week.map((day, index) => {
+
+                                const isToday = day.date === todayString;
+                                const isTargetDate = day.date === endDateString;
+
+                                const isFirstColumn = index === 0;
+                                const isFirstRow = item === 0;
+
+                                return (
+                                    <Pressable
+                                        key={day.date}
+                                        onPress={() => {
+                                            if (!isEditable(day.date)) return;
+
+                                            setEditingDate(day.date);
+                                            setEditingValue(String(day.count || ""));
+                                        }}
+                                        style={[
+                                            styles.day,
+                                            isFirstColumn && styles.firstColumn,
+                                            isFirstRow && styles.firstRow,
+                                            isToday && styles.today,
+                                            isTargetDate && styles.targetDate
+                                        ]}
+                                    >
+                                        <Text style={styles.dayNumber}>
+                                            {day.date.slice(-2)}
+                                        </Text>
+
+                                        {editingDate === day.date ? (
+                                            <TextInput
+                                                value={editingValue}
+                                                onChangeText={setEditingValue}
+                                                keyboardType="numeric"
+                                                autoFocus
+                                                numberOfLines={1}
+                                                style={[
+                                                    styles.dayCountInput,
+                                                    editingValue.length >= 5 && styles.dayCountSmall,
+                                                    editingValue.length >= 7 && styles.dayCountVerySmall
+                                                ]} onBlur={() => {
+                                                    const value = Number(editingValue) || 0;
+                                                    onEditDay(day.date, value);
+                                                    setEditingDate(null);
+                                                }}
+                                            />
+                                        ) : (
+                                            <Text
+                                                numberOfLines={1}
+                                                adjustsFontSizeToFit
+                                                minimumFontScale={0.6}
+                                                style={[
+                                                    styles.dayCount,
+                                                    day.count === 0 && styles.dayCountEmpty
+                                                ]}
+                                            >
+                                                {day.count}
+                                            </Text>
+                                        )}
+                                    </Pressable>
+                                );
+                            })}
+                        </View>
+                    );
+                }}
+
+                style={{
+                    height: WEEK_HEIGHT * VISIBLE_WEEKS
+                }}
+
+                showsVerticalScrollIndicator={false}
+            />
+
+        </View>
+    );
+}
+
+const styles = StyleSheet.create({
+
+    container: {
+        marginTop: 20
+    },
+
+    weekHeader: {
+        flexDirection: "row",
+        marginBottom: 10
+    },
+
+    weekHeaderText: {
+        flex: 1,
+        textAlign: "center",
+        fontWeight: "600"
+    },
+
+    weekRow: {
+        flexDirection: "row",
+        height: WEEK_HEIGHT
+    },
+
+    day: {
+        flex: 1,
+        paddingHorizontal: 1,
+        paddingTop: 15,
+        justifyContent: "center",
+        alignItems: "center",
+        borderRightWidth: 2,
+        borderBottomWidth: 2,
+        borderColor: "#e5e7eb"
+    },
+
+    dayNumber: {
+        position: "absolute",
+        top: 4,
+        left: 6,
+        fontSize: 11,
+        fontWeight: "700",
+        color: "#555"
+    },
+
+    dayCount: {
+        fontSize: 16,
+        textAlign: "center",
+        width: "100%",
+        includeFontPadding: false,
+    },
+
+    monthHeader: {
+        fontSize: 18,
+        fontWeight: "600",
+        marginBottom: 8
+    },
+
+    today: {
+        borderColor: "#3b82f6",
+        borderLeftWidth: 2,
+        borderTopWidth: 2,
+        borderBottomWidth: 2,
+        borderRightWidth: 2,
+    },
+
+    targetDate: {
+        borderTopWidth: 2,
+        borderBottomWidth: 2,
+        borderRightWidth: 2,
+        borderLeftWidth: 2,
+        borderColor: "#f59e0b",
+        backgroundColor: "rgba(245,158,11,0.08)"
+    },
+
+    dayCountEmpty: {
+        color: "#bbb",
+    },
+
+    firstColumn: {
+        borderLeftWidth: 2,
+    },
+
+    firstRow: {
+        borderTopWidth: 2,
+    },
+
+    dayCountInput: {
+        fontSize: 16,
+        fontWeight: "600",
+        textAlign: "center",
+        width: "100%",
+        height: "100%",
+        textAlignVertical: "center",
+        paddingVertical: 0,
+        includeFontPadding: false,
+    },
+
+    dayCountSmall: {
+        fontSize: 13
+    },
+
+    dayCountVerySmall: {
+        fontSize: 11
+    },
+});

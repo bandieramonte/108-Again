@@ -1,14 +1,17 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Localization from "expo-localization";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Animated, Button, Dimensions, FlatList, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
-import Svg, { Line, Rect, Text as SvgText } from "react-native-svg";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import PracticeCalendar from "../../components/PracticeCalendar";
+import QuickAddEditor from "../../components/QuickAddEditor";
+import TargetDateEditor from "../../components/TargetDateEditor";
 import { practiceImages } from "../../constants/practiceImages";
 import { useReachedCelebration } from "../../hooks/useReachedCelebration";
+import * as appService from "../../services/appService";
 import * as practiceService from "../../services/practiceService";
 import * as sessionService from "../../services/sessionService";
+
 import { subscribeData } from "../../utils/events";
 
 type Session = {
@@ -19,27 +22,53 @@ type Session = {
 
 export default function PracticeContent({ practiceId }: { practiceId: string }) {
     const router = useRouter();
-    const [practiceName, setPracticeName] = useState("");
-    const [sessions, setSessions] = useState<Session[]>([]);
-    const [total, setTotal] = useState(0);
-    const [customValue, setCustomValue] = useState("");
+    const [quickAddOpen, setQuickAddOpen] = useState(false);
+    const [targetEditOpen, setTargetEditOpen] = useState(false);
+    const initialPractice = practiceService.getPractice(practiceId);
+
+    const [practiceName, setPracticeName] = useState(initialPractice?.name ?? "");
+    const [sessions, setSessions] = useState<Session[]>(() =>
+        sessionService.getSessionsForPractice(practiceId) as Session[]
+    );
+    const [total, setTotal] = useState(() =>
+        sessionService.getPracticeTotal(practiceId).total
+    );
+    const [imageKey, setImageKey] = useState<string | null>(initialPractice?.imageKey ?? null);
+    const [defaultAddCount, setDefaultAddCount] = useState(
+        String(initialPractice?.defaultAddCount ?? 108)
+    );
+    const [targetCount, setTargetCount] = useState(initialPractice?.targetCount ?? 0);
+    const [calendarData, setCalendarData] = useState<
+        { date: string; count: number }[]
+    >(() => sessionService.getCalendarDailyData(practiceId));
+
     const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
     const [rangeDays, setRangeDays] = useState(10);
     const [dailyData, setDailyData] = useState<
         { date: string; total: number }[]
     >([]);
-    const [editingValues, setEditingValues] = useState<Record<string, string>>({});
-    const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-    const [imageKey, setImageKey] = useState<string | null>(null);
-    const [ratio, setRatio] = useState(1);
     const { width } = useWindowDimensions();
-    const [defaultAddCount, setDefaultAddCount] = useState("");
+    const imageSource =
+        imageKey && practiceImages[imageKey]
+            ? practiceImages[imageKey]
+            : null;
+
+    const imageRatio = useMemo(() => {
+        if (!imageSource) return 1;
+
+        const source = Image.resolveAssetSource(imageSource);
+
+        if (source?.width && source?.height) {
+            return source.width / source.height;
+        }
+
+        return 1;
+    }, [imageSource]);
     const [menuOpen, setMenuOpen] = useState(false);
     const rotateAnim = useRef(new Animated.Value(0)).current;
     const titleRowRef = useRef<View | null>(null);
     const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
     const [showTableTooltip, setShowTableTooltip] = useState(false);
-    const [targetCount, setTargetCount] = useState(0);
     const {
         celebrationFade,
         sparkle1,
@@ -48,26 +77,37 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         updateReachedState,
         isCelebrating,
     } = useReachedCelebration();
-    const practiceRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    useEffect(() => {
-        if (imageKey && practiceImages[imageKey]) {
-            const source = Image.resolveAssetSource(practiceImages[imageKey]);
+    const calendarEndDate = useMemo(() => {
+        return (
+            practiceService.getExpectedTargetDate(
+                targetCount,
+                total,
+                Number(defaultAddCount)
+            ) ?? new Date()
+        );
+    }, [targetCount, total, defaultAddCount]);
 
-            if (source?.width && source?.height) {
-                setRatio(source.width / source.height);
-            }
-        }
-    }, [imageKey]);
+    const targetDate = useMemo(() => {
+        return practiceService.getExpectedTargetDate(
+            targetCount,
+            total,
+            Number(defaultAddCount)
+        );
+    }, [targetCount, total, defaultAddCount]);
+
+    const formattedTargetDate = useMemo(() => {
+        if (!targetDate) return "No estimate";
+
+        return targetDate.toLocaleDateString("en-US", {
+            month: "long",
+            day: "2-digit",
+            year: "numeric"
+        });
+    }, [targetDate]);
 
     useEffect(() => {
         schedulePracticeRefresh();
-
-        return () => {
-            if (practiceRefreshTimeoutRef.current) {
-                clearTimeout(practiceRefreshTimeoutRef.current);
-            }
-        };
     }, [practiceId, rangeDays, viewMode]);
 
     useEffect(() => {
@@ -116,16 +156,15 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         }, [practiceId, rangeDays, viewMode])
     );
 
-    function schedulePracticeRefresh() {
-        if (practiceRefreshTimeoutRef.current) {
-            clearTimeout(practiceRefreshTimeoutRef.current);
-        }
+    function loadCalendarData() {
+        const data = sessionService.getCalendarDailyData(practiceId);
+        setCalendarData(data);
+    }
 
-        practiceRefreshTimeoutRef.current = setTimeout(() => {
-            practiceRefreshTimeoutRef.current = null;
-            loadPracticeData();
-            loadDailyData(rangeDays);
-        }, 0);
+    function schedulePracticeRefresh() {
+        loadPracticeData();
+        loadDailyData(rangeDays);
+        loadCalendarData();
     }
 
     function loadSessions(overrideTargetCount?: number) {
@@ -146,10 +185,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                 targetCount: effectiveTargetCount,
             }
         ]);
-    }
-
-    function addSession(count: number) {
-        sessionService.addSession(practiceId, count);
     }
 
     function loadPracticeData() {
@@ -182,10 +217,8 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     }
 
     function deletePractice() {
-
         practiceService.deletePractice(practiceId);
         router.replace("/");
-
     }
 
     function loadDailyData(days: number) {
@@ -204,182 +237,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         setDailyData(data);
     }
 
-
-    function formatShortDate(dateString: string) {
-
-        const d = new Date(dateString + "T00:00:00");
-        const locale = Localization.getLocales()[0];
-
-        const day = String(d.getDate()).padStart(2, "0");
-        const month = String(d.getMonth() + 1).padStart(2, "0");
-
-        // If locale region is US → month/day
-        if (locale.regionCode === "US") {
-            return `${month}/${day}`;
-        }
-
-        // Everywhere else → day/month
-        return `${day}/${month}`;
-    }
-
-    function renderChart() {
-
-        const width = Dimensions.get("window").width - 40;
-        const height = 220;
-        const padding = total >= 1000000 ? { top: 30, bottom: 30, left: 50, right: 10 } : total >= 100000 ? { top: 30, bottom: 30, left: 40, right: 10 } : { top: 30, bottom: 30, left: 30, right: 10 };
-        const chartWidth = width - padding.left - padding.right;
-        const chartHeight = height - padding.top - padding.bottom;
-        const values = dailyData.map(d => d.total);
-        const maxValue = Math.max(...values, 1);
-        const steps = 4;
-        const stepValue = Math.ceil(maxValue / steps / 10) * 10;
-        const yTicks = Array.from({ length: steps + 1 }, (_, i) => i * stepValue);
-        const barWidth = chartWidth / dailyData.length;
-        const labelCount = 4;
-        const step = Math.max(1, Math.ceil(dailyData.length / labelCount));
-        const yScale = (value: number) => (value / maxValue) * chartHeight;
-        const tooltipWidth = 40;
-        const tooltipHeight = 20;
-        const tooltipOffset = 6;
-
-        return (
-            <View
-                onStartShouldSetResponder={() => true}
-                onResponderRelease={() => setSelectedIndex(null)}
-            >
-                <Svg width={width} height={height}>
-
-                    {/* Y-axis labels */}
-                    {yTicks.map((value, i) => {
-                        const y =
-                            padding.top +
-                            chartHeight -
-                            (value / maxValue) * chartHeight;
-
-                        return (
-                            <SvgText
-                                key={`y-label-${i}`}
-                                x={padding.left - 5}
-                                y={y + 4}
-                                fontSize="10"
-                                textAnchor="end"
-                                fill="#666"
-                            >
-                                {value}
-                            </SvgText>
-                        );
-                    })}
-
-                    {/* grid lines */}
-                    {[0, 0.25, 0.5, 0.75, 1].map((p, i) => {
-                        const y = padding.top + chartHeight * (1 - p);
-
-                        return (
-                            <Line
-                                key={i}
-                                x1={padding.left}
-                                x2={width - padding.right}
-                                y1={y}
-                                y2={y}
-                                stroke="#ddd"
-                                strokeDasharray="3,3"
-                            />
-                        );
-                    })}
-
-                    {/* bars */}
-                    {dailyData.map((d, i) => {
-
-                        const barHeight = yScale(d.total);
-
-                        const x = padding.left + i * barWidth;
-                        const y = padding.top + chartHeight - barHeight;
-
-                        return (
-                            <Rect
-                                key={d.date}
-                                x={x}
-                                y={y}
-                                width={barWidth * 0.7}
-                                height={barHeight}
-                                fill={selectedIndex === i ? "#1d4ed8" : "#3b82f6"}
-                                onPress={() => setSelectedIndex(i)}
-                            />
-                        );
-                    })}
-
-                    {/* Tooltip with background */}
-                    {selectedIndex !== null && (() => {
-
-                        const d = dailyData[selectedIndex];
-                        const barHeight = yScale(d.total);
-
-                        const xCenter = padding.left + selectedIndex * barWidth + barWidth * 0.35;
-                        const yBarTop = padding.top + chartHeight - barHeight;
-
-                        // --- prevent clipping at top ---
-                        const yTooltip = Math.max(
-                            padding.top,
-                            yBarTop - tooltipHeight - tooltipOffset
-                        );
-
-                        return (
-                            <>
-                                {/* background */}
-                                <Rect
-                                    x={xCenter - tooltipWidth / 2}
-                                    y={yTooltip}
-                                    width={tooltipWidth}
-                                    height={tooltipHeight}
-                                    rx={4}
-                                    fill="#111"
-                                    opacity={0.85}
-                                />
-
-                                {/* text */}
-                                <SvgText
-                                    x={xCenter}
-                                    y={yTooltip + tooltipHeight / 2 + 4}
-                                    fontSize="11"
-                                    textAnchor="middle"
-                                    fill="#fff"
-                                    fontWeight="bold"
-                                >
-                                    {d.total}
-                                </SvgText>
-                            </>
-                        );
-                    })()}
-
-                    {/* x-axis labels */}
-                    {dailyData.map((d, i) => {
-
-                        if (i % step !== 0 && i !== dailyData.length - 1) return null;
-
-                        const x = padding.left + i * barWidth + barWidth * 0.35;
-
-                        return (
-                            <SvgText
-                                key={`label-${i}`}
-                                x={x}
-                                y={height - 10}
-                                fontSize="10"
-                                textAnchor="middle"
-                                fill="#444"
-                            >
-                                {formatShortDate(d.date)}
-                            </SvgText>
-                        );
-                    })}
-
-                </Svg>
-
-            </View>
-
-        );
-    }
-
-    function handleEdit(date: string, newValue: number) {
+    const handleEdit = useCallback((date: string, newValue: number) => {
         if (!Number.isFinite(newValue)) return;
 
         if (newValue < 0) {
@@ -391,47 +249,10 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
             alert("Please enter a whole number");
             return;
         }
+
         sessionService.adjustDayTotal(practiceId, date, newValue);
-    }
+    }, [practiceId]);
 
-    function renderTable() {
-        return (
-            <FlatList
-                data={dailyData}
-                keyExtractor={(item) => item.date}
-                renderItem={({ item }) => (
-                    <View style={styles.row}>
-                        <Text>
-                            {formatShortDate(item.date)}
-                        </Text>
-                        <TextInput
-                            value={editingValues[item.date] ?? String(item.total)}
-                            keyboardType="numeric"
-                            style={styles.editableCell}
-                            onChangeText={(text) => {
-                                setEditingValues(prev => ({
-                                    ...prev,
-                                    [item.date]: text
-                                }));
-                            }}
-                            onEndEditing={() => {
-                                const value = Number(editingValues[item.date]);
-                                handleEdit(item.date, value);
-
-                                // clear editing state
-                                setEditingValues(prev => {
-                                    const copy = { ...prev };
-                                    delete copy[item.date];
-                                    return copy;
-                                });
-                            }}
-                        />
-                    </View>
-                )}
-                scrollEnabled={false}
-            />
-        );
-    }
 
     function openEditPractice() {
         setMenuOpen(false);
@@ -519,178 +340,199 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         );
     }
 
+    const calendarStartDate = useMemo(
+        () => appService.getCalendarStartDate(),
+        []
+    );
+
     return (
+        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
 
-        <ScrollView
-            style={{ marginTop: 24 }}
-            contentContainerStyle={{
-                paddingBottom: 40,
-                alignItems: "stretch"
-            }}
-            keyboardShouldPersistTaps="handled"
-        >
-            <Pressable onPress={menuOpen ? closeMenu : undefined}>
+            <View style={{ marginTop: 24 }}>
 
-                <View style={styles.titleMenuWrapper}>
-                    <Pressable
-                        ref={titleRowRef}
-                        style={styles.titleRow}
-                        onPress={toggleMenu}
-                    >
-                        <Text style={styles.title}>
-                            {practiceName}
-                        </Text>
-
-                        <Animated.View style={{ transform: [{ rotate: chevronRotation }] }}>
-                            <MaterialIcons name="keyboard-arrow-down" size={28} color="#333" />
-                        </Animated.View>
-                    </Pressable>
-                </View>
-            </Pressable>
-            {imageKey && practiceImages[imageKey] && (
-                <View style={styles.imageWrapper}>
-                    <Image
-                        source={practiceImages[imageKey]}
-                        style={{
-                            width: width,
-                            alignSelf: "center",
-                            marginBottom: 15
-                        }}
-                        resizeMode="contain"
-                    />
-                </View>
-            )}
-
-            <View style={styles.contentBlock}>
-
-                <View style={styles.totalRow}>
-                    <View style={styles.totalWrapper}>
-                        <Text style={styles.total}>
-                            {total + ' ' + (!!targetCount ? '/ ' + targetCount : '')}
-                        </Text>
-                        {isCelebrating(practiceId) && renderCelebrationOverlay()}
-                    </View>
-
-                    {isCelebrating(practiceId) && (
-                        <Animated.Text
-                            style={[
-                                styles.congratsText,
-                                { opacity: celebrationFade }
-                            ]}
+                <Pressable onPress={menuOpen ? closeMenu : undefined}>
+                    <View style={styles.titleMenuWrapper}>
+                        <Pressable
+                            ref={titleRowRef}
+                            style={styles.titleRow}
+                            onPress={toggleMenu}
                         >
-                            Target reached, congratulations!!
-                        </Animated.Text>
-                    )}
-                </View>
+                            <Text style={styles.title}>
+                                {practiceName}
+                            </Text>
 
-                <View style={styles.addSection}>
+                            <Animated.View
+                                style={{ transform: [{ rotate: chevronRotation }] }}
+                            >
+                                <MaterialIcons
+                                    name="keyboard-arrow-down"
+                                    size={28}
+                                    color="#333"
+                                />
+                            </Animated.View>
 
-                    <Text style={styles.sectionTitle}>
-                        Add repetitions
-                    </Text>
-
-                    <View style={styles.buttonRow}>
-                        <Button title="+1" onPress={() => addSession(1)} />
-                        <Button title="+27" onPress={() => addSession(27)} />
-                        <Button title="+108" onPress={() => addSession(108)} />
+                        </Pressable>
                     </View>
+                </Pressable>
 
-                    <TextInput
-                        placeholder="Custom count"
-                        keyboardType="numeric"
-                        value={customValue}
-                        onChangeText={setCustomValue}
-                        style={styles.input}
-                        placeholderTextColor="#999"
-                    />
-
-                    <Button
-                        title="Add custom"
-                        onPress={() => addSession(Number(customValue))}
-                    />
-
-                </View>
-
-                <Text style={styles.total}>
-                    Practice History
-                </Text>
-                <View style={{ flexDirection: "row", gap: 10, zIndex: 100 }}>
-                    <View style={{ flexDirection: "row", gap: 10, marginBottom: 20, marginTop: 5 }}>
-
-                        <Button
-                            title="Chart"
-                            onPress={() => setViewMode("chart")}
+                {imageSource && (
+                    <View style={styles.imageWrapper}>
+                        <Image
+                            source={imageSource}
+                            style={{
+                                width: width,
+                                aspectRatio: imageRatio,
+                                alignSelf: "center",
+                                marginBottom: 15
+                            }}
+                            resizeMode="contain"
                         />
-
-                        <Button
-                            title="Table"
-                            onPress={() => setViewMode("table")}
-                        />
-
                     </View>
-                    <View style={{ position: "relative", width: "100%" }}>
-                        {showTableTooltip && (
-                            <View style={styles.tableTooltip}>
-                                <Text style={styles.tableTooltipText}>
-                                    Tip: You can edit any day’s total by tapping on its count.
-                                </Text>
-                            </View>
+                )}
+
+                <View style={styles.contentBlock}>
+
+                    <View style={styles.totalRow}>
+                        <View style={styles.totalWrapper}>
+                            <Text style={styles.total}>
+                                {total + ' ' + (!!targetCount ? '/ ' + targetCount : '')}
+                            </Text>
+                            {isCelebrating(practiceId) && renderCelebrationOverlay()}
+                        </View>
+
+                        {isCelebrating(practiceId) && (
+                            <Animated.Text
+                                style={[
+                                    styles.congratsText,
+                                    { opacity: celebrationFade }
+                                ]}
+                            >
+                                Target reached, congratulations!!
+                            </Animated.Text>
                         )}
                     </View>
 
+                    <Pressable
+                        onPress={() => setTargetEditOpen(true)}
+                        style={styles.targetDateEditable}
+                    >
+                        <Text style={styles.targetDateText}>
+                            Target date: {formattedTargetDate}
+                        </Text>
+                    </Pressable>
+
+                    <View style={styles.quickAddRow}>
+
+                        <Text style={styles.quickAddLabel}>
+                            Quick Add:
+                        </Text>
+
+                        <Pressable
+                            style={styles.quickAddButton}
+                            onPress={() =>
+                                sessionService.addSession(
+                                    practiceId,
+                                    Number(defaultAddCount)
+                                )
+                            }
+                            onLongPress={() => setQuickAddOpen(true)}
+                        >
+                            <Text style={styles.quickAddButtonText}>
+                                +{defaultAddCount}
+                            </Text>
+                        </Pressable>
+
+                    </View>
+
+                    <PracticeCalendar
+                        data={calendarData}
+                        startDate={calendarStartDate}
+                        endDate={calendarEndDate}
+                        onEditDay={handleEdit}
+                    />
+
                 </View>
 
+                <Modal
+                    visible={menuOpen}
+                    transparent
+                    animationType="fade"
+                    onRequestClose={closeMenu}
+                >
+                    <Pressable
+                        style={styles.menuOverlay}
+                        onPress={closeMenu}
+                    >
+                        {menuAnchor && (
+                            <View
+                                style={[
+                                    styles.dropdownMenuModal,
+                                    {
+                                        top: menuAnchor.y + menuAnchor.height + 8,
+                                        left: Math.max(
+                                            20,
+                                            menuAnchor.x + menuAnchor.width / 2 - 110
+                                        ),
+                                    }
+                                ]}
+                            >
 
-                <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
-                    <Button title="10d" onPress={() => { setRangeDays(10); }} />
-                    <Button title="30d" onPress={() => { setRangeDays(30); }} />
-                    <Button title="90d" onPress={() => { setRangeDays(90); }} />
-                </View>
+                                <Pressable
+                                    style={styles.dropdownItem}
+                                    onPress={openEditPractice}
+                                >
+                                    <MaterialIcons
+                                        name="edit"
+                                        size={18}
+                                        color="#333"
+                                    />
+                                    <Text style={styles.dropdownText}>
+                                        Edit practice
+                                    </Text>
+                                </Pressable>
 
-                <View key={dailyData.length}>
-                    {viewMode === "chart"
-                        ? renderChart()
-                        : renderTable()
-                    }
-                </View>
+                                <Pressable
+                                    style={styles.dropdownItem}
+                                    onPress={confirmDelete}
+                                >
+                                    <MaterialIcons
+                                        name="delete-outline"
+                                        size={18}
+                                        color="#c62828"
+                                    />
+                                    <Text style={styles.dropdownDeleteText}>
+                                        Delete practice
+                                    </Text>
+                                </Pressable>
+
+                            </View>
+                        )}
+                    </Pressable>
+                </Modal>
+
             </View>
 
-            <Modal
-                visible={menuOpen}
-                transparent
-                animationType="fade"
-                onRequestClose={closeMenu}
-            >
-                <Pressable style={styles.menuOverlay} onPress={closeMenu}>
-                    {menuAnchor && (
-                        <View
-                            style={[
-                                styles.dropdownMenuModal,
-                                {
-                                    top: menuAnchor.y + menuAnchor.height + 8,
-                                    left: Math.max(20, menuAnchor.x + menuAnchor.width / 2 - 110),
-                                }
-                            ]}
-                        >
-                            <Pressable
-                                style={styles.dropdownItem}
-                                onPress={openEditPractice}
-                            >
-                                <MaterialIcons name="edit" size={18} color="#333" />
-                                <Text style={styles.dropdownText}>Edit practice</Text>
-                            </Pressable>
+            <QuickAddEditor
+                visible={quickAddOpen}
+                practiceId={practiceId}
+                practiceName={practiceName}
+                defaultValue={Number(defaultAddCount)}
+                onClose={() => setQuickAddOpen(false)}
+            />
 
-                            <Pressable
-                                style={styles.dropdownItem}
-                                onPress={confirmDelete}
-                            >
-                                <MaterialIcons name="delete-outline" size={18} color="#c62828" />
-                                <Text style={styles.dropdownDeleteText}>Delete practice</Text>
-                            </Pressable>
-                        </View>
-                    )}
-                </Pressable>
-            </Modal>
+            <TargetDateEditor
+                visible={targetEditOpen}
+                targetCount={targetCount}
+                total={total}
+                currentTargetDate={targetDate}
+                onClose={() => setTargetEditOpen(false)}
+                onSave={(newDaily) => {
+                    practiceService.updatePracticeDefaultAddCount(
+                        practiceId,
+                        newDaily
+                    );
+                }}
+            />
         </ScrollView>
     );
 }
@@ -713,7 +555,8 @@ const styles = StyleSheet.create({
     },
 
     total: {
-        fontSize: 18,
+        fontSize: 15,
+        color: "#666"
     },
 
     sectionTitle: {
@@ -814,6 +657,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         zIndex: 1,
         elevation: 1,
+        paddingBottom: 30
     },
 
     tableTooltip: {
@@ -837,7 +681,7 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         gap: 8,
-        marginBottom: 20,
+        marginBottom: 6,
         flexWrap: "wrap",
     },
 
@@ -868,4 +712,57 @@ const styles = StyleSheet.create({
         fontWeight: "700",
     },
 
+    targetRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginTop: 8,
+        marginBottom: 4
+    },
+
+    targetDateText: {
+        fontSize: 14,
+        color: "#666"
+    },
+
+    quickAddRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginTop: 6,
+        marginBottom: 6
+    },
+
+    quickAddLabel: {
+        fontSize: 14,
+        color: "#666",
+        marginRight: 8
+    },
+
+    quickAddButton: {
+        paddingVertical: 4,
+        paddingHorizontal: 10,
+        backgroundColor: "#e5e7eb",
+        borderRadius: 8
+    },
+
+    quickAddButtonText: {
+        fontSize: 14,
+        fontWeight: "600"
+    },
+
+    quickAddInput: {
+        marginTop: 4,
+        borderWidth: 1,
+        borderColor: "#ddd",
+        padding: 6,
+        borderRadius: 6,
+        width: 80
+    },
+
+    targetDateEditable: {
+        borderBottomWidth: 1,
+        borderBottomColor: "#cbd5e1",
+        paddingBottom: 2,
+        alignSelf: "flex-start"
+    },
 });

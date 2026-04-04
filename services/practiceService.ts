@@ -203,3 +203,54 @@ export function updatePracticeDefaultAddCount(
     emitDataChanged();
     void syncService.requestSync(syncMetadata.userId);
 }
+
+export function getExpectedTargetDate(
+  targetCount: number,
+  total: number,
+  defaultAddCount?: number | null
+): Date | null {
+
+  const dailyAmount = defaultAddCount ?? 108;
+
+  if (!Number.isFinite(dailyAmount) || dailyAmount <= 0) {
+    return null;
+  }
+
+  const remaining = targetCount - total;
+
+  if (remaining <= 0) {
+    return new Date();
+  }
+
+  const daysNeeded =
+    Math.ceil(remaining / dailyAmount);
+
+  const targetDate = new Date();
+
+  targetDate.setDate(
+    targetDate.getDate() + daysNeeded
+  );
+
+  return targetDate;
+}
+
+export function calculateRequiredDailyCount(
+    targetCount: number,
+    total: number,
+    targetDate: Date
+) {
+    const today = new Date();
+
+    const diffDays = Math.ceil(
+        (targetDate.getTime() - today.getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
+
+    if (diffDays <= 0) return targetCount - total;
+
+    const remaining = targetCount - total;
+
+    if (remaining <= 0) return 0;
+
+    return Math.ceil(remaining / diffDays);
+}

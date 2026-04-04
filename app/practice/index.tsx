@@ -1,59 +1,110 @@
 import { useLocalSearchParams } from "expo-router";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import PagerView from "react-native-pager-view";
 import * as practiceService from "../../services/practiceService";
 import PracticeContent from "./practiceContent";
 
 export default function PracticePager() {
-
     const pagerRef = useRef<PagerView>(null);
     const { id } = useLocalSearchParams();
 
     const practices = practiceService.getAllPractices();
+    const pageCount = practices.length;
     const initialIndex = practices.findIndex(p => p.id === id);
-    const [currentIndex, setCurrentIndex] = useState(initialIndex + 1);
+    const initialPage = initialIndex + 1;
+    const [loaded, setLoaded] = useState<Set<number>>(
+        new Set([
+            initialPage,
+            initialPage - 1,
+            initialPage + 1,
+            1,
+            practices.length
+        ])
+    );
+    const [currentIndex, setCurrentIndex] = useState(initialPage);
 
-    // circular trick
-    const extended = [
-        practices[practices.length - 1],
-        ...practices,
-        practices[0],
-    ];
+    const extended = useMemo(() => {
+        if (pageCount === 0) return [];
+        if (pageCount === 1) return [practices[0]];
+        return [
+            practices[pageCount - 1],
+            ...practices,
+            practices[0],
+        ];
+    }, [practices, pageCount]);
 
+    const normalizedIndex = useMemo(() => {
+        if (currentIndex === 0) return pageCount;
+        if (currentIndex === pageCount + 1) return 1;
+        return currentIndex;
+    }, [currentIndex, pageCount]);
+
+    const shouldRenderPage = (index: number) => {
+        return Math.abs(index - normalizedIndex) <= 1;
+    };
+
+    if (pageCount === 0) {
+        return <View style={{ flex: 1 }} />;
+    }
+
+    if (pageCount === 1) {
+        return (
+            <View style={{ flex: 1 }}>
+                <PracticeContent practiceId={practices[0].id} />
+            </View>
+        );
+    }
 
     return (
         <PagerView
             ref={pagerRef}
             style={{ flex: 1 }}
-            initialPage={initialIndex + 1}
+            initialPage={initialPage}
             onPageSelected={(e) => {
                 const index = e.nativeEvent.position;
-                setCurrentIndex(index);
+
+                setLoaded(prev => {
+                    const next = new Set(prev);
+
+                    next.add(index);
+                    next.add(index - 1);
+                    next.add(index + 1);
+
+                    // circular preload
+                    if (index === 1) {
+                        next.add(practices.length);
+                    }
+
+                    if (index === practices.length) {
+                        next.add(1);
+                    }
+
+                    return next;
+                });
 
                 if (index === 0) {
-                    pagerRef.current?.setPage(practices.length);
+                    pagerRef.current?.setPageWithoutAnimation(practices.length);
+                    return;
                 }
 
                 if (index === practices.length + 1) {
-                    pagerRef.current?.setPage(1);
+                    pagerRef.current?.setPageWithoutAnimation(1);
+                    return;
                 }
+
+                setCurrentIndex(index);
             }}
         >
-            {extended.map((p, i) => {
-
-                const isActive = Math.abs(i - currentIndex) <= 1;
-
-                return (
-                    <View key={i} style={{ flex: 1 }}>
-                        {isActive ? (
-                            <PracticeContent practiceId={p.id} />
-                        ) : (
-                            <View />  // lightweight placeholder
-                        )}
-                    </View>
-                );
-            })}
+            {extended.map((p, i) => (
+                <View key={`${p.id}-${i}`} style={{ flex: 1 }}>
+                    {loaded.has(i) ? (
+                        <PracticeContent practiceId={p.id} />
+                    ) : (
+                        <View style={{ flex: 1 }} />
+                    )}
+                </View>
+            ))}
         </PagerView>
     );
 }
