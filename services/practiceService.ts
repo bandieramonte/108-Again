@@ -1,3 +1,4 @@
+import { enqueueWrite } from "@/database/writeQueue";
 import { randomUUID } from "expo-crypto";
 import { db } from "../database/db";
 import * as deletedRecordRepo from "../repositories/deletedRecordRepo";
@@ -92,79 +93,94 @@ if (difference !== 0) {
     void syncService.requestSync(syncMetadata.userId);
 }
 
-export function deletePractice(id: string) {
+export async function deletePractice(id: string) {
+
     const userId = authService.getCurrentUserId();
     const deletedAt = Date.now();
 
-    db.execSync("BEGIN TRANSACTION");
+    await enqueueWrite(() => {
 
-    try {
-        const practice = practiceRepo.getPracticeById(id);
+        db.execSync("BEGIN TRANSACTION");
 
-        if (!practice) {
-            throw new Error(`Practice not found: ${id}`);
-        }
+        try {
 
-        const sessions = sessionRepo.getSessionsByPracticeForSync(id);
+            const practice = practiceRepo.getPracticeById(id);
 
-        const practiceExistsRemotely =
-            !!practice.userId && !!practice.lastSyncedAt;
+            if (!practice) {
+                throw new Error(`Practice not found: ${id}`);
+            }
 
-        if (userId && practiceExistsRemotely) {
+            const sessions =
+                sessionRepo.getSessionsByPracticeForSync(id);
 
-            // -------------------------
-            // SESSION DELETIONS
-            // -------------------------
-            for (const session of sessions) {
-                const sessionExistsRemotely =
-                    !!session.userId && !!session.lastSyncedAt;
+            const practiceExistsRemotely =
+                !!practice.userId &&
+                !!practice.lastSyncedAt;
 
-                if (!sessionExistsRemotely) continue;
+            if (userId && practiceExistsRemotely) {
 
+                // -------------------------
+                // SESSION DELETIONS
+                // -------------------------
+                for (const session of sessions) {
+
+                    const sessionExistsRemotely =
+                        !!session.userId &&
+                        !!session.lastSyncedAt;
+
+                    if (!sessionExistsRemotely) continue;
+
+                    deletedRecordRepo.insertDeletedRecord(
+                        randomUUID(),
+                        "session",
+                        session.id,
+                        userId,
+                        deletedAt,
+                        "pending",
+                        JSON.stringify({
+                            practiceId: session.practiceId,
+                            createdAt: session.createdAt,
+                        })
+                    );
+                }
+
+                // -------------------------
+                // PRACTICE DELETION
+                // -------------------------
                 deletedRecordRepo.insertDeletedRecord(
                     randomUUID(),
-                    "session",
-                    session.id,
+                    "practice",
+                    id,
                     userId,
                     deletedAt,
                     "pending",
                     JSON.stringify({
-                        practiceId: session.practiceId,
-                        createdAt: session.createdAt,
+                        name: practice.name,
+                        targetCount: practice.targetCount,
+                        orderIndex: practice.orderIndex,
+                        imageKey: practice.imageKey ?? null,
+                        defaultAddCount:
+                            practice.defaultAddCount ?? 108,
                     })
                 );
             }
 
-            // -------------------------
-            // PRACTICE DELETION (ONCE)
-            // -------------------------
-            deletedRecordRepo.insertDeletedRecord(
-                randomUUID(),
-                "practice",
-                id,
-                userId,
-                deletedAt,
-                "pending",
-                JSON.stringify({
-                    name: practice.name,
-                    targetCount: practice.targetCount,
-                    orderIndex: practice.orderIndex,
-                    imageKey: practice.imageKey ?? null,
-                    defaultAddCount: practice.defaultAddCount ?? 108,
-                })
-            );
+            sessionRepo.deleteSessionsByPractice(id);
+            practiceRepo.deletePractice(id);
+
+            db.execSync("COMMIT");
+
+        } catch (error) {
+
+            db.execSync("ROLLBACK");
+            throw error;
+
         }
 
-        sessionRepo.deleteSessionsByPractice(id);
-        practiceRepo.deletePractice(id);
+    });
 
-        db.execSync("COMMIT");
-        emitDataChanged();
-        void syncService.requestSync(userId);
-    } catch (error) {
-        db.execSync("ROLLBACK");
-        throw error;
-    }
+    emitDataChanged();
+    void syncService.requestSync(userId);
 }
 
 export function getPracticeEditData(id: string) {

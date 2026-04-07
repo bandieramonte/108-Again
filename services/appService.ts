@@ -1,3 +1,4 @@
+import { enqueueWrite } from "@/database/writeQueue";
 import { db, initializeDatabase } from "../database/db";
 import { seedPractices } from "../database/seed";
 import * as appMetaRepo from "../repositories/appMetaRepo";
@@ -28,34 +29,42 @@ export async function initializeApp() {
 }
 
 export async function restoreDefaults() {
+
     const userId = authService.getCurrentUserId();
 
-    db.execSync("BEGIN TRANSACTION");
+    await enqueueWrite(() => {
 
-    try {
+        db.execSync("BEGIN TRANSACTION");
 
-        sessionRepo.deleteAllSessions();
-        practiceRepo.deleteAllPractices();
-        deletedRecordRepo.deleteAllDeletedRecords();
+        try {
 
-        seedPractices();
-        appMetaRepo.setMeta(
-        "lastRestoreDate",
-        new Date().toISOString()
-        );
+            sessionRepo.deleteAllSessions();
+            practiceRepo.deleteAllPractices();
+            deletedRecordRepo.deleteAllDeletedRecords();
 
-        db.execSync("COMMIT");
+            seedPractices();
 
-        emitDataChanged();
+            appMetaRepo.setMeta(
+                "lastRestoreDate",
+                new Date().toISOString()
+            );
 
-        if (userId) {
-            await syncService.wipeRemoteUserData(userId);
-            await syncService.syncNow(userId);
+            db.execSync("COMMIT");
+
+        } catch (error) {
+
+            db.execSync("ROLLBACK");
+            throw error;
+
         }
 
-    } catch (error) {
-        db.execSync("ROLLBACK");
-        throw error;
+    });
+
+    emitDataChanged();
+
+    if (userId) {
+        await syncService.wipeRemoteUserData(userId);
+        await syncService.syncNow(userId);
     }
 }
 

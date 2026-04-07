@@ -35,17 +35,30 @@ export async function importBackup(onComplete?: () => void) {
 
     const content = await file.text();
     const data = JSON.parse(content);
-    function performImport() {
 
-        restoreBackupData(data);
+    async function performImport() {
 
-        if (onComplete) {
-            onComplete();
+        try {
+
+            await restoreBackupData(data);
+
+            if (onComplete) {
+                onComplete();
+            }
+
+            emitDataChanged();
+
+            alert("Backup restored successfully");
+
+        } catch (error) {
+
+            console.error("Backup restore failed", error);
+
+            Alert.alert(
+                "Restore failed",
+                "The backup file could not be imported."
+            );
         }
-
-        alert("Backup restored successfully");
-
-        emitDataChanged();
     }
 
     Alert.alert(

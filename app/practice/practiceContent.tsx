@@ -221,8 +221,8 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         );
     }
 
-    function deletePractice() {
-        practiceService.deletePractice(practiceId);
+    async function deletePractice() {
+        await practiceService.deletePractice(practiceId);
         router.replace("/");
     }
 
