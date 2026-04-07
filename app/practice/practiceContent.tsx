@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import CelebrationOverlay from "../../components/CelebrationOverlay";
 import PracticeCalendar from "../../components/PracticeCalendar";
 import QuickAddEditor from "../../components/QuickAddEditor";
 import TargetDateEditor from "../../components/TargetDateEditor";
@@ -11,8 +12,8 @@ import { useReachedCelebration } from "../../hooks/useReachedCelebration";
 import * as appService from "../../services/appService";
 import * as practiceService from "../../services/practiceService";
 import * as sessionService from "../../services/sessionService";
-
 import { subscribeData } from "../../utils/events";
+import { formatNumber } from "../../utils/numberUtils";
 
 type Session = {
     id: string;
@@ -97,6 +98,10 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     }, [targetCount, total, defaultAddCount]);
 
     const formattedTargetDate = useMemo(() => {
+        if (targetCount > 0 && total >= targetCount) {
+            return "Reached!";
+        }
+
         if (!targetDate) return "No estimate";
 
         return targetDate.toLocaleDateString("en-US", {
@@ -104,7 +109,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
             day: "2-digit",
             year: "numeric"
         });
-    }, [targetDate]);
+    }, [targetDate, total, targetCount]);
 
     useEffect(() => {
         schedulePracticeRefresh();
@@ -250,7 +255,15 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
             return;
         }
 
-        sessionService.adjustDayTotal(practiceId, date, newValue);
+        try {
+            sessionService.adjustDayTotal(
+                practiceId,
+                date,
+                newValue
+            );
+        } catch (error: any) {
+            alert(error.message);
+        }
     }, [practiceId]);
 
 
@@ -275,8 +288,8 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         const target = titleRowRef.current;
         if (!target) return;
 
-        (target as any).measureInWindow((x: number, y: number, width: number, height: number) => {
-            setMenuAnchor({ x, y, width, height });
+        (target as any).measure((x: number, y: number, width: number, height: number, pageX: number, pageY: number) => {
+            setMenuAnchor({ x: pageX, y: pageY, width, height });
             setMenuOpen(true);
 
             Animated.timing(rotateAnim, {
@@ -301,44 +314,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         inputRange: [0, 1],
         outputRange: ["0deg", "180deg"],
     });
-
-    function renderCelebrationOverlay() {
-        const sparkleStyle = (value: Animated.Value, translateX: number, translateY: number) => ({
-            opacity: value.interpolate({
-                inputRange: [0, 0.2, 0.8, 1],
-                outputRange: [0, 1, 1, 0],
-            }),
-            transform: [
-                { translateX },
-                {
-                    translateY: value.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, translateY],
-                    }),
-                },
-                {
-                    scale: value.interpolate({
-                        inputRange: [0, 0.5, 1],
-                        outputRange: [0.6, 1.1, 0.8],
-                    }),
-                },
-            ],
-        });
-
-        return (
-            <Animated.View
-                pointerEvents="none"
-                style={[
-                    styles.totalCelebrationOverlay,
-                    { opacity: celebrationFade }
-                ]}
-            >
-                <Animated.Text style={[styles.sparkle, sparkleStyle(sparkle1, 6, -14)]}>✦</Animated.Text>
-                <Animated.Text style={[styles.sparkle, sparkleStyle(sparkle2, 42, -28)]}>✦</Animated.Text>
-                <Animated.Text style={[styles.sparkle, sparkleStyle(sparkle3, 78, -18)]}>✦</Animated.Text>
-            </Animated.View>
-        );
-    }
 
     const calendarStartDate = useMemo(
         () => appService.getCalendarStartDate(),
@@ -395,54 +370,72 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                     <View style={styles.totalRow}>
                         <View style={styles.totalWrapper}>
                             <Text style={styles.total}>
-                                {total + ' ' + (!!targetCount ? '/ ' + targetCount : '')}
+                                {formatNumber(total) + ' ' + (!!targetCount ? '/ ' + formatNumber(targetCount) : '')}
                             </Text>
-                            {isCelebrating(practiceId) && renderCelebrationOverlay()}
+
                         </View>
-
-                        {isCelebrating(practiceId) && (
-                            <Animated.Text
-                                style={[
-                                    styles.congratsText,
-                                    { opacity: celebrationFade }
-                                ]}
-                            >
-                                Target reached, congratulations!!
-                            </Animated.Text>
-                        )}
                     </View>
-
-                    <Pressable
-                        onPress={() => setTargetEditOpen(true)}
-                        style={styles.targetDateEditable}
-                    >
-                        <Text style={styles.targetDateText}>
-                            Target date: {formattedTargetDate}
-                        </Text>
-                    </Pressable>
 
                     <View style={styles.quickAddRow}>
 
                         <Text style={styles.quickAddLabel}>
-                            Quick Add:
+                            Daily repetition count:
                         </Text>
 
                         <Pressable
                             style={styles.quickAddButton}
-                            onPress={() =>
-                                sessionService.addSession(
-                                    practiceId,
-                                    Number(defaultAddCount)
-                                )
-                            }
+                            onPress={() => {
+                                try {
+                                    sessionService.addSession(
+                                        practiceId,
+                                        Number(defaultAddCount)
+                                    );
+                                } catch (error: any) {
+                                    alert(error.message);
+                                }
+                            }}
                             onLongPress={() => setQuickAddOpen(true)}
                         >
                             <Text style={styles.quickAddButtonText}>
-                                +{defaultAddCount}
+                                +{formatNumber(defaultAddCount)}
                             </Text>
                         </Pressable>
 
                     </View>
+
+                    <Pressable
+                        onPress={() => setTargetEditOpen(true)}
+                    >
+                        <View style={styles.targetDateRow}>
+
+                            <View style={styles.targetDateEditable}>
+                                <Text style={styles.targetDateText}>
+                                    Target date: {formattedTargetDate}
+                                </Text>
+                            </View>
+
+                            {isCelebrating(practiceId) && (
+                                <>
+                                    <CelebrationOverlay
+                                        fade={celebrationFade}
+                                        sparkle1={sparkle1}
+                                        sparkle2={sparkle2}
+                                        sparkle3={sparkle3}
+                                    />
+
+                                    <Animated.Text
+                                        style={[
+                                            styles.congratsText,
+                                            { opacity: celebrationFade }
+                                        ]}
+                                    >
+                                        Target reached, congratulations!!
+                                    </Animated.Text>
+                                </>
+                            )}
+
+                        </View>
+                    </Pressable>
 
                     <PracticeCalendar
                         data={calendarData}
@@ -728,8 +721,8 @@ const styles = StyleSheet.create({
     quickAddRow: {
         flexDirection: "row",
         alignItems: "center",
-        marginTop: 6,
-        marginBottom: 6
+        marginTop: 2,
+        marginBottom: 10
     },
 
     quickAddLabel: {
@@ -764,5 +757,12 @@ const styles = StyleSheet.create({
         borderBottomColor: "#cbd5e1",
         paddingBottom: 2,
         alignSelf: "flex-start"
+    },
+
+    targetDateRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        position: "relative"
     },
 });

@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Button, StyleSheet, Text, TextInput, View } from "react-native";
 import * as practiceService from "../services/practiceService";
+import { digitsOnly, MAX_TARGET_COUNT, validateNonNegativeInteger, validateRepetitionsPerSession, validateTargetCount } from "../utils/numberUtils";
 
 export default function EditPractice() {
 
@@ -24,16 +25,45 @@ export default function EditPractice() {
     function save() {
 
         if (!name.trim()) {
-            alert("Practice name required");
+            alert("Please enter a practice name");
             return;
         }
 
-        practiceService.updatePractice(
-            id as string,
-            name,
-            Number(target),
-            Number(total)
-        );
+        const targetError =
+            validateTargetCount(target);
+
+        if (targetError) {
+            alert(targetError);
+            return;
+        }
+
+        const totalError =
+            validateNonNegativeInteger(total, "Total count");
+
+        if (totalError) {
+            alert(totalError);
+            return;
+        }
+
+        const defaultError =
+            validateRepetitionsPerSession(defaultAdd);
+
+        if (defaultError) {
+            alert(defaultError);
+            return;
+        }
+
+        try {
+            practiceService.updatePractice(
+                id as string,
+                name,
+                Number(target),
+                Number(total)
+            );
+        } catch (error: any) {
+            alert(error.message);
+            return;
+        }
 
         practiceService.updatePracticeDefaultAddCount(
             id as string,
@@ -56,26 +86,38 @@ export default function EditPractice() {
                 style={styles.input}
             />
 
-            <Text>Target</Text>
+            <Text>Target count</Text>
             <TextInput
                 value={target}
-                onChangeText={setTarget}
+                onChangeText={(v) => {
+                    const clean = digitsOnly(v);
+                    if (Number(clean) > MAX_TARGET_COUNT) return;
+                    setTarget(clean);
+                }}
                 keyboardType="numeric"
                 style={styles.input}
             />
 
-            <Text>Total Count</Text>
+            <Text>Total count</Text>
             <TextInput
                 value={total}
-                onChangeText={setTotal}
+                onChangeText={(v) => {
+                    const clean = digitsOnly(v);
+                    if (Number(clean) > MAX_TARGET_COUNT) return;
+                    setTotal(clean);
+                }}
                 keyboardType="numeric"
                 style={styles.input}
             />
 
-            <Text>Repetitions per session</Text>
+            <Text>Repetitions per day</Text>
             <TextInput
                 value={defaultAdd}
-                onChangeText={setDefaultAdd}
+                onChangeText={(v) => {
+                    const clean = digitsOnly(v);
+                    if (Number(clean) > 108000) return;
+                    setDefaultAdd(clean);
+                }}
                 keyboardType="numeric"
                 style={styles.input}
             />

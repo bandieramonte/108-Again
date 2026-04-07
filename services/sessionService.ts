@@ -5,6 +5,8 @@ import * as authService from "../services/authService";
 import * as syncService from "../services/syncService";
 import { SyncMetadata } from "../types/sync";
 import { emitDataChanged } from "../utils/events";
+import { MAX_TARGET_COUNT } from "../utils/numberUtils";
+import * as practiceService from "./practiceService";
 
 function getWriteSyncMetadata() : SyncMetadata  {
     const userId = authService.getCurrentUserId();
@@ -26,10 +28,23 @@ export type AddedSessionResult = {
 };
 
 export function addSession(practiceId: string, count: number) {
+
+    const practice = practiceService.getPracticeEditData(practiceId);
+
+    if (!practice) {
+        throw new Error("Practice not found");
+    }
+
+    const newTotal = practice.total + count;
+
+    if (newTotal > MAX_TARGET_COUNT) {
+        throw new Error(
+            `Total count cannot exceed ${MAX_TARGET_COUNT.toLocaleString()}`
+        );
+    }
+
     const syncMetadata = getWriteSyncMetadata();
-
     const today = new Date();
-
     const dayString =
         today.getUTCFullYear() +
         "-" +

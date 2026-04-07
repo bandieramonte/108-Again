@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import * as practiceService from "../services/practiceService";
+import { digitsOnly, validateRepetitionsPerSession } from "../utils/numberUtils";
 
 type Props = {
     visible: boolean;
@@ -27,24 +28,18 @@ export default function QuickAddEditor({
     }, [visible, defaultValue]);
 
     function save() {
-        const num = Number(value);
 
         if (!practiceId) return;
 
-        if (!Number.isFinite(num)) {
-            alert("Please enter a valid number");
+        const error =
+            validateRepetitionsPerSession(value);
+
+        if (error) {
+            alert(error);
             return;
         }
 
-        if (!Number.isInteger(num)) {
-            alert("Please enter a whole number");
-            return;
-        }
-
-        if (num <= 0) {
-            alert("Value must be greater than zero");
-            return;
-        }
+        const num = Number(value);
 
         practiceService.updatePracticeDefaultAddCount(
             practiceId,
@@ -65,7 +60,7 @@ export default function QuickAddEditor({
                 <View style={styles.card}>
 
                     <Text style={styles.title}>
-                        Edit repetitions per session
+                        Edit repetitions per day
                     </Text>
 
                     <Text style={styles.subtitle}>
@@ -74,7 +69,7 @@ export default function QuickAddEditor({
 
                     <TextInput
                         value={value}
-                        onChangeText={setValue}
+                        onChangeText={(v) => setValue(digitsOnly(v))}
                         keyboardType="numeric"
                         style={styles.input}
                     />
@@ -129,7 +124,8 @@ const styles = StyleSheet.create({
         borderColor: "#ccc",
         padding: 10,
         marginBottom: 16,
-        borderRadius: 8
+        borderRadius: 8,
+        color: "black"
     },
 
     buttons: {

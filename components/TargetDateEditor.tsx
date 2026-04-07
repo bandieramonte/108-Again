@@ -21,8 +21,11 @@ export default function TargetDateEditor({
     onSave
 }: Props) {
 
-    const [selectedDate, setSelectedDate] = useState("");
-
+    const [selectedDate, setSelectedDate] = useState(
+        currentTargetDate
+            ? currentTargetDate.toISOString().split("T")[0]
+            : ""
+    );
     useEffect(() => {
         if (visible && currentTargetDate) {
             setSelectedDate(
@@ -58,18 +61,20 @@ export default function TargetDateEditor({
                         Edit target date
                     </Text>
 
-                    <Calendar
-                        current={selectedDate}
-                        minDate={today}
-                        markedDates={{
-                            [selectedDate]: {
-                                selected: true
-                            }
-                        }}
-                        onDayPress={(day) => {
-                            setSelectedDate(day.dateString);
-                        }}
-                    />
+                    {selectedDate && (
+                        <Calendar
+                            current={selectedDate}
+                            minDate={today}
+                            markedDates={{
+                                [selectedDate]: {
+                                    selected: true
+                                }
+                            }}
+                            onDayPress={(day) => {
+                                setSelectedDate(day.dateString);
+                            }}
+                        />
+                    )}
 
                     <View style={styles.buttons}>
                         <Pressable onPress={onClose}>

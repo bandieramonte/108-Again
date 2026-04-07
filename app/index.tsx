@@ -4,12 +4,14 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import * as Progress from "react-native-progress";
+import CelebrationOverlay from "../components/CelebrationOverlay";
 import QuickAddEditor from "../components/QuickAddEditor";
 import { practiceImages } from "../constants/practiceImages";
 import { useReachedCelebration } from "../hooks/useReachedCelebration";
 import * as dashboardService from "../services/dashboardService";
 import * as practiceService from "../services/practiceService";
 import * as sessionService from "../services/sessionService";
+import { formatNumber } from "../utils/numberUtils";
 
 type Practice = {
   id: string;
@@ -116,7 +118,11 @@ export default function Dashboard() {
   }
 
   async function quickAdd(practiceId: string, count: number) {
-    sessionService.addSession(practiceId, count);
+    try {
+      sessionService.addSession(practiceId, count);
+    } catch (error: any) {
+      alert(error.message);
+    }
     await maybeShowQuickAddHint(practiceId);
   }
 
@@ -125,71 +131,6 @@ export default function Dashboard() {
     setSelectedPracticeName(practiceName);
     setDefaultAddInput(String(currentDefault));
     setEditDefaultOpen(true);
-  }
-
-  function saveDefaultAddAmount() {
-    const value = Number(defaultAddInput);
-
-    if (!selectedPracticeId) return;
-
-    if (!Number.isFinite(value)) {
-      alert("Please enter a valid number");
-      return;
-    }
-
-    if (!Number.isInteger(value)) {
-      alert("Please enter a whole number");
-      return;
-    }
-
-    if (value <= 0) {
-      alert("Value must be greater than zero");
-      return;
-    }
-
-    practiceService.updatePracticeDefaultAddCount(selectedPracticeId, value);
-    setEditDefaultOpen(false);
-    setSelectedPracticeId(null);
-    setSelectedPracticeName("");
-    setDefaultAddInput("");
-  }
-
-  function renderCelebrationOverlay() {
-    const sparkleStyle = (value: Animated.Value, translateX: number, translateY: number) => ({
-      opacity: value.interpolate({
-        inputRange: [0, 0.2, 0.8, 1],
-        outputRange: [0, 1, 1, 0],
-      }),
-      transform: [
-        { translateX },
-        {
-          translateY: value.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0, translateY],
-          }),
-        },
-        {
-          scale: value.interpolate({
-            inputRange: [0, 0.5, 1],
-            outputRange: [0.6, 1.1, 0.8],
-          }),
-        },
-      ],
-    });
-
-    return (
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.celebrationOverlay,
-          { opacity: celebrationFade }
-        ]}
-      >
-        <Animated.Text style={[styles.sparkle, sparkleStyle(sparkle1, 12, -18)]}>✦</Animated.Text>
-        <Animated.Text style={[styles.sparkle, sparkleStyle(sparkle2, 48, -34)]}>✦</Animated.Text>
-        <Animated.Text style={[styles.sparkle, sparkleStyle(sparkle3, 84, -22)]}>✦</Animated.Text>
-      </Animated.View>
-    );
   }
 
   return (
@@ -211,17 +152,19 @@ export default function Dashboard() {
           );
 
         const expectedTargetDate =
-          targetDate
-            ? targetDate.toLocaleDateString("en-US", {
-              month: "long",
-              day: "2-digit",
-              year: "numeric"
-            })
-            : null;
+          practice.targetCount > 0 && practice.total >= practice.targetCount
+            ? "Reached!"
+            : targetDate
+              ? targetDate.toLocaleDateString("en-US", {
+                month: "long",
+                day: "2-digit",
+                year: "numeric"
+              })
+              : "No estimate";
+
         return (
 
           <View key={practice.id} style={styles.card}>
-            {isCelebrating(practice.id) && renderCelebrationOverlay()}
             <TouchableOpacity
               onPress={() =>
                 router.push({
@@ -254,14 +197,22 @@ export default function Dashboard() {
                   />
 
                   <Text style={styles.countText}>
-                    {practice.total + ' ' + (!!practice.targetCount ? '/ ' + practice.targetCount : '')}
+                    {formatNumber(practice.total) + ' ' + (!!practice.targetCount ? '/ ' + formatNumber(practice.targetCount) : '')}
                   </Text>
 
                   <Text style={{ fontSize: 12, color: "#666" }}>
-                    Today: {practice.today}
+                    Today: {formatNumber(practice.today)}
                   </Text>
 
                   <View style={styles.targetDateRow}>
+                    {isCelebrating(practice.id) && (
+                      <CelebrationOverlay
+                        fade={celebrationFade}
+                        sparkle1={sparkle1}
+                        sparkle2={sparkle2}
+                        sparkle3={sparkle3}
+                      />
+                    )}
                     <Text
                       style={
                         !!practice.imageKey
@@ -272,7 +223,7 @@ export default function Dashboard() {
                       Target date: {expectedTargetDate ?? "No estimate"}
                     </Text>
 
-                    {expectedTargetDate === "Reached" && isCelebrating(practice.id) && (
+                    {expectedTargetDate === "Reached!" && isCelebrating(practice.id) && (
                       <Animated.Text
                         style={[
                           styles.congratsText,
@@ -309,7 +260,7 @@ export default function Dashboard() {
                 delayLongPress={350}
               >
                 <Text style={styles.quickAddButtonText}>
-                  +{practice.defaultAddCount ?? 108}
+                  +{formatNumber(practice.defaultAddCount ?? 108)}
                 </Text>
               </Pressable>
             </View>
@@ -524,10 +475,10 @@ const styles = StyleSheet.create({
 
   celebrationOverlay: {
     position: "absolute",
-    top: 8,
-    right: 8,
-    bottom: 8,
-    left: 8,
+    top: -6,
+    left: 0,
+    right: 0,
+    height: 24,
     pointerEvents: "none",
     zIndex: 20,
   },

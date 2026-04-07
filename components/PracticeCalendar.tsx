@@ -32,13 +32,29 @@ export default function PracticeCalendar({
         return getWeekStart(startDate);
     }, [startDate]);
 
+    const effectiveEndDate = useMemo(() => {
+        const d = new Date(endDate);
+
+        let day = d.getDay();
+
+        // Convert Sunday (0) → 7
+        if (day === 0) day = 7;
+
+        const daysUntilSunday = 7 - day;
+
+        d.setDate(d.getDate() + daysUntilSunday);
+
+        return d;
+    }, [endDate]);
+
     const endWeekIndex = useMemo(() => {
         const diffDays =
-            (endDate.getTime() - baseWeekStart.getTime()) /
+            (effectiveEndDate.getTime() - baseWeekStart.getTime()) /
             (1000 * 60 * 60 * 24);
 
         return Math.floor(diffDays / 7);
-    }, [endDate, baseWeekStart]);
+    }, [effectiveEndDate, baseWeekStart]);
+
     const [visibleEndWeek, setVisibleEndWeek] = useState(endWeekIndex);
     const totalWeeks = visibleEndWeek + 1;
 

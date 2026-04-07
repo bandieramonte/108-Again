@@ -7,6 +7,7 @@ import * as authService from "../services/authService";
 import * as syncService from "../services/syncService";
 import { SyncMetadata } from "../types/sync";
 import { emitDataChanged } from "../utils/events";
+import { MAX_TARGET_COUNT } from "../utils/numberUtils";
 
 function getWriteSyncMetadata() : SyncMetadata {
     const userId = authService.getCurrentUserId();
@@ -56,6 +57,13 @@ export function updatePractice(
     target: number,
     newTotal: number
 ) {
+
+    if (newTotal > MAX_TARGET_COUNT) {
+        throw new Error(
+            `Total count cannot exceed ${MAX_TARGET_COUNT.toLocaleString()}`
+        );
+    }
+
     const currentTotal = sessionRepo.getPracticeTotal(id).total;
     const difference = newTotal - currentTotal;
     const syncMetadata = getWriteSyncMetadata();

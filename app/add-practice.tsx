@@ -2,19 +2,46 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Button, StyleSheet, Text, TextInput, View } from "react-native";
 import * as practiceService from "../services/practiceService";
+import { digitsOnly, MAX_TARGET_COUNT, validateRepetitionsPerSession, validateTargetCount } from "../utils/numberUtils";
 
 export default function AddPractice() {
 
     const router = useRouter();
 
     const [name, setName] = useState("");
-    const [target, setTarget] = useState("111111");
-    const [defaultAdd, setDefaultAdd] = useState("108");
+    const [target, setTarget] = useState("");
+    const [defaultAdd, setDefaultAdd] = useState("");
 
     function savePractice() {
 
         if (!name.trim()) {
             alert("Please enter a practice name");
+            return;
+        }
+
+        if (!target.trim()) {
+            alert("Please enter a target count");
+            return;
+        }
+
+        if (!defaultAdd.trim()) {
+            alert("Please enter amount of repetitions per day");
+            return;
+        }
+
+        const targetError =
+            validateTargetCount(target);
+
+        if (targetError) {
+            alert(targetError);
+            return;
+        }
+
+        const defaultError =
+            validateRepetitionsPerSession(defaultAdd);
+
+        if (defaultError) {
+            alert(defaultError);
             return;
         }
 
@@ -50,16 +77,24 @@ export default function AddPractice() {
                 placeholder="Target count"
                 placeholderTextColor="#999"
                 value={target}
-                onChangeText={setTarget}
+                onChangeText={(v) => {
+                    const clean = digitsOnly(v);
+                    if (Number(clean) > MAX_TARGET_COUNT) return;
+                    setTarget(clean);
+                }}
                 keyboardType="numeric"
                 style={styles.input}
             />
 
             <TextInput
-                placeholder="Repetitions per sessions"
+                placeholder="Repetitions per day"
                 placeholderTextColor="#999"
                 value={defaultAdd}
-                onChangeText={setDefaultAdd}
+                onChangeText={(v) => {
+                    const clean = digitsOnly(v);
+                    if (Number(clean) > 108000) return;
+                    setDefaultAdd(clean);
+                }}
                 keyboardType="numeric"
                 style={styles.input}
             />
@@ -91,7 +126,8 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: "#ccc",
         padding: 10,
-        marginBottom: 15
+        marginBottom: 15,
+        color: "black"
     }
 
 });
