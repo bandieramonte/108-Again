@@ -1,4 +1,5 @@
 import * as practiceService from "@/services/practiceService";
+import { MAX_PRACTICE_COUNT } from "@/utils/numberUtils";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -54,7 +55,7 @@ export default function HeaderMenu({
                     <MaterialIcons name="account-circle" size={24} />
                 </Pressable>
             ) : (
-                <View style={{ width: 32 }} />   // preserve spacing
+                <View style={{ width: 32 }} />
             )}
             <Pressable
                 onPress={() => setMoreOpen(true)}
@@ -142,7 +143,7 @@ export default function HeaderMenu({
                             onPress={() => {
                                 const practices = practiceService.getAllPractices();
 
-                                if (practices.length >= 10) {
+                                if (practices.length >= MAX_PRACTICE_COUNT) {
                                     setMoreOpen(false);
 
                                     Alert.alert(

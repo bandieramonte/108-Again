@@ -1,3 +1,4 @@
+export const MAX_PRACTICE_COUNT = 10;
 export const MAX_TARGET_COUNT = 1_111_111;
 export const MAX_REPETITIONS_PER_DAY = 1_111_111;
 

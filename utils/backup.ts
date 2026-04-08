@@ -1,5 +1,5 @@
 import * as authService from "@/services/authService";
-import { getBackupData, restoreBackupData } from "@/services/backupService";
+import { getBackupData, restoreBackupData, validateBackup } from "@/services/backupService";
 import * as syncService from "@/services/syncService";
 import { emitDataChanged } from "@/utils/events";
 import * as DocumentPicker from "expo-document-picker";
@@ -36,11 +36,23 @@ export async function importBackup(onComplete?: () => void) {
     const file = new File(uri);
 
     const content = await file.text();
-    const data = JSON.parse(content);
+    let data:any;
+
+    try {
+        data = JSON.parse(content);
+    } catch {
+        Alert.alert(
+            "Invalid file",
+            "The selected file is not a valid backup."
+        );
+        return;
+    }
 
     async function performImport() {
 
         try {
+
+            validateBackup(data);
 
             const userId = authService.getCurrentUserId();
 
@@ -64,11 +76,11 @@ export async function importBackup(onComplete?: () => void) {
 
         } catch (error) {
 
-            console.error("Backup restore failed", error);
-
             Alert.alert(
                 "Restore failed",
-                "The backup file could not be imported."
+                error instanceof Error
+                    ? error.message
+                    : "The backup file could not be imported."
             );
         }
     }
