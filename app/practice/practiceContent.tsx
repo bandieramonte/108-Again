@@ -323,269 +323,275 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
 
     return (
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+            <View
+                style={{
+                    width: "100%",
+                    maxWidth: 800,
+                    alignSelf: "center",
+                }}
+            >
+                <View style={{ marginTop: 24 }}>
 
-            <View style={{ marginTop: 24 }}>
-
-                <Pressable onPress={menuOpen ? closeMenu : undefined}>
-                    <View style={styles.titleMenuWrapper}>
-                        <Pressable
-                            ref={titleRowRef}
-                            style={styles.titleRow}
-                            onPress={toggleMenu}
-                        >
-                            <Text style={styles.title}>
-                                {practiceName}
-                            </Text>
-
-                            <Animated.View
-                                style={{ transform: [{ rotate: chevronRotation }] }}
+                    <Pressable onPress={menuOpen ? closeMenu : undefined}>
+                        <View style={styles.titleMenuWrapper}>
+                            <Pressable
+                                ref={titleRowRef}
+                                style={styles.titleRow}
+                                onPress={toggleMenu}
                             >
-                                <MaterialIcons
-                                    name="keyboard-arrow-down"
-                                    size={28}
-                                    color="#333"
-                                />
-                            </Animated.View>
+                                <Text style={styles.title}>
+                                    {practiceName}
+                                </Text>
 
-                        </Pressable>
-                    </View>
-                </Pressable>
+                                <Animated.View
+                                    style={{ transform: [{ rotate: chevronRotation }] }}
+                                >
+                                    <MaterialIcons
+                                        name="keyboard-arrow-down"
+                                        size={28}
+                                        color="#333"
+                                    />
+                                </Animated.View>
 
-                {imageSource && (
-                    <View style={styles.imageWrapper}>
-                        <Image
-                            source={imageSource}
-                            style={{
-                                width: width,
-                                aspectRatio: imageRatio,
-                                alignSelf: "center",
-                                marginBottom: 15
-                            }}
-                            resizeMode="contain"
-                        />
-                    </View>
-                )}
-
-                <View style={styles.contentBlock}>
-
-                    <View style={styles.totalRow}>
-
-                        <View style={styles.totalWrapper}>
-                            <Text style={styles.total}>
-                                {formatNumber(total) + ' ' + (!!targetCount ? '/ ' + formatNumber(targetCount) : '')}
-                            </Text>
+                            </Pressable>
                         </View>
+                    </Pressable>
 
-                        <Pressable
-                            onPress={() => setInfoOpen(true)}
-                            style={styles.infoIcon}
-                        >
-                            <MaterialIcons
-                                name="info-outline"
-                                size={20}
-                                color="#666"
+                    {imageSource && (
+                        <View style={styles.imageWrapper}>
+                            <Image
+                                source={imageSource}
+                                style={{
+                                    width: "100%",
+                                    aspectRatio: imageRatio,
+                                    alignSelf: "center",
+                                    marginBottom: 15
+                                }}
+                                resizeMode="contain"
                             />
-                        </Pressable>
+                        </View>
+                    )}
 
-                    </View>
+                    <View style={styles.contentBlock}>
 
-                    <View style={styles.quickAddRow}>
+                        <View style={styles.totalRow}>
 
-                        <Text style={styles.quickAddLabel}>
-                            Daily repetition count:
-                        </Text>
-
-                        <Pressable
-                            style={styles.quickAddButton}
-                            onPress={() => {
-                                try {
-                                    sessionService.addSession(
-                                        practiceId,
-                                        Number(defaultAddCount)
-                                    );
-                                } catch (error: any) {
-                                    alert(error.message);
-                                }
-                            }}
-                            onLongPress={() => setQuickAddOpen(true)}
-                        >
-                            <Text style={styles.quickAddButtonText}>
-                                +{formatNumber(defaultAddCount)}
-                            </Text>
-                        </Pressable>
-
-                    </View>
-
-                    <Pressable
-                        onPress={() => setTargetEditOpen(true)}
-                    >
-                        <View style={styles.targetDateRow}>
-
-                            <View style={styles.targetDateEditable}>
-                                <Text style={styles.targetDateText}>
-                                    Target date: {formattedTargetDate}
+                            <View style={styles.totalWrapper}>
+                                <Text style={styles.total}>
+                                    {formatNumber(total) + ' ' + (!!targetCount ? '/ ' + formatNumber(targetCount) : '')}
                                 </Text>
                             </View>
 
-                            {isCelebrating(practiceId) && (
-                                <>
-                                    <CelebrationOverlay
-                                        fade={celebrationFade}
-                                        sparkle1={sparkle1}
-                                        sparkle2={sparkle2}
-                                        sparkle3={sparkle3}
-                                    />
-
-                                    <Animated.Text
-                                        style={[
-                                            styles.congratsText,
-                                            { opacity: celebrationFade }
-                                        ]}
-                                    >
-                                        Target reached, congratulations!!
-                                    </Animated.Text>
-                                </>
-                            )}
+                            <Pressable
+                                onPress={() => setInfoOpen(true)}
+                                style={styles.infoIcon}
+                            >
+                                <MaterialIcons
+                                    name="info-outline"
+                                    size={20}
+                                    color="#666"
+                                />
+                            </Pressable>
 
                         </View>
-                    </Pressable>
 
-                    <PracticeCalendar
-                        data={calendarData}
-                        startDate={calendarStartDate}
-                        endDate={calendarEndDate}
-                        onEditDay={handleEdit}
-                    />
+                        <View style={styles.quickAddRow}>
+
+                            <Text style={styles.quickAddLabel}>
+                                Daily repetition count:
+                            </Text>
+
+                            <Pressable
+                                style={styles.quickAddButton}
+                                onPress={() => {
+                                    try {
+                                        sessionService.addSession(
+                                            practiceId,
+                                            Number(defaultAddCount)
+                                        );
+                                    } catch (error: any) {
+                                        alert(error.message);
+                                    }
+                                }}
+                                onLongPress={() => setQuickAddOpen(true)}
+                            >
+                                <Text style={styles.quickAddButtonText}>
+                                    +{formatNumber(defaultAddCount)}
+                                </Text>
+                            </Pressable>
+
+                        </View>
+
+                        <Pressable
+                            onPress={() => setTargetEditOpen(true)}
+                        >
+                            <View style={styles.targetDateRow}>
+
+                                <View style={styles.targetDateEditable}>
+                                    <Text style={styles.targetDateText}>
+                                        Target date: {formattedTargetDate}
+                                    </Text>
+                                </View>
+
+                                {isCelebrating(practiceId) && (
+                                    <>
+                                        <CelebrationOverlay
+                                            fade={celebrationFade}
+                                            sparkle1={sparkle1}
+                                            sparkle2={sparkle2}
+                                            sparkle3={sparkle3}
+                                        />
+
+                                        <Animated.Text
+                                            style={[
+                                                styles.congratsText,
+                                                { opacity: celebrationFade }
+                                            ]}
+                                        >
+                                            Target reached, congratulations!!
+                                        </Animated.Text>
+                                    </>
+                                )}
+
+                            </View>
+                        </Pressable>
+
+                        <PracticeCalendar
+                            data={calendarData}
+                            startDate={calendarStartDate}
+                            endDate={calendarEndDate}
+                            onEditDay={handleEdit}
+                        />
+
+                    </View>
+
+                    <Modal
+                        visible={menuOpen}
+                        transparent
+                        animationType="fade"
+                        onRequestClose={closeMenu}
+                    >
+                        <Pressable
+                            style={styles.menuOverlay}
+                            onPress={closeMenu}
+                        >
+                            {menuAnchor && (
+                                <View
+                                    style={[
+                                        styles.dropdownMenuModal,
+                                        {
+                                            top: menuAnchor.y + menuAnchor.height + 8,
+                                            left: Math.max(
+                                                20,
+                                                menuAnchor.x + menuAnchor.width / 2 - 110
+                                            ),
+                                        }
+                                    ]}
+                                >
+
+                                    <Pressable
+                                        style={styles.dropdownItem}
+                                        onPress={openEditPractice}
+                                    >
+                                        <MaterialIcons
+                                            name="edit"
+                                            size={18}
+                                            color="#333"
+                                        />
+                                        <Text style={styles.dropdownText}>
+                                            Edit practice
+                                        </Text>
+                                    </Pressable>
+
+                                    <Pressable
+                                        style={styles.dropdownItem}
+                                        onPress={confirmDelete}
+                                    >
+                                        <MaterialIcons
+                                            name="delete-outline"
+                                            size={18}
+                                            color="#c62828"
+                                        />
+                                        <Text style={styles.dropdownDeleteText}>
+                                            Delete practice
+                                        </Text>
+                                    </Pressable>
+
+                                </View>
+                            )}
+                        </Pressable>
+                    </Modal>
 
                 </View>
 
+                <QuickAddEditor
+                    visible={quickAddOpen}
+                    practiceId={practiceId}
+                    practiceName={practiceName}
+                    defaultValue={Number(defaultAddCount)}
+                    onClose={() => setQuickAddOpen(false)}
+                />
+
+                <TargetDateEditor
+                    visible={targetEditOpen}
+                    targetCount={targetCount}
+                    total={total}
+                    currentTargetDate={targetDate}
+                    onClose={() => setTargetEditOpen(false)}
+                    onSave={(newDaily) => {
+                        practiceService.updatePracticeDefaultAddCount(
+                            practiceId,
+                            newDaily
+                        );
+                    }}
+                />
+
                 <Modal
-                    visible={menuOpen}
+                    visible={infoOpen}
                     transparent
                     animationType="fade"
-                    onRequestClose={closeMenu}
+                    onRequestClose={() => setInfoOpen(false)}
                 >
                     <Pressable
-                        style={styles.menuOverlay}
-                        onPress={closeMenu}
+                        style={styles.infoOverlay}
+                        onPress={() => setInfoOpen(false)}
                     >
-                        {menuAnchor && (
-                            <View
-                                style={[
-                                    styles.dropdownMenuModal,
-                                    {
-                                        top: menuAnchor.y + menuAnchor.height + 8,
-                                        left: Math.max(
-                                            20,
-                                            menuAnchor.x + menuAnchor.width / 2 - 110
-                                        ),
-                                    }
-                                ]}
+                        <Pressable
+                            style={styles.infoModal}
+                            onPress={() => { }}
+                        >
+                            <Text style={styles.infoTitle}>
+                                Editing Practice Data
+                            </Text>
+
+                            <Text style={styles.infoText}>
+                                You can edit the daily repetition count and the target date.
+                            </Text>
+
+                            <Text style={styles.infoText}>
+                                Changing one will automatically adjust the other,
+                                and the calendar below will update accordingly.
+                            </Text>
+
+                            <Text style={styles.infoText}>
+                                You can also modify any daily count in the calendar
+                                for today or any past day.
+                            </Text>
+
+                            <Pressable
+                                style={styles.infoButton}
+                                onPress={() => setInfoOpen(false)}
                             >
+                                <Text style={styles.infoButtonText}>
+                                    OK
+                                </Text>
+                            </Pressable>
 
-                                <Pressable
-                                    style={styles.dropdownItem}
-                                    onPress={openEditPractice}
-                                >
-                                    <MaterialIcons
-                                        name="edit"
-                                        size={18}
-                                        color="#333"
-                                    />
-                                    <Text style={styles.dropdownText}>
-                                        Edit practice
-                                    </Text>
-                                </Pressable>
-
-                                <Pressable
-                                    style={styles.dropdownItem}
-                                    onPress={confirmDelete}
-                                >
-                                    <MaterialIcons
-                                        name="delete-outline"
-                                        size={18}
-                                        color="#c62828"
-                                    />
-                                    <Text style={styles.dropdownDeleteText}>
-                                        Delete practice
-                                    </Text>
-                                </Pressable>
-
-                            </View>
-                        )}
+                        </Pressable>
                     </Pressable>
                 </Modal>
-
             </View>
-
-            <QuickAddEditor
-                visible={quickAddOpen}
-                practiceId={practiceId}
-                practiceName={practiceName}
-                defaultValue={Number(defaultAddCount)}
-                onClose={() => setQuickAddOpen(false)}
-            />
-
-            <TargetDateEditor
-                visible={targetEditOpen}
-                targetCount={targetCount}
-                total={total}
-                currentTargetDate={targetDate}
-                onClose={() => setTargetEditOpen(false)}
-                onSave={(newDaily) => {
-                    practiceService.updatePracticeDefaultAddCount(
-                        practiceId,
-                        newDaily
-                    );
-                }}
-            />
-
-            <Modal
-                visible={infoOpen}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setInfoOpen(false)}
-            >
-                <Pressable
-                    style={styles.infoOverlay}
-                    onPress={() => setInfoOpen(false)}
-                >
-                    <Pressable
-                        style={styles.infoModal}
-                        onPress={() => { }}
-                    >
-                        <Text style={styles.infoTitle}>
-                            Editing Practice Data
-                        </Text>
-
-                        <Text style={styles.infoText}>
-                            You can edit the daily repetition count and the target date.
-                        </Text>
-
-                        <Text style={styles.infoText}>
-                            Changing one will automatically adjust the other,
-                            and the calendar below will update accordingly.
-                        </Text>
-
-                        <Text style={styles.infoText}>
-                            You can also modify any daily count in the calendar
-                            for today or any past day.
-                        </Text>
-
-                        <Pressable
-                            style={styles.infoButton}
-                            onPress={() => setInfoOpen(false)}
-                        >
-                            <Text style={styles.infoButtonText}>
-                                OK
-                            </Text>
-                        </Pressable>
-
-                    </Pressable>
-                </Pressable>
-            </Modal>
-        </ScrollView>
-    );
+        </ScrollView>);
 }
 
 const styles = StyleSheet.create({
@@ -780,7 +786,8 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         marginTop: 2,
-        marginBottom: 10
+        marginBottom: 10,
+        flexWrap: "wrap"
     },
 
     quickAddLabel: {
@@ -821,7 +828,8 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         gap: 8,
-        position: "relative"
+        position: "relative",
+        flexWrap: "wrap"
     },
 
     infoIcon: {

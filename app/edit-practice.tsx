@@ -1,8 +1,8 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Button, StyleSheet, Text, TextInput, View } from "react-native";
+import { Button, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput } from "react-native";
 import * as practiceService from "../services/practiceService";
-import { digitsOnly, MAX_TARGET_COUNT, validateNonNegativeInteger, validateRepetitionsPerSession, validateTargetCount } from "../utils/numberUtils";
+import { digitsOnly, MAX_PRACTICE_NAME, MAX_TARGET_COUNT, validateNonNegativeInteger, validateRepetitionsPerSession, validateTargetCount } from "../utils/numberUtils";
 
 export default function EditPractice() {
 
@@ -75,57 +75,64 @@ export default function EditPractice() {
 
     return (
 
-        <View style={styles.container}>
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+            <ScrollView
+                contentContainerStyle={styles.container}
+                keyboardShouldPersistTaps="handled"
+            >
+                <Text style={styles.title}>Edit Practice</Text>
 
-            <Text style={styles.title}>Edit Practice</Text>
+                <Text>Name</Text>
+                <TextInput
+                    value={name}
+                    onChangeText={(text) => setName(text.slice(0, MAX_PRACTICE_NAME))}
+                    maxLength={25}
+                    style={styles.input}
+                />
 
-            <Text>Name</Text>
-            <TextInput
-                value={name}
-                onChangeText={setName}
-                style={styles.input}
-            />
+                <Text>Target count</Text>
+                <TextInput
+                    value={target}
+                    onChangeText={(v) => {
+                        const clean = digitsOnly(v);
+                        if (Number(clean) > MAX_TARGET_COUNT) return;
+                        setTarget(clean);
+                    }}
+                    keyboardType="numeric"
+                    style={styles.input}
+                />
 
-            <Text>Target count</Text>
-            <TextInput
-                value={target}
-                onChangeText={(v) => {
-                    const clean = digitsOnly(v);
-                    if (Number(clean) > MAX_TARGET_COUNT) return;
-                    setTarget(clean);
-                }}
-                keyboardType="numeric"
-                style={styles.input}
-            />
+                <Text>Total count</Text>
+                <TextInput
+                    value={total}
+                    onChangeText={(v) => {
+                        const clean = digitsOnly(v);
+                        if (Number(clean) > MAX_TARGET_COUNT) return;
+                        setTotal(clean);
+                    }}
+                    keyboardType="numeric"
+                    style={styles.input}
+                />
 
-            <Text>Total count</Text>
-            <TextInput
-                value={total}
-                onChangeText={(v) => {
-                    const clean = digitsOnly(v);
-                    if (Number(clean) > MAX_TARGET_COUNT) return;
-                    setTotal(clean);
-                }}
-                keyboardType="numeric"
-                style={styles.input}
-            />
+                <Text>Repetitions per day</Text>
+                <TextInput
+                    value={defaultAdd}
+                    onChangeText={(v) => {
+                        const clean = digitsOnly(v);
+                        if (Number(clean) > 108000) return;
+                        setDefaultAdd(clean);
+                    }}
+                    keyboardType="numeric"
+                    style={styles.input}
+                />
 
-            <Text>Repetitions per day</Text>
-            <TextInput
-                value={defaultAdd}
-                onChangeText={(v) => {
-                    const clean = digitsOnly(v);
-                    if (Number(clean) > 108000) return;
-                    setDefaultAdd(clean);
-                }}
-                keyboardType="numeric"
-                style={styles.input}
-            />
+                <Button title="Save" onPress={save} />
 
-            <Button title="Save" onPress={save} />
-
-        </View>
-
+            </ScrollView>
+        </KeyboardAvoidingView>
     );
 }
 

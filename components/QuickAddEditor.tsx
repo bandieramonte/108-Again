@@ -104,7 +104,8 @@ const styles = StyleSheet.create({
         maxWidth: 360,
         backgroundColor: "white",
         borderRadius: 12,
-        padding: 20
+        padding: 20,
+        alignSelf: "center"
     },
 
     title: {

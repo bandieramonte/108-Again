@@ -5,7 +5,10 @@ import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    KeyboardAvoidingView,
+    Platform,
     Pressable,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -77,91 +80,99 @@ export default function SignInScreen() {
     }
 
     return (
-        <View style={styles.container}>
-            <Text style={styles.title}>Sign In</Text>
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+            <ScrollView
+                contentContainerStyle={styles.container}
+                keyboardShouldPersistTaps="handled"
+            >
+                <Text style={styles.title}>Sign In</Text>
 
-            {showConfirmedBanner && (
-                <View style={styles.successBanner}>
-                    <Text style={styles.successBannerText}>
-                        Email confirmed. You can now sign in.
-                    </Text>
-                </View>
-            )}
+                {showConfirmedBanner && (
+                    <View style={styles.successBanner}>
+                        <Text style={styles.successBannerText}>
+                            Email confirmed. You can now sign in.
+                        </Text>
+                    </View>
+                )}
 
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
-                style={styles.input}
-                placeholder="Enter your email"
-            />
-
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.passwordContainer}>
+                <Text style={styles.label}>Email</Text>
                 <TextInput
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
+                    value={email}
+                    onChangeText={setEmail}
                     autoCapitalize="none"
                     autoCorrect={false}
-                    style={styles.passwordInput}
-                    placeholder="Enter your password"
+                    keyboardType="email-address"
+                    style={styles.input}
+                    placeholder="Enter your email"
                 />
 
-                <Pressable
-                    onPress={() => setShowPassword((v) => !v)}
-                    style={styles.icon}
-                >
-                    <Ionicons
-                        name={showPassword ? "eye-off" : "eye"}
-                        size={20}
-                        color="#666"
+                <Text style={styles.label}>Password</Text>
+                <View style={styles.passwordContainer}>
+                    <TextInput
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        style={styles.passwordInput}
+                        placeholder="Enter your password"
                     />
+
+                    <Pressable
+                        onPress={() => setShowPassword((v) => !v)}
+                        style={styles.icon}
+                    >
+                        <Ionicons
+                            name={showPassword ? "eye-off" : "eye"}
+                            size={20}
+                            color="#666"
+                        />
+                    </Pressable>
+                </View>
+
+                <Pressable
+                    onPress={handleForgotPassword}
+                    style={({ pressed }) => [
+                        styles.forgotButton,
+                        pressed && { opacity: 0.7 },
+                        sendingReset && { opacity: 0.5 }
+                    ]}
+                    disabled={sendingReset}
+                >
+                    {sendingReset ? (
+                        <Text style={styles.forgotText}>Sending...</Text>
+                    ) : (
+                        <Text style={styles.forgotText}>Forgot password?</Text>
+                    )}
                 </Pressable>
-            </View>
 
-            <Pressable
-                onPress={handleForgotPassword}
-                style={({ pressed }) => [
-                    styles.forgotButton,
-                    pressed && { opacity: 0.7 },
-                    sendingReset && { opacity: 0.5 }
-                ]}
-                disabled={sendingReset}
-            >
-                {sendingReset ? (
-                    <Text style={styles.forgotText}>Sending...</Text>
-                ) : (
-                    <Text style={styles.forgotText}>Forgot password?</Text>
-                )}
-            </Pressable>
+                <Pressable
+                    style={({ pressed }) => [
+                        styles.button,
+                        pressed && styles.buttonPressed,
+                        submitting && styles.buttonDisabled,
+                    ]}
+                    onPress={handleSignIn}
+                    disabled={submitting}
+                >
+                    {submitting ? (
+                        <ActivityIndicator />
+                    ) : (
+                        <Text style={styles.buttonText}>Sign In</Text>
+                    )}
+                </Pressable>
 
-            <Pressable
-                style={({ pressed }) => [
-                    styles.button,
-                    pressed && styles.buttonPressed,
-                    submitting && styles.buttonDisabled,
-                ]}
-                onPress={handleSignIn}
-                disabled={submitting}
-            >
-                {submitting ? (
-                    <ActivityIndicator />
-                ) : (
-                    <Text style={styles.buttonText}>Sign In</Text>
-                )}
-            </Pressable>
-
-            <Pressable
-                onPress={() => router.push("/sign-up")}
-                style={styles.linkButton}
-            >
-                <Text style={styles.linkText}>Need an account? Sign Up</Text>
-            </Pressable>
-        </View>
+                <Pressable
+                    onPress={() => router.push("/sign-up")}
+                    style={styles.linkButton}
+                >
+                    <Text style={styles.linkText}>Need an account? Sign Up</Text>
+                </Pressable>
+            </ScrollView>
+        </KeyboardAvoidingView>
     );
 }
 

@@ -26,13 +26,15 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
         minWidth: 200,
-        height: 40,   // 👈 locks header height
+        minHeight: 40,
+        paddingVertical: 2
     },
 
     title: {
         fontSize: 17,
         fontWeight: "700",
         lineHeight: 20,
+        textAlign: "center"
     },
 
     subtitle: {

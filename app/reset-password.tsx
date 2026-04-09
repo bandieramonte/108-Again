@@ -4,11 +4,14 @@ import { useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    KeyboardAvoidingView,
+    Platform,
     Pressable,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
-    View
+    View,
 } from "react-native";
 import { supabase } from "../lib/supabase";
 import * as authService from "../services/authService";
@@ -60,56 +63,64 @@ export default function ResetPasswordScreen() {
     }
 
     return (
-        <View style={styles.container}>
-            <Text style={styles.title}>Set new password</Text>
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+            <ScrollView
+                contentContainerStyle={styles.container}
+                keyboardShouldPersistTaps="handled"
+            >
+                <Text style={styles.title}>Set new password</Text>
 
-            <Text style={styles.label}>New password</Text>
-            <View style={styles.passwordContainer}>
+                <Text style={styles.label}>New password</Text>
+                <View style={styles.passwordContainer}>
+                    <TextInput
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        style={styles.passwordInput}
+                        placeholder="Enter new password"
+                    />
+
+                    <Pressable onPress={() => setShowPassword((v) => !v)} style={styles.icon}>
+                        <Ionicons
+                            name={showPassword ? "eye-off" : "eye"}
+                            size={20}
+                            color="#666"
+                        />
+                    </Pressable>
+                </View>
+
+                <Text style={styles.label}>Confirm password</Text>
+
                 <TextInput
-                    value={password}
-                    onChangeText={setPassword}
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
                     secureTextEntry={!showPassword}
-                    style={styles.passwordInput}
-                    placeholder="Enter new password"
+                    style={styles.input}
+                    placeholder="Confirm password"
                 />
 
-                <Pressable onPress={() => setShowPassword((v) => !v)} style={styles.icon}>
-                    <Ionicons
-                        name={showPassword ? "eye-off" : "eye"}
-                        size={20}
-                        color="#666"
-                    />
+                <Pressable
+                    style={({ pressed }) => [
+                        styles.button,
+                        pressed && styles.buttonPressed,
+                        submitting && styles.buttonDisabled,
+                    ]}
+                    onPress={handleReset}
+                    disabled={submitting}
+                >
+                    {submitting ? (
+                        <ActivityIndicator />
+                    ) : (
+                        <Text style={styles.buttonText}>
+                            Update Password
+                        </Text>
+                    )}
                 </Pressable>
-            </View>
-
-            <Text style={styles.label}>Confirm password</Text>
-
-            <TextInput
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry={!showPassword}
-                style={styles.input}
-                placeholder="Confirm password"
-            />
-
-            <Pressable
-                style={({ pressed }) => [
-                    styles.button,
-                    pressed && styles.buttonPressed,
-                    submitting && styles.buttonDisabled,
-                ]}
-                onPress={handleReset}
-                disabled={submitting}
-            >
-                {submitting ? (
-                    <ActivityIndicator />
-                ) : (
-                    <Text style={styles.buttonText}>
-                        Update Password
-                    </Text>
-                )}
-            </Pressable>
-        </View>
+            </ScrollView>
+        </KeyboardAvoidingView>
     );
 }
 

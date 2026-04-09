@@ -1,6 +1,6 @@
 import { FlashList } from "@shopify/flash-list";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 type DayData = {
     date: string;
@@ -14,15 +14,20 @@ type Props = {
     onEditDay: (date: string, value: number) => void;
 };
 
-const WEEK_HEIGHT = 50;
-const VISIBLE_WEEKS = 5;
-
 export default function PracticeCalendar({
     data,
     startDate,
     endDate,
     onEditDay
 }: Props) {
+
+    const { width } = useWindowDimensions();
+
+    const WEEK_HEIGHT =
+        width < 380 ? 44 :
+            width > 700 ? 56 :
+                50;
+    const VISIBLE_WEEKS = 5;
 
     const dataMap = useMemo(() => {
         return new Map(data.map(d => [d.date, d.count]));
@@ -189,107 +194,118 @@ export default function PracticeCalendar({
 
     return (
         <View style={styles.container}>
-
-            <Text style={styles.monthHeader}>
-                {visibleMonth}
-            </Text>
-
-            <View style={styles.weekHeader}>
-                {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
-                    <Text key={i} style={styles.weekHeaderText}>
-                        {d}
-                    </Text>
-                ))}
-            </View>
-
-            <FlashList<number>
-                onScroll={handleScroll}
-                scrollEventThrottle={16}
-                nestedScrollEnabled
-                data={weekIndexes}
-                keyExtractor={(i) => String(i)}
-
-                renderItem={({ item }) => {
-
-                    const week = getWeek(item);
-
-                    return (
-                        <View style={styles.weekRow}>
-                            {week.map((day, index) => {
-
-                                const isToday = day.date === todayString;
-                                const isTargetDate = day.date === endDateString;
-
-                                const isFirstColumn = index === 0;
-                                const isFirstRow = item === 0;
-
-                                return (
-                                    <Pressable
-                                        key={day.date}
-                                        onPress={() => {
-                                            if (!isEditable(day.date)) return;
-
-                                            setEditingDate(day.date);
-                                            setEditingValue(String(day.count || ""));
-                                        }}
-                                        style={[
-                                            styles.day,
-                                            isFirstColumn && styles.firstColumn,
-                                            isFirstRow && styles.firstRow,
-                                            isToday && styles.today,
-                                            isTargetDate && styles.targetDate
-                                        ]}
-                                    >
-                                        <Text style={styles.dayNumber}>
-                                            {day.date.slice(-2)}
-                                        </Text>
-
-                                        {editingDate === day.date ? (
-                                            <TextInput
-                                                value={editingValue}
-                                                onChangeText={setEditingValue}
-                                                keyboardType="numeric"
-                                                autoFocus
-                                                numberOfLines={1}
-                                                style={[
-                                                    styles.dayCountInput,
-                                                    editingValue.length >= 5 && styles.dayCountSmall,
-                                                    editingValue.length >= 7 && styles.dayCountVerySmall
-                                                ]} onBlur={() => {
-                                                    const value = Number(editingValue) || 0;
-                                                    onEditDay(day.date, value);
-                                                    setEditingDate(null);
-                                                }}
-                                            />
-                                        ) : (
-                                            <Text
-                                                numberOfLines={1}
-                                                adjustsFontSizeToFit
-                                                minimumFontScale={0.6}
-                                                style={[
-                                                    styles.dayCount,
-                                                    day.count === 0 && styles.dayCountEmpty
-                                                ]}
-                                            >
-                                                {day.count}
-                                            </Text>
-                                        )}
-                                    </Pressable>
-                                );
-                            })}
-                        </View>
-                    );
-                }}
-
+            <View
                 style={{
-                    height: WEEK_HEIGHT * VISIBLE_WEEKS
+                    maxWidth: 700,
+                    alignSelf: "center",
+                    width: "100%"
                 }}
+            >
+                <Text style={styles.monthHeader}>
+                    {visibleMonth}
+                </Text>
 
-                showsVerticalScrollIndicator={false}
-            />
+                <View style={styles.weekHeader}>
+                    {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+                        <Text key={i} style={styles.weekHeaderText}>
+                            {d}
+                        </Text>
+                    ))}
+                </View>
 
-        </View>
-    );
+                <FlashList<number>
+                    onScroll={handleScroll}
+                    scrollEventThrottle={16}
+                    nestedScrollEnabled
+                    data={weekIndexes}
+                    keyExtractor={(i) => String(i)}
+
+                    renderItem={({ item }) => {
+
+                        const week = getWeek(item);
+
+                        return (
+                            <View
+                                style={[
+                                    styles.weekRow,
+                                    { height: WEEK_HEIGHT }
+                                ]}
+                            >
+                                {week.map((day, index) => {
+
+                                    const isToday = day.date === todayString;
+                                    const isTargetDate = day.date === endDateString;
+
+                                    const isFirstColumn = index === 0;
+                                    const isFirstRow = item === 0;
+
+                                    return (
+                                        <Pressable
+                                            key={day.date}
+                                            onPress={() => {
+                                                if (!isEditable(day.date)) return;
+
+                                                setEditingDate(day.date);
+                                                setEditingValue(String(day.count || ""));
+                                            }}
+                                            style={[
+                                                styles.day,
+                                                isFirstColumn && styles.firstColumn,
+                                                isFirstRow && styles.firstRow,
+                                                isToday && styles.today,
+                                                isTargetDate && styles.targetDate
+                                            ]}
+                                        >
+                                            <Text style={styles.dayNumber}>
+                                                {day.date.slice(-2)}
+                                            </Text>
+
+                                            {editingDate === day.date ? (
+                                                <TextInput
+                                                    value={editingValue}
+                                                    onChangeText={setEditingValue}
+                                                    keyboardType="numeric"
+                                                    autoFocus
+                                                    numberOfLines={1}
+                                                    style={[
+                                                        styles.dayCountInput,
+                                                        editingValue.length >= 5 && styles.dayCountSmall,
+                                                        editingValue.length >= 7 && styles.dayCountVerySmall
+                                                    ]} onBlur={() => {
+                                                        const value = Number(editingValue) || 0;
+                                                        onEditDay(day.date, value);
+                                                        setEditingDate(null);
+                                                    }}
+                                                />
+                                            ) : (
+                                                <Text
+                                                    numberOfLines={1}
+                                                    adjustsFontSizeToFit
+                                                    minimumFontScale={0.6}
+                                                    style={[
+                                                        styles.dayCount,
+                                                        day.count === 0 && styles.dayCountEmpty
+                                                    ]}
+                                                >
+                                                    {day.count}
+                                                </Text>
+                                            )}
+                                        </Pressable>
+                                    );
+                                })}
+                            </View>
+                        );
+                    }}
+
+                    style={{
+                        height: WEEK_HEIGHT * VISIBLE_WEEKS
+                    }}
+
+                    showsVerticalScrollIndicator={false}
+                />
+
+            </View>
+        </View>);
 }
 
 const styles = StyleSheet.create({
@@ -306,12 +322,11 @@ const styles = StyleSheet.create({
     weekHeaderText: {
         flex: 1,
         textAlign: "center",
-        fontWeight: "600"
+        fontWeight: "600",
     },
 
     weekRow: {
         flexDirection: "row",
-        height: WEEK_HEIGHT
     },
 
     day: {
@@ -344,7 +359,8 @@ const styles = StyleSheet.create({
     monthHeader: {
         fontSize: 18,
         fontWeight: "600",
-        marginBottom: 8
+        marginBottom: 8,
+        textAlign: "center"
     },
 
     today: {

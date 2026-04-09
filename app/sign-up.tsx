@@ -4,7 +4,10 @@ import { useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    KeyboardAvoidingView,
+    Platform,
     Pressable,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -44,75 +47,83 @@ export default function SignUpScreen() {
     }
 
     return (
-        <View style={styles.container}>
-            <Text style={styles.title}>Sign Up</Text>
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+            <ScrollView
+                contentContainerStyle={styles.container}
+                keyboardShouldPersistTaps="handled"
+            >
+                <Text style={styles.title}>Sign Up</Text>
 
-            <Text style={styles.label}>First name</Text>
-            <TextInput
-                value={firstName}
-                onChangeText={setFirstName}
-                autoCapitalize="words"
-                autoCorrect={false}
-                style={styles.input}
-                placeholder="Enter your first name"
-            />
-
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
-                style={styles.input}
-                placeholder="Enter your email"
-            />
-
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.passwordContainer}>
+                <Text style={styles.label}>First name</Text>
                 <TextInput
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                    style={styles.passwordInput}
-                    placeholder="Create a password"
+                    value={firstName}
+                    onChangeText={setFirstName}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    style={styles.input}
+                    placeholder="Enter your first name"
                 />
 
-                <Pressable
-                    onPress={() => setShowPassword((v) => !v)}
-                    style={styles.icon}
-                >
-                    <Ionicons
-                        name={showPassword ? "eye-off" : "eye"}
-                        size={20}
-                        color="#666"
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                    style={styles.input}
+                    placeholder="Enter your email"
+                />
+
+                <Text style={styles.label}>Password</Text>
+                <View style={styles.passwordContainer}>
+                    <TextInput
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        style={styles.passwordInput}
+                        placeholder="Create a password"
                     />
+
+                    <Pressable
+                        onPress={() => setShowPassword((v) => !v)}
+                        style={styles.icon}
+                    >
+                        <Ionicons
+                            name={showPassword ? "eye-off" : "eye"}
+                            size={20}
+                            color="#666"
+                        />
+                    </Pressable>
+                </View>
+
+                <Pressable
+                    style={({ pressed }) => [
+                        styles.button,
+                        pressed && styles.buttonPressed,
+                        submitting && styles.buttonDisabled,
+                    ]}
+                    onPress={handleSignUp}
+                    disabled={submitting}
+                >
+                    {submitting ? (
+                        <ActivityIndicator />
+                    ) : (
+                        <Text style={styles.buttonText}>Sign Up</Text>
+                    )}
                 </Pressable>
-            </View>
 
-            <Pressable
-                style={({ pressed }) => [
-                    styles.button,
-                    pressed && styles.buttonPressed,
-                    submitting && styles.buttonDisabled,
-                ]}
-                onPress={handleSignUp}
-                disabled={submitting}
-            >
-                {submitting ? (
-                    <ActivityIndicator />
-                ) : (
-                    <Text style={styles.buttonText}>Sign Up</Text>
-                )}
-            </Pressable>
-
-            <Pressable
-                onPress={() => router.push("/sign-in")}
-                style={styles.linkButton}
-            >
-                <Text style={styles.linkText}>Already have an account? Sign In</Text>
-            </Pressable>
-        </View>
+                <Pressable
+                    onPress={() => router.push("/sign-in")}
+                    style={styles.linkButton}
+                >
+                    <Text style={styles.linkText}>Already have an account? Sign In</Text>
+                </Pressable>
+            </ScrollView>
+        </KeyboardAvoidingView>
     );
 }
 

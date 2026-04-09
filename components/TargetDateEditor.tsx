@@ -105,7 +105,9 @@ const styles = StyleSheet.create({
         backgroundColor: "white",
         padding: 20,
         borderRadius: 12,
-        width: 340
+        width: "100%",
+        maxWidth: 420,
+        alignSelf: "center"
     },
 
     title: {

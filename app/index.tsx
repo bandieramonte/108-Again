@@ -3,7 +3,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import * as Progress from "react-native-progress";
 import CelebrationOverlay from "../components/CelebrationOverlay";
 import QuickAddEditor from "../components/QuickAddEditor";
@@ -47,6 +47,7 @@ export default function Dashboard() {
   } = useReachedCelebration();
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
+  const { width } = useWindowDimensions();
 
   useFocusEffect(
     useCallback(() => {
@@ -138,232 +139,233 @@ export default function Dashboard() {
   return (
 
     <ScrollView style={styles.container}>
+      <View
+        style={{
+          width: "100%",
+          maxWidth: 700,
+          alignSelf: "center"
+        }}
+      >
+        <View style={styles.streakRow}>
+          <Text style={styles.streakText}>
+            Streak: {streak} {streak === 1 ? "day" : "days"}
+          </Text>
 
-      <View style={styles.streakRow}>
-        <Text style={styles.streakText}>
-          Streak: {streak} {streak === 1 ? "day" : "days"}
-        </Text>
+          <Pressable
+            onPress={() => setInfoOpen(true)}
+          >
+            <MaterialIcons
+              name="info-outline"
+              size={20}
+              color="#666"
+            />
+          </Pressable>
+        </View>
 
-        <Pressable
-          onPress={() => setInfoOpen(true)}
-        >
-          <MaterialIcons
-            name="info-outline"
-            size={20}
-            color="#666"
-          />
-        </Pressable>
-      </View>
+        {practices.map((practice) => {
 
-      {practices.map((practice) => {
+          const currentCycleProgress = practice.total >= practice.targetCount ? 1 : (practice.total % practice.targetCount) / practice.targetCount;
+          const targetDate =
+            practiceService.getExpectedTargetDate(
+              practice.targetCount,
+              practice.total,
+              practice.defaultAddCount
+            );
 
-        const currentCycleProgress = practice.total >= practice.targetCount ? 1 : (practice.total % practice.targetCount) / practice.targetCount;
-        const targetDate =
-          practiceService.getExpectedTargetDate(
-            practice.targetCount,
-            practice.total,
-            practice.defaultAddCount
-          );
-
-        const expectedTargetDate =
-          practice.targetCount > 0 && practice.total >= practice.targetCount
-            ? "Reached!"
-            : targetDate
-              ? targetDate.toLocaleDateString("en-US", {
-                month: "long",
-                day: "2-digit",
-                year: "numeric"
-              })
-              : "No estimate";
-
-        return (
-
-          <View key={practice.id} style={styles.card}>
-            <TouchableOpacity
-              onPress={() =>
-                router.push({
-                  pathname: "/practice",
-                  params: {
-                    id: practice.id
-                  }
+          const expectedTargetDate =
+            practice.targetCount > 0 && practice.total >= practice.targetCount
+              ? "Reached!"
+              : targetDate
+                ? targetDate.toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "2-digit",
+                  year: "numeric"
                 })
-              }
-            >
+                : "No estimate";
 
-              <View style={styles.row}>
-                {practice.imageKey && practiceImages[practice.imageKey] && (
-                  <Image
-                    source={practiceImages[practice.imageKey]}
-                    style={styles.icon}
-                    resizeMode="contain"
-                  />
-                )}
+          return (
 
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.practiceName}>
-                    {practice.name}
-                  </Text>
+            <View key={practice.id} style={styles.card}>
+              <TouchableOpacity
+                onPress={() =>
+                  router.push({
+                    pathname: "/practice",
+                    params: {
+                      id: practice.id
+                    }
+                  })
+                }
+              >
 
-                  <Progress.Bar
-                    progress={currentCycleProgress}
-                    width={null}
-                    height={10}
-                  />
+                <View style={styles.row}>
+                  {practice.imageKey && practiceImages[practice.imageKey] && (
+                    <Image
+                      source={practiceImages[practice.imageKey]}
+                      style={styles.icon}
+                      resizeMode="contain"
+                    />
+                  )}
 
-                  <Text style={styles.countText}>
-                    {formatNumber(practice.total) + ' ' + (!!practice.targetCount ? '/ ' + formatNumber(practice.targetCount) : '')}
-                  </Text>
-
-                  <Text style={{ fontSize: 12, color: "#666" }}>
-                    Today: {formatNumber(practice.today)}
-                  </Text>
-
-                  <View style={styles.targetDateRow}>
-                    {isCelebrating(practice.id) && (
-                      <CelebrationOverlay
-                        fade={celebrationFade}
-                        sparkle1={sparkle1}
-                        sparkle2={sparkle2}
-                        sparkle3={sparkle3}
-                      />
-                    )}
-                    <Text
-                      style={
-                        !!practice.imageKey
-                          ? { fontSize: 12, color: "#666", marginTop: 2 }
-                          : { fontSize: 12, color: "#666", marginTop: 2, marginBottom: 10 }
-                      }
-                    >
-                      Target date: {expectedTargetDate ?? "No estimate"}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.practiceName}>
+                      {practice.name}
                     </Text>
 
-                    {expectedTargetDate === "Reached!" && isCelebrating(practice.id) && (
-                      <Animated.Text
-                        style={[
-                          styles.congratsText,
-                          { opacity: celebrationFade }
-                        ]}
+                    <Progress.Bar
+                      progress={currentCycleProgress}
+                      width={null}
+                      height={10}
+                    />
+
+                    <Text style={styles.countText}>
+                      {formatNumber(practice.total) + ' ' + (!!practice.targetCount ? '/ ' + formatNumber(practice.targetCount) : '')}
+                    </Text>
+
+                    <Text style={{ fontSize: 12, color: "#666" }}>
+                      Today: {formatNumber(practice.today)}
+                    </Text>
+
+                    <View style={styles.targetDateRow}>
+                      {isCelebrating(practice.id) && (
+                        <CelebrationOverlay
+                          fade={celebrationFade}
+                          sparkle1={sparkle1}
+                          sparkle2={sparkle2}
+                          sparkle3={sparkle3}
+                        />
+                      )}
+                      <Text
+                        style={
+                          !!practice.imageKey
+                            ? { fontSize: 12, color: "#666", marginTop: 2 }
+                            : { fontSize: 12, color: "#666", marginTop: 2, marginBottom: 10 }
+                        }
                       >
-                        Congratulations!!
-                      </Animated.Text>
-                    )}
+                        Target date: {expectedTargetDate ?? "No estimate"}
+                      </Text>
+
+                      {expectedTargetDate === "Reached!" && isCelebrating(practice.id) && (
+                        <Animated.Text
+                          style={[
+                            styles.congratsText,
+                            { opacity: celebrationFade }
+                          ]}
+                        >
+                          Congratulations!!
+                        </Animated.Text>
+                      )}
+                    </View>
                   </View>
                 </View>
+
+              </TouchableOpacity>
+
+              <View
+                ref={(node) => {
+                  quickAddRefs.current[practice.id] = node;
+                }}
+              >
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.quickAddButton,
+                    pressed && styles.quickAddButtonPressed
+                  ]}
+                  onPress={() => quickAdd(practice.id, practice.defaultAddCount ?? 108)}
+                  onLongPress={() =>
+                    openEditDefaultModal(
+                      practice.id,
+                      practice.name,
+                      practice.defaultAddCount ?? 108
+                    )
+                  }
+                  delayLongPress={350}
+                >
+                  <Text style={styles.quickAddButtonText}>
+                    +{formatNumber(practice.defaultAddCount ?? 108)}
+                  </Text>
+                </Pressable>
               </View>
 
-            </TouchableOpacity>
-
-            <View
-              ref={(node) => {
-                quickAddRefs.current[practice.id] = node;
-              }}
-            >
-              <Pressable
-                style={({ pressed }) => [
-                  styles.quickAddButton,
-                  pressed && styles.quickAddButtonPressed
-                ]}
-                onPress={() => quickAdd(practice.id, practice.defaultAddCount ?? 108)}
-                onLongPress={() =>
-                  openEditDefaultModal(
-                    practice.id,
-                    practice.name,
-                    practice.defaultAddCount ?? 108
-                  )
-                }
-                delayLongPress={350}
-              >
-                <Text style={styles.quickAddButtonText}>
-                  +{formatNumber(practice.defaultAddCount ?? 108)}
-                </Text>
-              </Pressable>
             </View>
 
-          </View>
+          );
+        })}
 
-        );
-      })}
+        <QuickAddEditor
+          visible={editDefaultOpen}
+          practiceId={selectedPracticeId}
+          practiceName={selectedPracticeName}
+          defaultValue={Number(defaultAddInput)}
+          onClose={() => setEditDefaultOpen(false)}
+        />
 
-      <QuickAddEditor
-        visible={editDefaultOpen}
-        practiceId={selectedPracticeId}
-        practiceName={selectedPracticeName}
-        defaultValue={Number(defaultAddInput)}
-        onClose={() => setEditDefaultOpen(false)}
-      />
-
-      {showQuickAddHint && tooltipPosition && (
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={() => {
-            setShowQuickAddHint(false);
-            setTooltipPosition(null);
-          }}
-        >
-          <View
-            style={[
-              styles.anchoredTooltip,
-              {
-                top: tooltipPosition.top,
-                left: tooltipPosition.left,
-              }
-            ]}
+        {showQuickAddHint && tooltipPosition && (
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              setShowQuickAddHint(false);
+              setTooltipPosition(null);
+            }}
           >
-            <Text style={styles.anchoredTooltipText}>
-              Tip: Long press this button to change the expected amount of daily repetitions.
-            </Text>
-          </View>
-        </Pressable>
-      )}
+            <View
+              style={[
+                styles.anchoredTooltip,
+                {
+                  top: tooltipPosition.top,
+                  left: tooltipPosition.left,
+                }
+              ]}
+            >
+              <Text style={styles.anchoredTooltipText}>
+                Tip: Long press this button to change the expected amount of daily repetitions.
+              </Text>
+            </View>
+          </Pressable>
+        )}
 
-      <Modal
-        visible={infoOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setInfoOpen(false)}
-      >
-        <Pressable
-          style={styles.infoOverlay}
-          onPress={() => setInfoOpen(false)}
+        <Modal
+          visible={infoOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setInfoOpen(false)}
         >
           <Pressable
-            style={styles.infoModal}
-            onPress={() => { }}
+            style={styles.infoOverlay}
+            onPress={() => setInfoOpen(false)}
           >
-            <Text style={styles.infoTitle}>
-              Dashboard Info
-            </Text>
-
-            <Text style={styles.infoText}>
-              Your streak shows how many consecutive days
-              you practiced at least once.
-            </Text>
-
-            <Text style={styles.infoText}>
-              Adding sessions for a day will extend
-              your streak.
-            </Text>
-
-            <Text style={styles.infoText}>
-              Tip: Long press the quick add button to change
-              the daily repetition count.
-            </Text>
-
             <Pressable
-              style={styles.infoButton}
-              onPress={() => setInfoOpen(false)}
+              style={styles.infoModal}
+              onPress={() => { }}
             >
-              <Text style={styles.infoButtonText}>
-                OK
+              <Text style={styles.infoTitle}>
+                Dashboard Info
               </Text>
+
+              <Text style={styles.infoText}>
+                Your streak shows how many consecutive days
+                you practiced at least once.
+              </Text>
+
+              <Text style={styles.infoText}>
+                Tip: Long press the quick add button to change
+                the daily repetition count.
+              </Text>
+
+              <Pressable
+                style={styles.infoButton}
+                onPress={() => setInfoOpen(false)}
+              >
+                <Text style={styles.infoButtonText}>
+                  OK
+                </Text>
+              </Pressable>
+
             </Pressable>
-
           </Pressable>
-        </Pressable>
-      </Modal>
+        </Modal>
 
+      </View>
     </ScrollView>
-
   );
 }
 
@@ -373,6 +375,7 @@ const styles = StyleSheet.create({
     padding: 20,
     marginTop: 5,
     marginBottom: 10,
+    paddingBottom: 40
   },
 
   title: {
@@ -384,6 +387,7 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 25,
     position: "relative",
+    marginHorizontal: 8
   },
 
   practiceName: {

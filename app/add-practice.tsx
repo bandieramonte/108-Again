@@ -1,8 +1,8 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Button, StyleSheet, Text, TextInput, View } from "react-native";
+import { Button, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput } from "react-native";
 import * as practiceService from "../services/practiceService";
-import { digitsOnly, MAX_TARGET_COUNT, validateRepetitionsPerSession, validateTargetCount } from "../utils/numberUtils";
+import { digitsOnly, MAX_PRACTICE_NAME, MAX_TARGET_COUNT, validateRepetitionsPerSession, validateTargetCount } from "../utils/numberUtils";
 
 export default function AddPractice() {
 
@@ -61,50 +61,59 @@ export default function AddPractice() {
 
     return (
 
-        <View style={styles.container}>
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+            <ScrollView
+                contentContainerStyle={styles.container}
+                keyboardShouldPersistTaps="handled"
+            >
 
-            <Text style={styles.title}>Add Practice</Text>
+                <Text style={styles.title}>Add Practice</Text>
 
-            <TextInput
-                placeholder="Practice name"
-                placeholderTextColor="#999"
-                value={name}
-                onChangeText={setName}
-                style={styles.input}
-            />
+                <TextInput
+                    placeholder="Practice name"
+                    placeholderTextColor="#999"
+                    value={name}
+                    onChangeText={(text) => setName(text.slice(0, MAX_PRACTICE_NAME))}
+                    maxLength={25}
+                    style={styles.input}
+                />
 
-            <TextInput
-                placeholder="Target count"
-                placeholderTextColor="#999"
-                value={target}
-                onChangeText={(v) => {
-                    const clean = digitsOnly(v);
-                    if (Number(clean) > MAX_TARGET_COUNT) return;
-                    setTarget(clean);
-                }}
-                keyboardType="numeric"
-                style={styles.input}
-            />
+                <TextInput
+                    placeholder="Target count"
+                    placeholderTextColor="#999"
+                    value={target}
+                    onChangeText={(v) => {
+                        const clean = digitsOnly(v);
+                        if (Number(clean) > MAX_TARGET_COUNT) return;
+                        setTarget(clean);
+                    }}
+                    keyboardType="numeric"
+                    style={styles.input}
+                />
 
-            <TextInput
-                placeholder="Repetitions per day"
-                placeholderTextColor="#999"
-                value={defaultAdd}
-                onChangeText={(v) => {
-                    const clean = digitsOnly(v);
-                    if (Number(clean) > 108000) return;
-                    setDefaultAdd(clean);
-                }}
-                keyboardType="numeric"
-                style={styles.input}
-            />
+                <TextInput
+                    placeholder="Repetitions per day"
+                    placeholderTextColor="#999"
+                    value={defaultAdd}
+                    onChangeText={(v) => {
+                        const clean = digitsOnly(v);
+                        if (Number(clean) > 108000) return;
+                        setDefaultAdd(clean);
+                    }}
+                    keyboardType="numeric"
+                    style={styles.input}
+                />
 
-            <Button
-                title="Save"
-                onPress={savePractice}
-            />
+                <Button
+                    title="Save"
+                    onPress={savePractice}
+                />
 
-        </View>
+            </ScrollView>
+        </KeyboardAvoidingView>
 
     );
 }
