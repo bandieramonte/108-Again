@@ -214,12 +214,12 @@ export default function PracticeCalendar({
                 </View>
 
                 <FlashList<number>
+                    initialScrollIndex={0}
                     onScroll={handleScroll}
                     scrollEventThrottle={16}
                     nestedScrollEnabled
                     data={weekIndexes}
                     keyExtractor={(i) => String(i)}
-
                     renderItem={({ item }) => {
 
                         const week = getWeek(item);
