@@ -1,4 +1,4 @@
-import { FlashList } from "@shopify/flash-list";
+import { FlashList, FlashListRef } from "@shopify/flash-list";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 
@@ -63,10 +63,6 @@ export default function PracticeCalendar({
     const [visibleEndWeek, setVisibleEndWeek] = useState(endWeekIndex);
     const totalWeeks = visibleEndWeek + 1;
 
-    useEffect(() => {
-        setVisibleEndWeek(endWeekIndex);
-    }, [endWeekIndex]);
-
     const [visibleMonth, setVisibleMonth] = useState("");
 
 
@@ -81,12 +77,18 @@ export default function PracticeCalendar({
         const firstVisibleIndex =
             Math.floor(offsetY / WEEK_HEIGHT);
 
+        currentIndex.current = firstVisibleIndex;
+
         const dominantIndex =
             firstVisibleIndex +
             Math.floor(VISIBLE_WEEKS / 2);
 
         const month =
             getMonthFromWeek(dominantIndex);
+
+        currentOffset.current =
+            event.nativeEvent.contentOffset.y;
+
 
         setVisibleMonth(prev =>
             prev === month ? prev : month
@@ -102,6 +104,15 @@ export default function PracticeCalendar({
         return formatDate(endDate);
     }, [endDate]);
 
+    const weekIndexes = useMemo(
+        () => Array.from({ length: totalWeeks }, (_, i) => i),
+        [totalWeeks]
+    );
+
+    const listRef = useRef<FlashListRef<number>>(null);
+    const currentOffset = useRef(0);
+    const currentIndex = useRef(0);
+
     useEffect(() => {
 
         const dominantIndex =
@@ -113,6 +124,10 @@ export default function PracticeCalendar({
         setVisibleMonth(month);
 
     }, [startDate]);
+
+    useEffect(() => {
+        setVisibleEndWeek(endWeekIndex);
+    }, [endWeekIndex]);
 
     function formatMonth(date: Date) {
         return date.toLocaleDateString(undefined, {
@@ -132,15 +147,9 @@ export default function PracticeCalendar({
     function getWeekStart(date: Date) {
 
         const d = new Date(date);
-
         const day = d.getDay();
-
-        // convert Sunday (0) → 7
         const adjusted = day === 0 ? 7 : day;
-
-        // shift to Monday
         d.setDate(d.getDate() - adjusted + 1);
-
         return d;
     }
 
@@ -187,10 +196,38 @@ export default function PracticeCalendar({
         );
     }
 
-    const weekIndexes = useMemo(
-        () => Array.from({ length: totalWeeks }, (_, i) => i),
-        [totalWeeks]
-    );
+    function scrollByMonth(direction: 1 | -1) {
+
+        const centerIndex =
+            currentIndex.current +
+            Math.floor(VISIBLE_WEEKS / 2);
+
+        const centerDate = new Date(baseWeekStart);
+        centerDate.setUTCDate(
+            centerDate.getUTCDate() + centerIndex * 7
+        );
+
+        // move exactly one month
+        const targetMonth = new Date(Date.UTC(
+            centerDate.getUTCFullYear(),
+            centerDate.getUTCMonth() + direction,
+            1
+        ));
+
+        // find week start for that date
+        const targetWeekStart = getWeekStart(targetMonth);
+
+        const diffDays =
+            (targetWeekStart.getTime() - baseWeekStart.getTime()) /
+            (1000 * 60 * 60 * 24);
+
+        const newIndex = Math.floor(diffDays / 7);
+
+        listRef.current?.scrollToOffset({
+            offset: newIndex * WEEK_HEIGHT,
+            animated: true
+        });
+    }
 
     return (
         <View style={styles.container}>
@@ -201,9 +238,31 @@ export default function PracticeCalendar({
                     width: "100%"
                 }}
             >
-                <Text style={styles.monthHeader}>
-                    {visibleMonth}
-                </Text>
+                <View style={styles.monthHeaderRow}>
+
+                    <Pressable
+                        onPress={() => scrollByMonth(-1)}
+                        style={styles.monthArrow}
+                    >
+                        <Text style={styles.monthArrowText}>
+                            ▲
+                        </Text>
+                    </Pressable>
+
+                    <Text style={styles.monthHeader}>
+                        {visibleMonth}
+                    </Text>
+
+                    <Pressable
+                        onPress={() => scrollByMonth(1)}
+                        style={styles.monthArrow}
+                    >
+                        <Text style={styles.monthArrowText}>
+                            ▼
+                        </Text>
+                    </Pressable>
+
+                </View>
 
                 <View style={styles.weekHeader}>
                     {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
@@ -220,6 +279,9 @@ export default function PracticeCalendar({
                     nestedScrollEnabled
                     data={weekIndexes}
                     keyExtractor={(i) => String(i)}
+                    snapToInterval={WEEK_HEIGHT}
+                    disableIntervalMomentum
+                    ref={listRef}
                     renderItem={({ item }) => {
 
                         const week = getWeek(item);
@@ -316,7 +378,8 @@ const styles = StyleSheet.create({
 
     weekHeader: {
         flexDirection: "row",
-        marginBottom: 10
+        marginBottom: 10,
+        marginTop: 8
     },
 
     weekHeaderText: {
@@ -409,5 +472,23 @@ const styles = StyleSheet.create({
 
     dayCountVerySmall: {
         fontSize: 11
+    },
+
+    monthHeaderRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 10,
+    },
+
+    monthArrow: {
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+    },
+
+    monthArrowText: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#555"
     },
 });
