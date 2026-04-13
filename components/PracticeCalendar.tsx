@@ -306,100 +306,104 @@ export default function PracticeCalendar({
                     ))}
                 </View>
 
-                <FlashList<number>
-                    // initialScrollIndex={0}
-                    onLoad={scrollToToday}
-                    onScroll={handleScroll}
-                    scrollEventThrottle={16}
-                    nestedScrollEnabled
-                    data={weekIndexes}
-                    keyExtractor={(i) => String(i)}
-                    snapToInterval={WEEK_HEIGHT}
-                    disableIntervalMomentum
-                    ref={listRef}
-                    renderItem={({ item }) => {
+                <View style={{ height: WEEK_HEIGHT * VISIBLE_WEEKS }}>
+                    <FlashList<number>
+                        // initialScrollIndex={0}
+                        onLoad={scrollToToday}
+                        onScroll={handleScroll}
+                        scrollEventThrottle={16}
+                        nestedScrollEnabled
+                        data={weekIndexes}
+                        keyExtractor={(i) => String(i)}
+                        snapToInterval={WEEK_HEIGHT}
+                        disableIntervalMomentum
+                        ref={listRef}
+                        renderItem={({ item }) => {
 
-                        const week = getWeek(item);
+                            const week = getWeek(item);
 
-                        return (
-                            <View
-                                style={[
-                                    styles.weekRow,
-                                    { height: WEEK_HEIGHT }
-                                ]}
-                            >
-                                {week.map((day, index) => {
+                            return (
+                                <View
+                                    style={[
+                                        styles.weekRow,
+                                        { height: WEEK_HEIGHT }
+                                    ]}
+                                >
+                                    {week.map((day, index) => {
 
-                                    const isToday = day.date === todayString;
-                                    const isTargetDate = day.date === endDateString;
+                                        const isToday = day.date === todayString;
+                                        const isTargetDate = day.date === endDateString;
 
-                                    const isFirstColumn = index === 0;
-                                    const isFirstRow = item === 0;
+                                        const isFirstColumn = index === 0;
+                                        const isFirstRow = item === 0;
 
-                                    return (
-                                        <Pressable
-                                            key={day.date}
-                                            onPress={() => {
-                                                if (!isEditable(day.date)) return;
+                                        return (
+                                            <Pressable
+                                                key={day.date}
+                                                onPress={() => {
+                                                    if (!isEditable(day.date)) return;
 
-                                                setEditingDate(day.date);
-                                                setEditingValue(String(day.count || ""));
-                                            }}
-                                            style={[
-                                                styles.day,
-                                                isFirstColumn && styles.firstColumn,
-                                                isFirstRow && styles.firstRow,
-                                                isToday && styles.today,
-                                                isTargetDate && styles.targetDate
-                                            ]}
-                                        >
-                                            <Text style={styles.dayNumber}>
-                                                {day.date.slice(-2)}
-                                            </Text>
-
-                                            {editingDate === day.date ? (
-                                                <TextInput
-                                                    value={editingValue}
-                                                    onChangeText={setEditingValue}
-                                                    keyboardType="numeric"
-                                                    autoFocus
-                                                    numberOfLines={1}
-                                                    style={[
-                                                        styles.dayCountInput,
-                                                        editingValue.length >= 5 && styles.dayCountSmall,
-                                                        editingValue.length >= 7 && styles.dayCountVerySmall
-                                                    ]} onBlur={() => {
-                                                        const value = Number(editingValue) || 0;
-                                                        onEditDay(day.date, value);
-                                                        setEditingDate(null);
-                                                    }}
-                                                />
-                                            ) : (
-                                                <Text
-                                                    numberOfLines={1}
-                                                    adjustsFontSizeToFit
-                                                    minimumFontScale={0.6}
-                                                    style={[
-                                                        styles.dayCount,
-                                                        day.count === 0 && styles.dayCountEmpty
-                                                    ]}
-                                                >
-                                                    {day.count}
+                                                    setEditingDate(day.date);
+                                                    setEditingValue(String(day.count || ""));
+                                                }}
+                                                style={[
+                                                    styles.day,
+                                                    isFirstColumn && styles.firstColumn,
+                                                    isFirstRow && styles.firstRow,
+                                                    isToday && styles.today,
+                                                    isTargetDate && styles.targetDate
+                                                ]}
+                                            >
+                                                <Text style={styles.dayNumber}>
+                                                    {day.date.slice(-2)}
                                                 </Text>
-                                            )}
-                                        </Pressable>
-                                    );
-                                })}
-                            </View>
-                        );
-                    }}
 
-                    style={{
-                        height: WEEK_HEIGHT * VISIBLE_WEEKS
-                    }}
+                                                {editingDate === day.date ? (
+                                                    <TextInput
+                                                        value={editingValue}
+                                                        onChangeText={setEditingValue}
+                                                        keyboardType="numeric"
+                                                        autoFocus
+                                                        numberOfLines={1}
+                                                        style={[
+                                                            styles.dayCountInput,
+                                                            editingValue.length >= 5 && styles.dayCountSmall,
+                                                            editingValue.length >= 7 && styles.dayCountVerySmall
+                                                        ]} onBlur={() => {
+                                                            const value = Number(editingValue) || 0;
+                                                            onEditDay(day.date, value);
+                                                            setEditingDate(null);
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <Text
+                                                        numberOfLines={1}
+                                                        adjustsFontSizeToFit
+                                                        minimumFontScale={0.6}
+                                                        style={[
+                                                            styles.dayCount,
+                                                            day.count === 0 && styles.dayCountEmpty
+                                                        ]}
+                                                    >
+                                                        {day.count}
+                                                    </Text>
+                                                )}
+                                            </Pressable>
+                                        );
+                                    })}
+                                </View>
+                            );
+                        }}
 
-                    showsVerticalScrollIndicator={false}
-                />
+                        style={{
+                            minHeight: WEEK_HEIGHT * VISIBLE_WEEKS
+                        }}
+
+                        showsVerticalScrollIndicator={false}
+                    />
+                </View>
+
+
 
             </View>
         </View>);

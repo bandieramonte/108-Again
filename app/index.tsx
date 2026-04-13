@@ -12,7 +12,7 @@ import { useReachedCelebration } from "../hooks/useReachedCelebration";
 import * as dashboardService from "../services/dashboardService";
 import * as practiceService from "../services/practiceService";
 import * as sessionService from "../services/sessionService";
-import { colors } from "../styles/theme";
+import { colors, containers } from "../styles/theme";
 import { formatNumber } from "../utils/numberUtils";
 
 type Practice = {
@@ -138,7 +138,7 @@ export default function Dashboard() {
 
   return (
 
-    <ScrollView style={styles.container}>
+    <ScrollView style={containers.screen}>
       <View
         style={{
           width: "100%",
@@ -375,12 +375,6 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
-
-  container: {
-    padding: 20,
-    marginBottom: 10,
-    paddingBottom: 40
-  },
 
   title: {
     fontSize: 28,
