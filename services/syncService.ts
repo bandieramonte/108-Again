@@ -11,6 +11,7 @@ let syncInFlight: Promise<void> | null = null;
 let scheduledSyncTimeout: ReturnType<typeof setTimeout> | null = null;
 let pendingSyncUserId: string | null = null;
 let lastUserId: string | null = null;
+let retryCount = 0;
 
 function setSyncState(next: SyncState) {
     syncState = next;
@@ -24,7 +25,7 @@ async function withTimeout<T>(
   return Promise.race([
     Promise.resolve(promise),
     new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error("Sync timeout")), ms)
+      setTimeout(() => reject(new Error("Network timeout during sync")), ms)
     ),
   ]);
 }
@@ -320,6 +321,7 @@ export async function syncNow(userId: string | null) {
         console.log("SYNC: finished");
         emitDataChanged();
         setSyncState("success");
+        retryCount = 0;
     } catch (error) {
         console.error("syncNow error", error);
 
@@ -327,7 +329,13 @@ export async function syncNow(userId: string | null) {
 
         if (userId) {
             pendingSyncUserId = userId;
-            runQueuedSync();
+
+            const delay = getRetryDelay();
+            retryCount++;
+
+            setTimeout(() => {
+                runQueuedSync();
+            }, delay);
         }
 
         throw error;
@@ -368,14 +376,15 @@ async function runQueuedSync() {
 
         try {
             await syncNow(userId);
-        } finally {
-
+        } catch (error) {
+            console.warn("Queued sync error:", error);
+        }
+        finally {
             syncInFlight = null;
 
             if (pendingSyncUserId) {
                 runQueuedSync();
             }
-
         }
 
     })();
@@ -432,4 +441,8 @@ export async function wipeRemoteUserData(userId: string) {
         .select());
 
     if (practiceError) throw practiceError;
+}
+
+function getRetryDelay() {
+    return Math.min(30000, 2000 * Math.pow(2, retryCount));
 }
