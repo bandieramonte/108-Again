@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 import * as deletedRecordRepo from "@/repositories/deletedRecordRepo";
 import * as practiceRepo from "@/repositories/practiceRepo";
 import * as sessionRepo from "@/repositories/sessionRepo";
-import { emitDataChanged, emitSyncChanged } from "@/utils/events";
+import { emitAuthInvalid, emitDataChanged, emitSyncChanged } from "@/utils/events";
 import { SyncState } from "../types/sync";
 import { getIsOnline, subscribeOnline } from "./networkService";
 
@@ -322,10 +322,16 @@ export async function syncNow(userId: string | null) {
         emitDataChanged();
         setSyncState("success");
         retryCount = 0;
-    } catch (error) {
+    } catch (error: any) {
         console.error("syncNow error", error);
-
         setSyncState("error");
+
+        // Detect auth-related error
+        if (await isUserDeleted(error)) {
+            console.log("Auth invalid — signing out");
+            emitAuthInvalid();
+            return;
+        }
 
         if (userId) {
             pendingSyncUserId = userId;
@@ -445,4 +451,17 @@ export async function wipeRemoteUserData(userId: string) {
 
 function getRetryDelay() {
     return Math.min(30000, 2000 * Math.pow(2, retryCount));
+}
+
+async function isUserDeleted(error: any) {
+  const isFkError =
+    error?.code === "23503" &&
+    error?.message?.includes("sessions_user_id_fkey");
+
+  if (!isFkError) return false;
+
+  // verify user still exists
+  const { data } = await supabase.auth.getUser();
+
+  return !data?.user;
 }

@@ -3,6 +3,7 @@ type Callback = () => void;
 let dataListeners: Callback[] = [];
 let authListeners: Callback[] = [];
 let syncListeners: Callback[] = [];
+let authInvalidListeners: Callback[] = [];
 
 function removeListener(list: Callback[], cb: Callback) {
     return list.filter(listener => listener !== cb);
@@ -36,6 +37,14 @@ export function subscribeSync(cb: Callback) {
     };
 }
 
+export function subscribeAuthInvalid(cb: Callback) {
+    authInvalidListeners.push(cb);
+
+    return () => {
+        authInvalidListeners = removeListener(authInvalidListeners, cb);
+    };
+}
+
 export function emitDataChanged() {
     notify(dataListeners);
 }
@@ -47,3 +56,8 @@ export function emitAuthChanged() {
 export function emitSyncChanged() {
     notify(syncListeners);
 }
+
+export function emitAuthInvalid() {
+    notify(authInvalidListeners);
+}
+

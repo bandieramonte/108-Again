@@ -1,7 +1,8 @@
 import { supabase } from "@/lib/supabase";
 import * as profileRepo from "@/repositories/profileRepo";
 import * as syncService from "@/services/syncService";
-import { emitAuthChanged } from "@/utils/events";
+import { emitAuthChanged, subscribeAuthInvalid } from "@/utils/events";
+import { Alert } from "react-native";
 
 export type AuthState = {
     isAuthenticated: boolean;
@@ -114,6 +115,17 @@ export async function initializeAuth() {
             } catch (error) {
                 console.error("onAuthStateChange error", error);
             }
+        });
+        
+        subscribeAuthInvalid(async () => {
+        console.log("Auth invalid — signing out");
+
+        Alert.alert(
+            "Account removed",
+            "Your account was deleted on another device."
+        );
+
+        await signOut();
         });
     }
 
