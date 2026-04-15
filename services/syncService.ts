@@ -39,8 +39,9 @@ export async function claimAnonymousLocalDataIfNeeded(userId: string | null) {
 
     const now = Date.now();
 
-    practiceRepo.backfillLegacyPracticesForUser(userId, now);
-    sessionRepo.backfillLegacySessionsForUser(userId, now);
+    practiceRepo.claimAnonymousPractices(userId, now);
+    practiceRepo.claimAnonymousPractices(userId, now);
+    sessionRepo.claimAnonymousSessions(userId, now);
 }
 
 async function pushPendingPractices(userId: string) {
@@ -225,19 +226,18 @@ async function pullPractices(userId: string) {
 
         const remoteUpdatedAt = new Date(row.updated_at as string).getTime();
         const localUpdatedAt = local?.updatedAt ?? 0;
-        const localIsPending = local?.syncStatus === "pending" || local?.syncStatus === "failed";
-
-        if (!local) {
-            practiceRepo.upsertPracticeFromRemote(row as any);
-            continue;
-        }
 
         if (row.deleted_at) {
             practiceRepo.deletePractice(row.id as string);
             continue;
         }
 
-        if (!localIsPending && remoteUpdatedAt >= localUpdatedAt) {
+        if (!local) {
+            practiceRepo.upsertPracticeFromRemote(row as any);
+            continue;
+        }
+
+        if (remoteUpdatedAt > localUpdatedAt) {
             practiceRepo.upsertPracticeFromRemote(row as any);
         }
     }
@@ -268,26 +268,25 @@ async function pullSessions(userId: string) {
     );
 
     for (const row of data ?? []) {
-        const local = localSessionsById.get(row.id as string);
+    const local = localSessionsById.get(row.id as string);
 
-        const remoteUpdatedAt = new Date(row.updated_at as string).getTime();
-        const localUpdatedAt = local?.updatedAt ?? 0;
-        const localIsPending = local?.syncStatus === "pending" || local?.syncStatus === "failed";
+    const remoteUpdatedAt = new Date(row.updated_at as string).getTime();
+    const localUpdatedAt = local?.updatedAt ?? 0;
 
-        if (!local) {
-            sessionRepo.upsertSessionFromRemote(row as any);
-            continue;
-        }
-
-        if (row.deleted_at) {
-            sessionRepo.deleteSessionById(row.id as string);
-            continue;
-        }
-
-        if (!localIsPending && remoteUpdatedAt >= localUpdatedAt) {
-            sessionRepo.upsertSessionFromRemote(row as any);
-        }
+    if (row.deleted_at) {
+        sessionRepo.deleteSessionById(row.id as string);
+        continue;
     }
+
+    if (!local) {
+        sessionRepo.upsertSessionFromRemote(row as any);
+        continue;
+    }
+
+    if (remoteUpdatedAt > localUpdatedAt) {
+        sessionRepo.upsertSessionFromRemote(row as any);
+    }
+}
 }
 
 export async function syncNow(userId: string | null) {
@@ -453,15 +452,14 @@ function getRetryDelay() {
     return Math.min(30000, 2000 * Math.pow(2, retryCount));
 }
 
-async function isUserDeleted(error: any) {
-  const isFkError =
-    error?.code === "23503" &&
-    error?.message?.includes("sessions_user_id_fkey");
-
-  if (!isFkError) return false;
-
-  // verify user still exists
+export async function isUserDeleted(error: any) {
   const { data } = await supabase.auth.getUser();
-
   return !data?.user;
+}
+
+export async function reassignLocalDataToUser(userId: string) {
+    const now = Date.now();
+
+    practiceRepo.reassignAllPracticesToUser(userId, now);
+    sessionRepo.reassignAllSessionsToUser(userId, now);
 }

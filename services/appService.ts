@@ -1,4 +1,6 @@
+import { DEFAULT_PRACTICES, SEEDED_IDS } from "@/constants/defaultPractices";
 import { enqueueWrite } from "@/database/writeQueue";
+import { randomUUID } from "expo-crypto";
 import { db, initializeDatabase } from "../database/db";
 import { seedPractices } from "../database/seed";
 import * as appMetaRepo from "../repositories/appMetaRepo";
@@ -38,18 +40,96 @@ export async function restoreDefaults() {
 
         try {
 
-            sessionRepo.deleteAllSessions();
-            practiceRepo.deleteAllPractices();
-            deletedRecordRepo.deleteAllDeletedRecords();
+          const now = Date.now();
 
-            seedPractices();
+          const sessions = sessionRepo.getAllSessionsForSync();
 
-            appMetaRepo.setMeta(
-                "lastRestoreDate",
-                new Date().toISOString()
-            );
+          for (const s of sessions) {
+              deletedRecordRepo.insertDeletedRecord(
+                  randomUUID(),
+                  "session",
+                  s.id,
+                  userId,
+                  now,
+                  "pending",
+                  JSON.stringify({
+                      practiceId: s.practiceId,
+                      createdAt: s.createdAt,
+                  })
+              );
+          }
 
-            db.execSync("COMMIT");
+          sessionRepo.softDeleteAllSessions(userId, now);
+          sessionRepo.deleteAllSessions();
+
+          const practices = practiceRepo.getAllPractices();
+
+          for (const p of practices) {
+              const isSeeded = SEEDED_IDS.has(p.id);
+
+              if (!isSeeded) {
+                  // -------------------------
+                  // DELETE USER PRACTICES
+                  // -------------------------
+                  deletedRecordRepo.insertDeletedRecord(
+                      randomUUID(),
+                      "practice",
+                      p.id,
+                      userId,
+                      now,
+                      "pending",
+                      JSON.stringify({
+                          name: p.name,
+                          targetCount: p.targetCount,
+                          orderIndex: p.orderIndex,
+                          imageKey: p.imageKey ?? null,
+                          defaultAddCount: p.defaultAddCount ?? 108
+                      })
+                  );
+
+                  practiceRepo.deletePractice(p.id);
+              } else {
+                  // -------------------------
+                  // RESET SEEDED PRACTICES
+                  // -------------------------
+                  const defaultPractice =
+                      DEFAULT_PRACTICES.find(d => d.id === p.id);
+
+                  if (defaultPractice) {
+                      practiceRepo.updatePractice(
+                          p.id,
+                          defaultPractice.name,
+                          defaultPractice.targetCount,
+                          {
+                              userId,
+                              updatedAt: now,
+                              syncStatus: "pending",
+                              lastSyncedAt: null
+                          }
+                      );
+
+                      practiceRepo.updatePracticeDefaultAddCount(
+                          p.id,
+                          defaultPractice.defaultAddCount ?? 108,
+                          {
+                              userId,
+                              updatedAt: now,
+                              syncStatus: "pending",
+                              lastSyncedAt: null
+                          }
+                      );
+                  }
+              }
+          }
+
+          practiceRepo.resetPracticeTotals(userId, now);
+
+          appMetaRepo.setMeta(
+              "lastRestoreDate",
+              new Date().toISOString()
+          );
+
+          db.execSync("COMMIT");
 
         } catch (error) {
 
@@ -63,8 +143,7 @@ export async function restoreDefaults() {
     emitDataChanged();
 
     if (userId) {
-        await syncService.wipeRemoteUserData(userId);
-        await syncService.syncNow(userId);
+      await syncService.requestSync(userId);
     }
 }
 

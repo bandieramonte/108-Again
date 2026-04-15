@@ -1,5 +1,4 @@
 import { SyncMetadata } from "@/types/sync"
-import { randomUUID } from "expo-crypto"
 import { DEFAULT_PRACTICES } from "../constants/defaultPractices"
 import * as practiceRepo from "../repositories/practiceRepo"
 import * as authService from "../services/authService"
@@ -22,7 +21,7 @@ export function seedPractices() {
 
   DEFAULT_PRACTICES.forEach(p => {
     practiceRepo.insertPractice(
-      randomUUID(),
+      p.id,
       p.name,
       p.targetCount,
       p.orderIndex,

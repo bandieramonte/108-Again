@@ -43,12 +43,15 @@ const styles = StyleSheet.create({
         fontSize: 17,
         fontWeight: "700",
         lineHeight: 20,
-        textAlign: "center"
+        textAlign: "center",
+        paddingBottom: 10
     },
 
     subtitle: {
+        position: "absolute",
         fontSize: 12,
         color: "#666",
         lineHeight: 14,
+        bottom: -0,
     },
 });

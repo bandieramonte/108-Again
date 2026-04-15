@@ -397,3 +397,25 @@ export function softDeleteAllSessions(
         updatedAt
     );
 }
+
+export function markAllSessionsPending(userId: string, updatedAt: number) {
+    db.runSync(`
+        UPDATE sessions
+        SET
+            userId = ?,
+            updatedAt = ?,
+            syncStatus = 'pending',
+            lastSyncedAt = NULL
+    `, userId, updatedAt);
+}
+
+export function reassignAllSessionsToUser(userId: string, now: number) {
+    db.runSync(`
+        UPDATE sessions
+        SET
+            userId = ?,
+            updatedAt = ?,
+            syncStatus = 'pending',
+            lastSyncedAt = NULL
+    `, userId, now);
+}

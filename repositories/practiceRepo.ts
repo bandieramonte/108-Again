@@ -353,3 +353,35 @@ export function updatePracticeTotalOffset(
         id
     );
 }
+
+export function resetPracticeTotals(userId: string | null, updatedAt: number) {
+    db.runSync(`
+        UPDATE practices
+        SET
+            totalOffset = 0,
+            updatedAt = ?,
+            syncStatus = 'pending'
+    `, updatedAt);
+}
+
+export function markAllPracticesPending(userId: string, updatedAt: number) {
+    db.runSync(`
+        UPDATE practices
+        SET
+            userId = ?,
+            updatedAt = ?,
+            syncStatus = 'pending',
+            lastSyncedAt = NULL
+    `, userId, updatedAt);
+}
+
+export function reassignAllPracticesToUser(userId: string, now: number) {
+    db.runSync(`
+        UPDATE practices
+        SET
+            userId = ?,
+            updatedAt = ?,
+            syncStatus = 'pending',
+            lastSyncedAt = NULL
+    `, userId, now);
+}
