@@ -37,6 +37,7 @@ export default function PracticePager() {
     const shouldRenderPage = (index: number) => {
         return Math.abs(index - normalizedIndex) <= 1;
     };
+    const pendingJumpRef = useRef<number | null>(null);
 
     if (pageCount === 0) {
         return <View style={{ flex: 1 }} />;
@@ -72,35 +73,36 @@ export default function PracticePager() {
             ref={pagerRef}
             style={{ flex: 1 }}
             initialPage={initialPage}
+            onPageScrollStateChanged={(e) => {
+                if (e.nativeEvent.pageScrollState === "idle" && pendingJumpRef.current !== null) {
+                    pagerRef.current?.setPageWithoutAnimation(pendingJumpRef.current);
+                    setCurrentIndex(pendingJumpRef.current);
+                    pendingJumpRef.current = null;
+                }
+            }}
             onPageSelected={(e) => {
                 const index = e.nativeEvent.position;
 
                 setLoaded(prev => {
                     const next = new Set(prev);
-
                     next.add(index);
                     next.add(index - 1);
                     next.add(index + 1);
 
-                    // circular preload
-                    if (index === 1) {
-                        next.add(practices.length);
-                    }
-
-                    if (index === practices.length) {
-                        next.add(1);
-                    }
+                    if (index === 1) next.add(practices.length);
+                    if (index === practices.length) next.add(1);
 
                     return next;
                 });
 
+                // 🚨 DO NOT jump immediately
                 if (index === 0) {
-                    pagerRef.current?.setPageWithoutAnimation(practices.length);
+                    pendingJumpRef.current = practices.length;
                     return;
                 }
 
                 if (index === practices.length + 1) {
-                    pagerRef.current?.setPageWithoutAnimation(1);
+                    pendingJumpRef.current = 1;
                     return;
                 }
 

@@ -109,7 +109,7 @@ export default function HeaderMenu({
                         }
                     );
                 }}
-                hitSlop={10}
+                hitSlop={4}
                 style={styles.iconButton}
             >
                 <MaterialIcons name="more-vert" size={24} />
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     },
 
     iconButton: {
-        paddingLeft: 8,
+        marginLeft: 8,
     },
 
     overlay: {
