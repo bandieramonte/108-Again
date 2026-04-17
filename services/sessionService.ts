@@ -1,6 +1,7 @@
 import { randomUUID } from "expo-crypto";
 import * as practiceRepo from "../repositories/practiceRepo";
 import * as sessionRepo from "../repositories/sessionRepo";
+import * as appService from "../services/appService";
 import * as authService from "../services/authService";
 import * as syncService from "../services/syncService";
 import { SyncMetadata } from "../types/sync";
@@ -87,6 +88,7 @@ export function addSession(practiceId: string, count: number) {
     }
 
     emitDataChanged();
+    appService.markActive();
     void syncService.requestSync(syncMetadata.userId);
 }
 
@@ -168,6 +170,7 @@ export function adjustDayTotal(
         }
     }
 
+    appService.markActive();
     emitDataChanged();
     void syncService.requestSync(syncMetadata.userId);
 }

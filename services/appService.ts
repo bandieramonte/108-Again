@@ -1,6 +1,7 @@
 import { DEFAULT_PRACTICES, SEEDED_IDS } from "@/constants/defaultPractices";
 import { enqueueWrite } from "@/database/writeQueue";
 import { randomUUID } from "expo-crypto";
+import { AppState } from "react-native";
 import { db, initializeDatabase } from "../database/db";
 import { seedPractices } from "../database/seed";
 import * as appMetaRepo from "../repositories/appMetaRepo";
@@ -12,6 +13,10 @@ import * as syncService from "../services/syncService";
 import { emitDataChanged } from "../utils/events";
 import { initializeNetworkListener } from "./networkService";
 import { initializeSyncRetry } from "./syncService";
+
+const INACTIVE_THRESHOLD = 60 * 60 * 1000; //1 hour
+
+let lastActiveAt: number = Date.now();
 
 export async function initializeApp() {
     initializeDatabase();
@@ -174,4 +179,49 @@ export function ensureInstallDate() {
       new Date().toISOString()
     );
   }
+}
+
+export async function handleAppResume() {
+    if (!authService.getCurrentUserId()) return;
+
+    if (shouldForceSync(INACTIVE_THRESHOLD)) {
+        try {
+            await syncService.syncNow(authService.getCurrentUserId());
+        } catch (e) {
+            console.warn("Auto-sync failed", e);
+        }
+    }
+
+    markActive();
+}
+
+export function markActive() {
+    lastActiveAt = Date.now();
+}
+
+export function shouldForceSync(thresholdMs: number) {
+    return Date.now() - lastActiveAt > thresholdMs;
+}
+
+let initialized = false;
+let lastState = AppState.currentState;
+
+export function initAppStateListener(onResume: () => void) {
+    if (initialized) return;
+
+    initialized = true;
+
+    AppState.addEventListener("change", (nextState) => {
+        console.log("AppState:", lastState, "→", nextState);
+
+        if (
+            lastState.match(/inactive|background/) &&
+            nextState === "active"
+        ) {
+            console.log("App resumed 🔥");
+            onResume();
+        }
+
+        lastState = nextState;
+    });
 }

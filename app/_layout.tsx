@@ -5,16 +5,24 @@ import { subscribeAuth } from "@/utils/events";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack, router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Alert, Linking, Pressable, View } from "react-native";
+import { Alert, AppState, Linking, Pressable, View } from "react-native";
 import * as appService from "../services/appService";
 import * as authService from "../services/authService";
 
 export default function Layout() {
     const [authState, setAuthState] = useState(authService.getAuthState());
     const handledDeepLink = useRef(false);
+    const appState = useRef(AppState.currentState);
 
     useEffect(() => {
         appService.initializeApp();
+    }, []);
+
+
+    useEffect(() => {
+        appService.initAppStateListener(() => {
+            appService.handleAppResume();
+        });
     }, []);
 
     useEffect(() => {
