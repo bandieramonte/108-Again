@@ -73,20 +73,20 @@ export default function PracticeHistoryModal({
                     top: 30,
                     bottom: 30,
                     left: 50,
-                    right: 10,
+                    right: 15,
                 }
                 : total >= 100000
                     ? {
                         top: 30,
                         bottom: 30,
                         left: 40,
-                        right: 10,
+                        right: 15,
                     }
                     : {
                         top: 30,
                         bottom: 30,
                         left: 30,
-                        right: 10,
+                        right: 15,
                     };
 
         const chartWidth =
@@ -150,7 +150,7 @@ export default function PracticeHistoryModal({
                                 key={`y-${i}`}
                                 x={padding.left - 5}
                                 y={y + 4}
-                                fontSize="10"
+                                fontSize="12"
                                 textAnchor="end"
                                 fill="#666"
                             >
@@ -306,7 +306,7 @@ export default function PracticeHistoryModal({
                                 key={`x-${i}`}
                                 x={x}
                                 y={height - 10}
-                                fontSize="10"
+                                fontSize="12"
                                 textAnchor="middle"
                                 fill="#444"
                             >
