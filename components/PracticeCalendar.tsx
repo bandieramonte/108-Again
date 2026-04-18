@@ -335,7 +335,7 @@ export default function PracticeCalendar({
 
                                         const isFirstColumn = index === 0;
                                         const isFirstRow = item === 0;
-
+                                        const editable = isEditable(day.date);
                                         return (
                                             <Pressable
                                                 key={day.date}
@@ -347,13 +347,20 @@ export default function PracticeCalendar({
                                                 }}
                                                 style={[
                                                     styles.day,
+                                                    editable ? styles.editableDay : styles.futureDay,
                                                     isFirstColumn && styles.firstColumn,
                                                     isFirstRow && styles.firstRow,
                                                     isToday && styles.today,
                                                     isTargetDate && styles.targetDate
                                                 ]}
                                             >
-                                                <Text style={styles.dayNumber}>
+                                                {editable && <View style={styles.editableAccent} />}
+                                                <Text
+                                                    style={[
+                                                        styles.dayNumber,
+                                                        !editable && styles.futureDayText
+                                                    ]}
+                                                >
                                                     {day.date.slice(-2)}
                                                 </Text>
 
@@ -381,7 +388,8 @@ export default function PracticeCalendar({
                                                         minimumFontScale={0.6}
                                                         style={[
                                                             styles.dayCount,
-                                                            day.count === 0 && styles.dayCountEmpty
+                                                            day.count === 0 && styles.dayCountEmpty,
+                                                            !editable && styles.futureDayText
                                                         ]}
                                                     >
                                                         {day.count}
@@ -530,5 +538,35 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: "600",
         color: "#555"
+    },
+
+    editableDay: {
+        backgroundColor: "rgba(59,130,246,0.04)",
+    },
+
+    futureDay: {
+        backgroundColor: "#fafafa",
+        opacity: 0.65,
+    },
+
+    futureDayText: {
+        color: "#c5c5c5",
+    },
+    editHint: {
+        position: "absolute",
+        top: 4,
+        right: 6,
+        fontSize: 10,
+        color: "#9ca3af",
+        fontWeight: "600",
+    },
+    editableAccent: {
+        position: "absolute",
+        bottom: 4,
+        width: 18,
+        height: 2,
+        borderRadius: 2,
+        backgroundColor: colors.primary,
+        opacity: 0.35,
     },
 });
