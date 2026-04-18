@@ -6,6 +6,7 @@ import { Alert, Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text,
 import CelebrationOverlay from "../../components/CelebrationOverlay";
 import FloatingAddAnimation, { FloatingAddAnimationRef } from "../../components/FloatingAddAnimation";
 import PracticeCalendar from "../../components/PracticeCalendar";
+import PracticeHistoryModal from "../../components/PracticeHistoryModal";
 import QuickAddEditor from "../../components/QuickAddEditor";
 import TargetDateEditor from "../../components/TargetDateEditor";
 import { practiceImages } from "../../constants/practiceImages";
@@ -123,6 +124,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     const dailyAnimRef = useRef<FloatingAddAnimationRef>(null);
     const customAnimRef = useRef<FloatingAddAnimationRef>(null);
     const [calendarOpen, setCalendarOpen] = useState(false);
+    const [historyOpen, setHistoryOpen] = useState(false);
 
     useEffect(() => {
         schedulePracticeRefresh();
@@ -215,6 +217,11 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
             setTargetCount(practice.targetCount);
             loadSessions(practice.targetCount);
         }
+    }
+
+    function openPracticeHistory() {
+        closeMenu();
+        setHistoryOpen(true);
     }
 
     function confirmDelete() {
@@ -551,6 +558,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                             visible={calendarOpen}
                             transparent
                             animationType="slide"
+                            statusBarTranslucent
                             onRequestClose={() => setCalendarOpen(false)}
                         >
                             <Pressable style={styles.calendarOverlay} onPress={() => setCalendarOpen(false)}>
@@ -614,6 +622,20 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                             />
                                             <Text style={styles.dropdownText}>
                                                 Edit practice
+                                            </Text>
+                                        </Pressable>
+
+                                        <Pressable
+                                            style={styles.dropdownItem}
+                                            onPress={openPracticeHistory}
+                                        >
+                                            <MaterialIcons
+                                                name="show-chart"
+                                                size={18}
+                                                color="#333"
+                                            />
+                                            <Text style={styles.dropdownText}>
+                                                Practice history
                                             </Text>
                                         </Pressable>
 
@@ -704,6 +726,13 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                             </Pressable>
                         </Pressable>
                     </Modal>
+
+                    <PracticeHistoryModal
+                        visible={historyOpen}
+                        onClose={() => setHistoryOpen(false)}
+                        practiceId={practiceId}
+                        total={total}
+                    />
                 </View>
             </ScrollView>
 
@@ -981,7 +1010,7 @@ const styles = StyleSheet.create({
 
     infoModal: {
         width: "100%",
-        maxWidth: 360,
+        maxWidth: 420,
         backgroundColor: "white",
         borderRadius: 12,
         padding: 20
