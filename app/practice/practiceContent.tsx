@@ -1,5 +1,4 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
@@ -16,18 +15,7 @@ import * as practiceService from "../../services/practiceService";
 import * as sessionService from "../../services/sessionService";
 import { colors, containers } from "../../styles/theme";
 import { subscribeData } from "../../utils/events";
-import {
-    digitsOnly,
-    formatNumber,
-    MAX_REPETITIONS_PER_DAY,
-    validateNonNegativeInteger
-} from "../../utils/numberUtils";
-
-type Session = {
-    id: string;
-    count: number;
-    createdAt: number;
-};
+import { digitsOnly, formatNumber, MAX_REPETITIONS_PER_DAY, validateNonNegativeInteger } from "../../utils/numberUtils";
 
 export default function PracticeContent({ practiceId }: { practiceId: string }) {
     const router = useRouter();
@@ -36,9 +24,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     const initialPractice = practiceService.getPractice(practiceId);
 
     const [practiceName, setPracticeName] = useState(initialPractice?.name ?? "");
-    const [sessions, setSessions] = useState<Session[]>(() =>
-        sessionService.getSessionsForPractice(practiceId) as Session[]
-    );
     const [total, setTotal] = useState(() =>
         sessionService.getPracticeTotal(practiceId).total
     );
@@ -51,11 +36,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         { date: string; count: number }[]
     >(() => sessionService.getCalendarDailyData(practiceId));
 
-    const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
-    const [rangeDays, setRangeDays] = useState(10);
-    const [dailyData, setDailyData] = useState<
-        { date: string; total: number }[]
-    >([]);
     const { width } = useWindowDimensions();
     const imageSource =
         imageKey && practiceImages[imageKey]
@@ -77,7 +57,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     const rotateAnim = useRef(new Animated.Value(0)).current;
     const titleRowRef = useRef<View | null>(null);
     const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
-    const [showTableTooltip, setShowTableTooltip] = useState(false);
     const {
         celebrationFade,
         sparkle1,
@@ -128,7 +107,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
 
     useEffect(() => {
         schedulePracticeRefresh();
-    }, [practiceId, rangeDays, viewMode]);
+    }, [practiceId]);
 
     useEffect(() => {
         const unsubscribe = subscribeData(() => {
@@ -136,44 +115,12 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         });
 
         return unsubscribe;
-    }, [practiceId, rangeDays, viewMode]);
-
-    useEffect(() => {
-        let showTimeout: ReturnType<typeof setTimeout> | null = null;
-        let hideTimeout: ReturnType<typeof setTimeout> | null = null;
-
-        async function maybeShowTableTooltip() {
-            if (viewMode !== "table") return;
-
-            const seen = await AsyncStorage.getItem("practiceTableTooltipSeen");
-            if (seen) return;
-
-            showTimeout = setTimeout(async () => {
-                setShowTableTooltip(true);
-                await AsyncStorage.setItem("practiceTableTooltipSeen", "true");
-
-                hideTimeout = setTimeout(() => {
-                    setShowTableTooltip(false);
-                }, 5000);
-            }, 500);
-        }
-
-        maybeShowTableTooltip();
-
-        if (viewMode !== "table") {
-            setShowTableTooltip(false);
-        }
-
-        return () => {
-            if (showTimeout) clearTimeout(showTimeout);
-            if (hideTimeout) clearTimeout(hideTimeout);
-        };
-    }, [viewMode]);
+    }, [practiceId]);
 
     useFocusEffect(
         useCallback(() => {
             schedulePracticeRefresh();
-        }, [practiceId, rangeDays, viewMode])
+        }, [practiceId])
     );
 
     function loadCalendarData() {
@@ -183,19 +130,13 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
 
     function schedulePracticeRefresh() {
         loadPracticeData();
-        loadDailyData(rangeDays);
         loadCalendarData();
     }
 
     function loadSessions(overrideTargetCount?: number) {
-        const rows = sessionService.getSessionsForPractice(practiceId) as Session[];
-        setSessions(rows);
-
         const totalResult = sessionService.getPracticeTotal(practiceId);
         const nextTotal = totalResult.total;
-
         setTotal(nextTotal);
-
         const effectiveTargetCount = overrideTargetCount ?? targetCount;
 
         void updateReachedState([
@@ -244,22 +185,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     async function deletePractice() {
         await practiceService.deletePractice(practiceId);
         router.replace("/");
-    }
-
-    function loadDailyData(days: number) {
-
-        const data =
-            viewMode === "table"
-                ? sessionService.getDailyPracticeDataWithAdjustments(
-                    practiceId,
-                    days
-                )
-                : sessionService.getDailyPracticeData(
-                    practiceId,
-                    days
-                );
-
-        setDailyData(data);
     }
 
     const handleEdit = useCallback((date: string, newValue: number) => {
@@ -755,11 +680,6 @@ const styles = StyleSheet.create({
         marginTop: 60
     },
 
-    contentContainerStyle: {
-        padding: 20,
-        paddingBottom: 40
-    },
-
     title: {
         fontSize: 24,
         fontWeight: "bold",
@@ -776,39 +696,6 @@ const styles = StyleSheet.create({
         color: "#666",
         marginTop: 12,
         marginBottom: 6
-    },
-
-    row: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        paddingVertical: 6
-    },
-
-    addSection: {
-        marginBottom: 30
-    },
-
-    buttonRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        marginBottom: 10
-    },
-
-    input: {
-        borderWidth: 1,
-        borderColor: "#ccc",
-        padding: 8,
-        marginBottom: 10,
-        color: "black"
-    },
-
-    editableCell: {
-        borderBottomWidth: 1,
-        borderColor: "#aaa",
-        minWidth: 60,
-        textAlign: "right",
-        paddingVertical: 2,
-        color: "black"
     },
 
     titleRow: {
@@ -873,23 +760,6 @@ const styles = StyleSheet.create({
         paddingBottom: 30
     },
 
-    tableTooltip: {
-        alignSelf: "flex-start",
-        backgroundColor: "#111",
-        paddingVertical: 10,
-        paddingHorizontal: 14,
-        borderRadius: 8,
-        marginBottom: 16,
-        maxWidth: 280,
-        position: "absolute",
-        width: 180
-    },
-
-    tableTooltipText: {
-        color: "white",
-        fontSize: 13,
-    },
-
     indicatorRow: {
         alignItems: "center",
         gap: 3,
@@ -900,36 +770,6 @@ const styles = StyleSheet.create({
     totalWrapper: {
         position: "relative",
         alignSelf: "flex-start",
-    },
-
-    totalCelebrationOverlay: {
-        position: "absolute",
-        top: -4,
-        left: 0,
-        right: -10,
-        bottom: -4,
-        pointerEvents: "none",
-    },
-
-    sparkle: {
-        position: "absolute",
-        fontSize: 16,
-        color: "#a78bfa",
-        fontWeight: "700",
-    },
-
-    congratsText: {
-        fontSize: 12,
-        color: "#7c3aed",
-        fontWeight: "700",
-    },
-
-    targetRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginTop: 8,
-        marginBottom: 4
     },
 
     targetDateText: {
@@ -943,12 +783,6 @@ const styles = StyleSheet.create({
         marginTop: 2,
         marginBottom: 10,
         flexWrap: "wrap"
-    },
-
-    quickAddLabel: {
-        fontSize: 14,
-        color: "#666",
-        marginRight: 8
     },
 
     quickAddButton: {
@@ -966,15 +800,6 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: "600",
         color: "#111"
-    },
-
-    quickAddInput: {
-        marginTop: 4,
-        borderWidth: 1,
-        borderColor: "#ddd",
-        padding: 6,
-        borderRadius: 6,
-        width: 80
     },
 
     targetDateEditable: {
@@ -1042,20 +867,6 @@ const styles = StyleSheet.create({
         color: "#2563eb"
     },
 
-    customRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginTop: 8,
-        marginBottom: 8,
-        flexWrap: "wrap"
-    },
-
-    customLabel: {
-        fontSize: 14,
-        color: "#666",
-        marginRight: 8
-    },
-
     customInput: {
         borderWidth: 1,
         borderColor: "#ddd",
@@ -1066,18 +877,6 @@ const styles = StyleSheet.create({
         textAlign: "center",
         color: "black",
         alignSelf: "center"
-    },
-
-    customButton: {
-        backgroundColor: "#e5e7eb",
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 8
-    },
-
-    customButtonText: {
-        fontSize: 14,
-        fontWeight: "600"
     },
 
     addRow: {
@@ -1107,33 +906,11 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center"
     },
-    addFloating: {
-        position: "absolute",
-        fontSize: 14,
-        fontWeight: "600",
-        color: "#8B1E3F"
-    },
-
-    calendarButton: {
-        marginTop: 24,
-        paddingVertical: 14,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: "#e5e7eb",
-        alignItems: "center",
-        backgroundColor: "#f9fafb"
-    },
 
     calendarButtonText: {
         fontSize: 15,
         fontWeight: "600",
         color: "white"
-    },
-
-    calendarModalContainer: {
-        flex: 1,
-        backgroundColor: "white",
-        paddingTop: 40
     },
 
     calendarHeader: {
