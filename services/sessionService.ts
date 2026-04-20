@@ -217,3 +217,11 @@ export function getCalendarDailyData(practiceId: string) {
         count: r.total
     }));
 }
+
+export function getPracticeLifetimeStats(
+    practiceId: string
+) {
+    return sessionRepo.getPracticeLifetimeStats(
+        practiceId
+    );
+}

@@ -348,7 +348,7 @@ export default function Dashboard() {
 
               <Text style={styles.infoText}>
                 Your streak shows how many consecutive days
-                you practiced at least once.
+                you did any practice at least once.
               </Text>
 
               <Text style={styles.infoText}>

@@ -37,6 +37,12 @@ export default function PracticeHistoryModal({
     const [rangeDays, setRangeDays] = useState(10);
     const [dailyData, setDailyData] = useState<DailyData[]>([]);
     const { width: screenWidth } = useWindowDimensions();
+    const [stats, setStats] = useState({
+        averageSessionSize: 0,
+        largestSession: 0,
+        longestStreak: 0,
+        currentStreak: 0,
+    });
 
     useEffect(() => {
         if (!visible) return;
@@ -48,6 +54,12 @@ export default function PracticeHistoryModal({
             );
 
         setDailyData(data);
+        const lifetimeStats =
+            sessionService.getPracticeLifetimeStats(
+                practiceId
+            );
+
+        setStats(lifetimeStats);
     }, [practiceId, rangeDays, visible]);
 
     function formatShortDate(date: string) {
@@ -372,6 +384,28 @@ export default function PracticeHistoryModal({
                         </Text>
                     )}
 
+                    <View style={styles.statsSection}>
+                        <Text style={styles.statsTitle}>
+                            All-time statistics
+                        </Text>
+
+                        <Text style={styles.statRow}>
+                            Average session size: {stats.averageSessionSize}
+                        </Text>
+
+                        <Text style={styles.statRow}>
+                            Largest session: {stats.largestSession}
+                        </Text>
+
+                        <Text style={styles.statRow}>
+                            Longest streak: {stats.longestStreak} days
+                        </Text>
+
+                        <Text style={styles.statRow}>
+                            Current streak: {stats.currentStreak} days
+                        </Text>
+                    </View>
+
                     <Pressable
                         style={styles.button}
                         onPress={onClose}
@@ -463,5 +497,24 @@ const styles = StyleSheet.create({
 
     rangeButtonTextActive: {
         color: "white",
+    },
+
+    statsSection: {
+        marginTop: 20,
+        paddingTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: "#e5e7eb",
+    },
+
+    statsTitle: {
+        fontSize: 16,
+        fontWeight: "700",
+        marginBottom: 12,
+    },
+
+    statRow: {
+        fontSize: 14,
+        marginBottom: 8,
+        color: "#333",
     },
 });

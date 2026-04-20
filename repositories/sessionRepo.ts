@@ -419,3 +419,115 @@ export function reassignAllSessionsToUser(userId: string, now: number) {
             lastSyncedAt = NULL
     `, userId, now);
 }
+
+export function getPracticeLifetimeStats(practiceId: string) {
+    const rows = getDailyTotals(practiceId);
+
+    if (rows.length === 0) {
+        return {
+            averageSessionSize: 0,
+            largestSession: 0,
+            longestStreak: 0,
+            currentStreak: 0,
+        };
+    }
+
+    const totals = rows.map(r => r.total);
+
+    const totalSum =
+        totals.reduce((sum, n) => sum + n, 0);
+
+    const averageSessionSize =
+        Math.round(totalSum / rows.length);
+
+    const largestSession =
+        Math.max(...totals, 0);
+
+    const sortedDays = rows
+        .map(r => r.day)
+        .sort();
+
+    let longestStreak = 1;
+    let currentRunningStreak = 1;
+
+    for (let i = 1; i < sortedDays.length; i++) {
+        const prev =
+            new Date(sortedDays[i - 1] + "T00:00:00Z");
+
+        const curr =
+            new Date(sortedDays[i] + "T00:00:00Z");
+
+        const diffDays = Math.round(
+            (curr.getTime() - prev.getTime()) /
+            (1000 * 60 * 60 * 24)
+        );
+
+        if (diffDays === 1) {
+            currentRunningStreak++;
+            longestStreak = Math.max(
+                longestStreak,
+                currentRunningStreak
+            );
+        } else {
+            currentRunningStreak = 1;
+        }
+    }
+
+    // current streak = streak ending today or yesterday
+    let currentStreak = 0;
+
+    const lastDay =
+        sortedDays[sortedDays.length - 1];
+
+    const lastDate =
+        new Date(lastDay + "T00:00:00Z");
+
+    const today =
+        new Date();
+
+    const todayUtc =
+        new Date(Date.UTC(
+            today.getUTCFullYear(),
+            today.getUTCMonth(),
+            today.getUTCDate()
+        ));
+
+    const diffFromToday = Math.round(
+        (todayUtc.getTime() - lastDate.getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
+
+    if (diffFromToday <= 1) {
+        currentStreak = 1;
+
+        for (
+            let i = sortedDays.length - 1;
+            i > 0;
+            i--
+        ) {
+            const curr =
+                new Date(sortedDays[i] + "T00:00:00Z");
+
+            const prev =
+                new Date(sortedDays[i - 1] + "T00:00:00Z");
+
+            const diffDays = Math.round(
+                (curr.getTime() - prev.getTime()) /
+                (1000 * 60 * 60 * 24)
+            );
+
+            if (diffDays === 1) {
+                currentStreak++;
+            } else {
+                break;
+            }
+        }
+    }
+
+    return {
+        averageSessionSize,
+        largestSession,
+        longestStreak,
+        currentStreak,
+    };
+}
