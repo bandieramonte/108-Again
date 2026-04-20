@@ -1,6 +1,6 @@
 import { FlashList, FlashListRef } from "@shopify/flash-list";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Dimensions, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { colors } from "../styles/theme";
 
 type DayData = {
@@ -281,7 +281,7 @@ export default function PracticeCalendar({
                         </Text>
                     </Pressable>
 
-                    <Text style={styles.monthHeader}>
+                    <Text style={styles.monthHeader} >
                         {visibleMonth}
                     </Text>
 
@@ -416,6 +416,10 @@ export default function PracticeCalendar({
         </View>);
 }
 
+const isSmallScreen = Dimensions.get("window").width < 360;
+const borderWidth = isSmallScreen ? 1 : 2
+const fontSize = isSmallScreen ? 13 : 16
+
 const styles = StyleSheet.create({
 
     container: {
@@ -444,8 +448,8 @@ const styles = StyleSheet.create({
         paddingTop: 15,
         justifyContent: "center",
         alignItems: "center",
-        borderRightWidth: 2,
-        borderBottomWidth: 2,
+        borderRightWidth: borderWidth,
+        borderBottomWidth: borderWidth,
         borderColor: "#e5e7eb"
     },
 
@@ -459,7 +463,7 @@ const styles = StyleSheet.create({
     },
 
     dayCount: {
-        fontSize: 16,
+        fontSize: fontSize,
         textAlign: "center",
         width: "100%",
         includeFontPadding: false,
@@ -470,22 +474,23 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: "600",
         marginBottom: 8,
-        textAlign: "center"
+        textAlign: "center",
+        width: 150
     },
 
     today: {
         borderColor: colors.primary,
-        borderLeftWidth: 2,
-        borderTopWidth: 2,
-        borderBottomWidth: 2,
-        borderRightWidth: 2,
+        borderLeftWidth: borderWidth,
+        borderTopWidth: borderWidth,
+        borderBottomWidth: borderWidth,
+        borderRightWidth: borderWidth,
     },
 
     targetDate: {
-        borderTopWidth: 2,
-        borderBottomWidth: 2,
-        borderRightWidth: 2,
-        borderLeftWidth: 2,
+        borderTopWidth: borderWidth,
+        borderBottomWidth: borderWidth,
+        borderRightWidth: borderWidth,
+        borderLeftWidth: borderWidth,
         borderColor: "#f59e0b",
         backgroundColor: "rgba(245,158,11,0.08)"
     },
@@ -495,19 +500,19 @@ const styles = StyleSheet.create({
     },
 
     firstColumn: {
-        borderLeftWidth: 2,
+        borderLeftWidth: borderWidth,
     },
 
     firstRow: {
-        borderTopWidth: 2,
+        borderTopWidth: borderWidth,
     },
 
     dayCountInput: {
-        fontSize: 16,
+        fontSize: fontSize,
         fontWeight: "600",
         textAlign: "center",
         width: "100%",
-        height: "100%",
+        minHeight: 32,
         textAlignVertical: "center",
         paddingVertical: 0,
         includeFontPadding: false,
@@ -530,8 +535,8 @@ const styles = StyleSheet.create({
     },
 
     monthArrow: {
-        paddingHorizontal: 8,
-        paddingVertical: 2,
+        // paddingHorizontal: 14,
+        paddingVertical: 10,
     },
 
     monthArrowText: {

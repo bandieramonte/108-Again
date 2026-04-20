@@ -3,7 +3,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import * as Progress from "react-native-progress";
 import CelebrationOverlay from "../components/CelebrationOverlay";
 import QuickAddEditor from "../components/QuickAddEditor";
@@ -78,9 +78,15 @@ export default function Dashboard() {
 
     // Prefer measuring via the ref; UIManager.measureInWindow is deprecated.
     (target as any).measureInWindow(async (x: number, y: number, width: number, height: number) => {
+      const tooltipWidth = 240;
+      let left = x + width / 2 - tooltipWidth / 2;
+
+      left = Math.max(12, left);
+      left = Math.min(left, screenWidth - tooltipWidth - 12);
+
       setTooltipPosition({
         top: y - 108,
-        left: x + width / 2 - 120
+        left: left
       });
 
       setTimeout(() => {
@@ -138,7 +144,7 @@ export default function Dashboard() {
 
   return (
 
-    <ScrollView style={containers.screen}>
+    <ScrollView style={containers.screen} contentContainerStyle={{ paddingBottom: 30 }}>
       <View
         style={{
           width: "100%",
@@ -159,6 +165,7 @@ export default function Dashboard() {
                 name="info-outline"
                 size={20}
                 color="#666"
+                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
               />
             </Pressable>
           </View>
@@ -206,7 +213,7 @@ export default function Dashboard() {
                   />
 
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.practiceName}>
+                    <Text numberOfLines={2} ellipsizeMode="tail" style={styles.practiceName}>
                       {practice.name}
                     </Text>
 
@@ -372,6 +379,8 @@ export default function Dashboard() {
   );
 }
 
+const screenWidth = Dimensions.get("window").width;
+const iconSize = screenWidth < 360 ? 60 : 70;
 const styles = StyleSheet.create({
 
   title: {
@@ -383,7 +392,7 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 25,
     position: "relative",
-    marginHorizontal: 8
+    marginHorizontal: 8,
   },
 
   practiceName: {
@@ -408,8 +417,8 @@ const styles = StyleSheet.create({
   },
 
   icon: {
-    width: 70,
-    height: 70,
+    width: iconSize,
+    height: iconSize,
     borderRadius: 8,
   },
 
@@ -428,7 +437,7 @@ const styles = StyleSheet.create({
 
   quickAddButtonPressed: {
     opacity: 0.65,
-    transform: [{ scale: 1.18 }],
+    transform: [{ scale: 1.15 }],
   },
 
   modalOverlay: {

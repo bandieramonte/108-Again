@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Alert, Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import CelebrationOverlay from "../../components/CelebrationOverlay";
 import FloatingAddAnimation, { FloatingAddAnimationRef } from "../../components/FloatingAddAnimation";
 import PracticeCalendar from "../../components/PracticeCalendar";
@@ -17,6 +17,8 @@ import * as sessionService from "../../services/sessionService";
 import { colors, containers } from "../../styles/theme";
 import { subscribeData } from "../../utils/events";
 import { digitsOnly, formatNumber, MAX_REPETITIONS_PER_DAY, validateNonNegativeInteger } from "../../utils/numberUtils";
+
+const isSmallScreen = Dimensions.get("window").width < 360;
 
 export default function PracticeContent({ practiceId }: { practiceId: string }) {
     const router = useRouter();
@@ -268,7 +270,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
 
     return (
         <View style={{ flex: 1 }}>
-            <ScrollView>
+            <ScrollView >
                 <View style={containers.screen}>
                     <View >
                         <View>
@@ -300,6 +302,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                             <Pressable
                                 onPress={() => setInfoOpen(true)}
                                 style={styles.infoIcon}
+                                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
                             >
                                 <MaterialIcons
                                     name="info-outline"
@@ -317,8 +320,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                     <Image
                                         source={imageSource}
                                         style={{
-                                            // width: "100%",
-                                            // height: "100%",
                                             height: Math.min(width - 20, 500),
                                             aspectRatio: imageRatio,
                                             alignSelf: "center"
@@ -407,9 +408,12 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
 
                                     </View>
                                 </View>
-                                <Text style={styles.orText}>
-                                    OR
-                                </Text>
+                                {!isSmallScreen &&
+                                    <Text style={styles.orText}>
+                                        OR
+                                    </Text>
+                                }
+
                                 <View style={styles.addColumn}>
                                     <View style={styles.headerArea}>
                                         <View style={styles.customHeader}>
@@ -691,8 +695,9 @@ const styles = StyleSheet.create({
     },
 
     quickAddButton: {
-        width: 90,
-        height: 90,
+        width:
+            isSmallScreen ? 76 : 90,
+        height: isSmallScreen ? 76 : 90,
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: "#eef2ff",
@@ -855,7 +860,7 @@ const styles = StyleSheet.create({
     },
 
     calendarSheet: {
-        height: "50%",
+        height: Dimensions.get("window").width > 700 ? "70%" : "60%",
         backgroundColor: "white",
         borderTopLeftRadius: 18,
         borderTopRightRadius: 18,

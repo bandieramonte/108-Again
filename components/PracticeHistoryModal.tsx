@@ -1,3 +1,4 @@
+import { formatNumber } from "@/utils/numberUtils";
 import React, { useEffect, useState } from "react";
 import {
     Modal,
@@ -77,7 +78,7 @@ export default function PracticeHistoryModal({
             760
         );
 
-        const height = 220;
+        const height = screenWidth > 700 ? 280 : 220
 
         const values =
             dailyData.map((d) => d.total);
@@ -364,6 +365,8 @@ export default function PracticeHistoryModal({
                                 ]}
                             >
                                 <Text
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
                                     style={[
                                         styles.rangeButtonText,
                                         rangeDays === days &&
@@ -389,21 +392,26 @@ export default function PracticeHistoryModal({
                             All-time statistics
                         </Text>
 
-                        <Text style={styles.statRow}>
-                            Average session size: {stats.averageSessionSize}
-                        </Text>
+                        <View style={styles.statRowInner}>
+                            <Text style={styles.statLabel}>Average session size</Text>
+                            <Text style={styles.statValue}>{formatNumber(stats.averageSessionSize)}</Text>
+                        </View>
 
-                        <Text style={styles.statRow}>
-                            Largest session: {stats.largestSession}
-                        </Text>
+                        <View style={styles.statRowInner}>
+                            <Text style={styles.statLabel}>Largest session</Text>
+                            <Text style={styles.statValue}>{formatNumber(stats.largestSession)}</Text>
+                        </View>
 
-                        <Text style={styles.statRow}>
-                            Longest streak: {stats.longestStreak} days
-                        </Text>
+                        <View style={styles.statRowInner}>
+                            <Text style={styles.statLabel}>Longest streak</Text>
+                            <Text style={styles.statValue}>{stats.longestStreak} days</Text>
+                        </View>
 
-                        <Text style={styles.statRow}>
-                            Current streak: {stats.currentStreak} days
-                        </Text>
+                        <View style={styles.statRowInner}>
+                            <Text style={styles.statLabel}>Current streak</Text>
+                            <Text style={styles.statValue}>{stats.currentStreak} days</Text>
+                        </View>
+
                     </View>
 
                     <Pressable
@@ -440,6 +448,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         paddingVertical: 20,
         paddingHorizontal: 12,
+        maxHeight: "90%"
     },
 
     title: {
@@ -513,8 +522,28 @@ const styles = StyleSheet.create({
     },
 
     statRow: {
+        flexDirection: "row",
+        alignItems: "baseline",
+        paddingVertical: 6,
+    },
+
+    statLabel: {
         fontSize: 15,
-        marginBottom: 8,
         color: "#333",
     },
+
+    statValue: {
+        fontSize: 15,
+        fontWeight: "600",
+        color: "#111",
+        marginLeft: 8,
+    },
+
+    statRowInner: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        maxWidth: 250,   // 👈 key line
+        height: 30
+    },
+
 });
