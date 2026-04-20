@@ -41,7 +41,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     const imageSource =
         imageKey && practiceImages[imageKey]
             ? practiceImages[imageKey]
-            : null;
+            : practiceImages["generic"];
 
     const imageRatio = useMemo(() => {
         if (!imageSource) return 1;
@@ -654,7 +654,8 @@ const styles = StyleSheet.create({
         elevation: 1,
         marginBottom: 10,
         alignItems: "center",
-        width: "100%"
+        width: "100%",
+        marginTop: 5
     },
 
     contentBlock: {

@@ -507,13 +507,13 @@ const styles = StyleSheet.create({
     },
 
     statsTitle: {
-        fontSize: 16,
+        fontSize: 17,
         fontWeight: "700",
         marginBottom: 12,
     },
 
     statRow: {
-        fontSize: 14,
+        fontSize: 15,
         marginBottom: 8,
         color: "#333",
     },

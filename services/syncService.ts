@@ -40,7 +40,6 @@ export async function claimAnonymousLocalDataIfNeeded(userId: string | null) {
     const now = Date.now();
 
     practiceRepo.claimAnonymousPractices(userId, now);
-    practiceRepo.claimAnonymousPractices(userId, now);
     sessionRepo.claimAnonymousSessions(userId, now);
 }
 

@@ -91,7 +91,7 @@ export default function AccountScreen() {
             } else if (state === "timeout") {
                 Alert.alert(
                     "Sync timeout",
-                    "Sync took too long. Please try again in a few minutes."
+                    "Sync took too long. Please try again in a few minutes. If issue persists, try closing and opening app again."
                 );
             }
         } catch (error: any) {

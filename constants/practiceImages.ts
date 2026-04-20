@@ -5,4 +5,5 @@ export const practiceImages: Record<string, any> = {
     "mandala": require("../assets/practice-icons/mandala.png"),
     "guru-yoga": require("../assets/practice-icons/guru-yoga.png"),
     "amitabha": require("../assets/practice-icons/amitabha.png"),
+    "generic": require("../assets/practice-icons/generic.png"),
 };

@@ -199,13 +199,11 @@ export default function Dashboard() {
               >
 
                 <View style={styles.row}>
-                  {practice.imageKey && practiceImages[practice.imageKey] && (
-                    <Image
-                      source={practiceImages[practice.imageKey]}
-                      style={styles.icon}
-                      resizeMode="contain"
-                    />
-                  )}
+                  <Image
+                    source={practice.imageKey && practiceImages[practice.imageKey] ? practiceImages[practice.imageKey] : practiceImages["generic"]}
+                    style={styles.icon}
+                    resizeMode="contain"
+                  />
 
                   <View style={{ flex: 1 }}>
                     <Text style={styles.practiceName}>
