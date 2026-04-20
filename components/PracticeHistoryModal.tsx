@@ -79,34 +79,6 @@ export default function PracticeHistoryModal({
 
         const height = 220;
 
-        const padding =
-            total >= 1000000
-                ? {
-                    top: 30,
-                    bottom: 30,
-                    left: 50,
-                    right: 15,
-                }
-                : total >= 100000
-                    ? {
-                        top: 30,
-                        bottom: 30,
-                        left: 40,
-                        right: 15,
-                    }
-                    : {
-                        top: 30,
-                        bottom: 30,
-                        left: 30,
-                        right: 15,
-                    };
-
-        const chartWidth =
-            width - padding.left - padding.right;
-
-        const chartHeight =
-            height - padding.top - padding.bottom;
-
         const values =
             dailyData.map((d) => d.total);
 
@@ -117,6 +89,34 @@ export default function PracticeHistoryModal({
 
         const stepValue =
             Math.ceil(maxValue / steps / 10) * 10;
+
+        const maxYAxisLabel =
+            stepValue * steps;
+
+        const digitCount =
+            String(maxYAxisLabel).length;
+
+        const leftPadding =
+            digitCount >= 7
+                ? 60
+                : digitCount >= 6
+                    ? 50
+                    : digitCount >= 5
+                        ? 42
+                        : 32;
+
+        const padding = {
+            top: 30,
+            bottom: 30,
+            left: leftPadding,
+            right: 15,
+        };
+
+        const chartWidth =
+            width - padding.left - padding.right;
+
+        const chartHeight =
+            height - padding.top - padding.bottom;
 
         const yTicks = Array.from(
             { length: steps + 1 },
