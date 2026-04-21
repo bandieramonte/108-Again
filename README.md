@@ -10,11 +10,13 @@ Track repetitions, visualize progress, estimate completion dates, and sync acros
 ## Core Features
 
 * Track multiple practices
+* Add or edit practices
 * Circular swipe navigation between practices
 * Quick add repetitions
 * Target date estimation
 * Progress visualization
 * Calendar-based tracking
+* Practice history with all-time stats
 * Daily streak tracking
 * Celebration animations when reaching targets
 
@@ -53,6 +55,8 @@ Track repetitions, visualize progress, estimate completion dates, and sync acros
 * Quick add repetitions
 * Editable target date
 * Calendar view
+* Practice history view
+* Edit practice view
 * Daily adjustments
 
 ## Account Screen
