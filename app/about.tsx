@@ -10,12 +10,12 @@ export default function AboutScreen() {
             <Stack.Screen options={{ title: "About" }} />
 
             <ScrollView contentContainerStyle={styles.container}>
-                <Text style={styles.title}>Ngöndro Tracker</Text>
+                <Text style={styles.title}>108 Again</Text>
 
                 <Text style={styles.version}>Version {version}</Text>
 
                 <Text style={styles.section}>
-                    Ngöndro Tracker is an offline-first app designed to help practitioners track and preserve their Ngöndro practice progress over time.
+                    108 Again is an offline-first app designed to help practitioners track and preserve their Ngöndro practice progress over time.
                 </Text>
 
                 <Text style={styles.section}>

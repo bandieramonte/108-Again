@@ -13,7 +13,7 @@ export async function exportBackup() {
 
     const json = JSON.stringify(data, null, 2);
 
-    const file = new File(Paths.document, "ngondro-backup.json");
+    const file = new File(Paths.document, "app108again-backup.json");
 
     file.write(json);
 

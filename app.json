@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "ngondro-tracker",
-    "slug": "ngondro-tracker",
+    "name": "108 Again",
+    "slug": "108-again",
+    "scheme": "app108again",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "ngondrotracker",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -18,13 +18,13 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.ngondrotracker",
+      "package": "com.bandieramonte.app108again",
       "intentFilters": [
         {
           "action": "VIEW",
           "data": [
             {
-              "scheme": "ngondrotracker"
+              "scheme": "app108again"
             }
           ],
           "category": [

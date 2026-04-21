@@ -1,4 +1,4 @@
-# Ngöndro Tracker
+# 108 Again
 
 A clean, offline-first meditation tracker designed specifically for **Ngöndro practice**.
 Track repetitions, visualize progress, estimate completion dates, and sync across devices.

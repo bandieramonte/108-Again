@@ -181,7 +181,7 @@ export async function signUp(
         email: trimmedEmail,
         password,
         options: {
-            emailRedirectTo: "ngondrotracker://sign-in?confirmed=true",
+            emailRedirectTo: "app108again://sign-in?confirmed=true",
             data: {
                 first_name: trimmedFirstName,
             },
@@ -272,35 +272,51 @@ export async function signOut() {
 }
 
 export async function deleteAccount() {
-    const { error } = await supabase.functions.invoke("delete-user");
+    try {
+        const { error } = await syncService.withTimeout(
+            supabase.functions.invoke("delete-user"),
+            15000
+        );
 
-    if (error) {
-        console.warn("Delete account error:", error);
+        if (error) {
+            console.warn("Delete account error:", error);
 
-        const deleted = await syncService.isUserDeleted();
+            const deleted = await syncService.isUserDeleted();
 
-        if (deleted) {
-            Alert.alert(
-                "Account removed",
-                "Your account was deleted on another device."
+            if (deleted) {
+                Alert.alert(
+                    "Account removed",
+                    "Your account was deleted on another device."
+                );
+
+                await signOut();
+                await syncService.resetLocalSyncState();
+                return;
+            }
+
+            throw new Error(
+                "Failed to delete account. Please try again."
             );
-
-            await signOut();
-            await syncService.resetLocalSyncState();
-            return;
         }
 
-        throw new Error("Failed to delete account. Please try again.");
-    }
+        await signOut();
+        await syncService.resetLocalSyncState();
 
-    await signOut();
-    await syncService.resetLocalSyncState();
+    } catch (e: any) {
+        if (e?.message?.includes("timeout")) {
+            throw new Error(
+                "Request timed out. Please try again in a few minutes. If the issue persists, please reopen the app and try again."
+            );
+        }
+
+        throw e;
+    }
 }
 
 export async function resetPassword(email: string) {
 
     const redirectTo =
-      "ngondrotracker:///reset-password";
+      "app108again:///reset-password";
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo,

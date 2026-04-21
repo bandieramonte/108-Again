@@ -17,7 +17,7 @@ export default function HeaderTitle({ firstName, isAuthenticated }: Props) {
             }}
             style={styles.container}
         >
-            <Text style={styles.title}>Ngöndro Tracker</Text>
+            <Text style={styles.title}>108 Again</Text>
 
             <Text style={styles.subtitle}>
                 {isAuthenticated

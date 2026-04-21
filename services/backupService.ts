@@ -6,7 +6,7 @@ import * as authService from "@/services/authService";
 import { MAX_PRACTICE_COUNT, MAX_REPETITIONS_PER_DAY, MAX_TARGET_COUNT } from "@/utils/numberUtils";
 import { randomUUID } from "expo-crypto";
 
-const BACKUP_APP_ID = "ngondro-tracker";
+const BACKUP_APP_ID = "app108again";
 
 export function getBackupData() {
 

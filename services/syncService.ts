@@ -18,7 +18,7 @@ function setSyncState(next: SyncState) {
     emitSyncChanged();
 }
 
-async function withTimeout<T>(
+export async function withTimeout<T>(
   promise: PromiseLike<T>,
   ms = 15000
 ): Promise<T> {

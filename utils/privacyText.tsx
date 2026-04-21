@@ -9,7 +9,7 @@ export function PrivacyContent() {
       </Text>
 
       <Text style={styles.text}>
-        Ngöndro Tracker respects your privacy and is committed to protecting your personal data.
+        108 Again respects your privacy and is committed to protecting your personal data.
       </Text>
 
       <Text style={styles.heading}>
@@ -17,7 +17,7 @@ export function PrivacyContent() {
       </Text>
 
       <Text style={styles.text}>
-        Ngöndro Tracker is operated by an independent developer.
+        108 Again is operated by an independent developer.
         {"\n\n"}
         Contact:
         {"\n"}
