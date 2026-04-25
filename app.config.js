@@ -8,7 +8,7 @@ module.exports = {
         name: "108 Again",
         slug: "108-again",
         scheme,
-        version: "1.0.0",
+        version: "1.0.1",
 
         orientation: "portrait",
         icon: "./assets/images/icon.png",
@@ -21,7 +21,7 @@ module.exports = {
 
         android: {
             package: "com.bandieramonte.app108again",
-
+            versionCode: 2,
             adaptiveIcon: {
                 backgroundColor: "#1A5FCC",
                 foregroundImage: "./assets/images/icon.png",
