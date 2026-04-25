@@ -10,6 +10,7 @@ export type SessionRow = {
     updatedAt?: number | null;
     syncStatus?: SyncStatus;
     lastSyncedAt?: number | null;
+    deletedAt?: number | null;
 };
 
 type PracticeTotalRow = {
