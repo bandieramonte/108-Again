@@ -7,6 +7,7 @@ import { Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, 
 import * as Progress from "react-native-progress";
 import CelebrationOverlay from "../components/CelebrationOverlay";
 import QuickAddEditor from "../components/QuickAddEditor";
+import WelcomeModal from "../components/WelcomeModal";
 import { practiceImages } from "../constants/practiceImages";
 import { useReachedCelebration } from "../hooks/useReachedCelebration";
 import * as dashboardService from "../services/dashboardService";
@@ -48,6 +49,7 @@ export default function Dashboard() {
   } = useReachedCelebration();
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -56,6 +58,8 @@ export default function Dashboard() {
   );
 
   useEffect(() => {
+    maybeShowWelcomeModal();
+
     const unsubscribe = subscribeData(() => {
       scheduleDashboardRefresh();
     });
@@ -67,6 +71,18 @@ export default function Dashboard() {
       unsubscribe();
     };
   }, []);
+
+  async function maybeShowWelcomeModal() {
+    const seen = await AsyncStorage.getItem("welcomeModalSeen");
+
+    if (seen) return;
+
+    setWelcomeOpen(true);
+    await AsyncStorage.setItem(
+      "welcomeModalSeen",
+      "true"
+    );
+  }
 
   async function maybeShowQuickAddHint(practiceId: string) {
     const seen = await AsyncStorage.getItem("quickAddLongPressHintSeen");
@@ -375,6 +391,10 @@ export default function Dashboard() {
         </Modal>
 
       </View>
+      <WelcomeModal
+        visible={welcomeOpen}
+        onClose={() => setWelcomeOpen(false)}
+      />
     </ScrollView>
   );
 }
