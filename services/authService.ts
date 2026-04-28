@@ -93,9 +93,9 @@ async function loadProfileIntoState(userId: string, email: string | null) {
         firstName,
     });
 
-    setTimeout(() => {
-        void syncService.requestSync(userId);
-    }, 200);
+    void syncService.requestSync(userId, {
+        immediate: true
+    });
 }
 
 export async function initializeAuth() {

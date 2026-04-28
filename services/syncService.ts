@@ -349,22 +349,29 @@ export async function syncNow(userId: string | null) {
     }
 }
 
-export async function requestSync(userId: string | null) {
-
+export async function requestSync(
+    userId: string | null,
+    options?: {
+        immediate?: boolean;
+    }
+) {
     if (!userId) return;
 
     pendingSyncUserId = userId;
 
     if (scheduledSyncTimeout) {
         clearTimeout(scheduledSyncTimeout);
+        scheduledSyncTimeout = null;
+    }
+
+    if (options?.immediate) {
+        runQueuedSync();
+        return;
     }
 
     scheduledSyncTimeout = setTimeout(() => {
-
         scheduledSyncTimeout = null;
-
         runQueuedSync();
-
     }, 2000);
 }
 
