@@ -3,6 +3,7 @@ import * as deletedRecordRepo from "@/repositories/deletedRecordRepo";
 import * as practiceRepo from "@/repositories/practiceRepo";
 import * as sessionRepo from "@/repositories/sessionRepo";
 import { emitAuthInvalid, emitDataChanged, emitSyncChanged } from "@/utils/events";
+import { randomUUID } from "expo-crypto";
 import { SyncState } from "../types/sync";
 import { getIsOnline, subscribeOnline } from "./networkService";
 
@@ -197,47 +198,54 @@ async function pushPendingDeletions(userId: string) {
     }
 }
 
-async function pullPractices(userId: string) {
-    const { data, error } = await withTimeout(supabase
-        .from("practices")
-        .select(`
-        id,
-        user_id,
-        name,
-        target_count,
-        order_index,
-        image_key,
-        default_add_count,
-        total_offset,
-        updated_at,
-        deleted_at
-    `)
-        .eq("user_id", userId)
-        .or("deleted_at.is.null,deleted_at.gt." + new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString()) // keep very recent deletions only
-        .order("order_index", { ascending: true }));
+async function pullPractices(userId: string): Promise<any[]> {
+    const { data, error } = await withTimeout(
+        supabase
+            .from("practices")
+            .select(`
+                id,
+                user_id,
+                name,
+                target_count,
+                order_index,
+                image_key,
+                default_add_count,
+                total_offset,
+                updated_at,
+                deleted_at
+            `)
+            .eq("user_id", userId)
+            .or(
+                "deleted_at.is.null,deleted_at.gt." +
+                new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString()
+            )
+            .order("order_index", { ascending: true })
+    );
 
-    if (error) {
-        throw error;
-    }
+    if (error) throw error;
 
-    for (const row of data ?? []) {
+    return data ?? [];
+}
+
+function applyRemotePractices(rows: any[]) {
+    for (const row of rows) {
         const local = practiceRepo.getPracticeById(row.id as string);
 
-        const remoteUpdatedAt = new Date(row.updated_at as string).getTime();
+        const remoteUpdatedAt = new Date(row.updated_at).getTime();
         const localUpdatedAt = local?.updatedAt ?? 0;
 
         if (row.deleted_at) {
-            practiceRepo.deletePractice(row.id as string);
+            practiceRepo.deletePractice(row.id);
             continue;
         }
 
         if (!local) {
-            practiceRepo.upsertPracticeFromRemote(row as any);
+            practiceRepo.upsertPracticeFromRemote(row);
             continue;
         }
 
         if (remoteUpdatedAt > localUpdatedAt) {
-            practiceRepo.upsertPracticeFromRemote(row as any);
+            practiceRepo.upsertPracticeFromRemote(row);
         }
     }
 }
@@ -267,34 +275,63 @@ async function pullSessions(userId: string) {
     );
 
     for (const row of data ?? []) {
-    const local = localSessionsById.get(row.id as string);
+        const local = localSessionsById.get(row.id as string);
 
-    const remoteUpdatedAt = new Date(row.updated_at as string).getTime();
-    const localUpdatedAt = local?.updatedAt ?? 0;
+        const remoteUpdatedAt = new Date(row.updated_at as string).getTime();
+        const localUpdatedAt = local?.updatedAt ?? 0;
 
-    if (row.deleted_at) {
-        sessionRepo.deleteSessionById(row.id as string);
-        continue;
-    }
+        if (row.deleted_at) {
+            sessionRepo.deleteSessionById(row.id as string);
+            continue;
+        }
 
-    if (!local) {
-        sessionRepo.upsertSessionFromRemote(row as any);
-        continue;
-    }
+        if (!local) {
+            sessionRepo.upsertSessionFromRemote(row as any);
+            continue;
+        }
 
-    if (remoteUpdatedAt > localUpdatedAt) {
-        sessionRepo.upsertSessionFromRemote(row as any);
+        if (remoteUpdatedAt > localUpdatedAt) {
+            sessionRepo.upsertSessionFromRemote(row as any);
+        }
     }
 }
+
+async function reconcileMissingRemotePractices(
+    userId: string,
+    remoteRows: any[]
+) {
+    const localIds = new Set(
+        practiceRepo.getAllPractices().map(p => p.id)
+    );
+
+    const now = Date.now();
+
+    for (const row of remoteRows) {
+        if (!localIds.has(row.id)) {
+            deletedRecordRepo.insertDeletedRecord(
+                randomUUID(),
+                "practice",
+                row.id,
+                userId,
+                now,
+                "pending",
+                JSON.stringify({
+                    name: row.name,
+                    targetCount: row.target_count,
+                    orderIndex: row.order_index,
+                    imageKey: row.image_key ?? null,
+                    defaultAddCount: row.default_add_count ?? 108,
+                })
+            );
+        }
+    }
 }
 
 export async function syncNow(userId: string | null) {
-    if (!userId) {
-        return;
-    }
+    if (!userId) return;
 
     lastUserId = userId;
-    
+
     if (!getIsOnline()) {
         setSyncState("offline");
         return;
@@ -302,30 +339,46 @@ export async function syncNow(userId: string | null) {
 
     try {
         setSyncState("syncing");
+
         console.log("SYNC: claim");
         await claimAnonymousLocalDataIfNeeded(userId);
+
         console.log("SYNC: pushing practices");
         await pushPendingPractices(userId);
-        console.log("SYNC: push sessions");
+
+        console.log("SYNC: pushing sessions");
         await pushPendingSessions(userId);
-        console.log("SYNC: push deletions");
-        await pushPendingDeletions(userId);
+
         console.log("SYNC: pulling practices");
-        await pullPractices(userId);
-        console.log("SYNC: pull sessions");
+        const remotePractices = await pullPractices(userId);
+
+        console.log("SYNC: reconcile deletions");
+        await reconcileMissingRemotePractices(userId, remotePractices);
+
+        console.log("SYNC: pushing deletions (single pass)");
+        await pushPendingDeletions(userId);
+
+        console.log("SYNC: applying remote practices");
+        applyRemotePractices(remotePractices);
+
+        console.log("SYNC: pulling sessions");
         await pullSessions(userId);
+
         console.log("SYNC: finished");
+
         emitDataChanged();
         setSyncState("success");
         retryCount = 0;
+
     } catch (error: any) {
         console.error("syncNow error", error);
+
         if (error?.message === "Network timeout during sync") {
             setSyncState("timeout");
         } else {
             setSyncState("error");
         }
-        // Detect auth-related error
+
         if (await isUserDeleted()) {
             console.log("Auth invalid — signing out");
             emitAuthInvalid();
@@ -335,20 +388,15 @@ export async function syncNow(userId: string | null) {
         if (userId) {
             if (retryCount >= 3) {
                 console.warn("Max sync retries reached");
-
                 retryCount = 0;
 
                 try {
                     await supabase.auth.getSession();
                 } catch (e) {
-                    console.warn(
-                        "Session validation failed after max retries",
-                        e
-                    );
+                    console.warn("Session validation failed after max retries", e);
                 }
 
                 setSyncState("error");
-
                 return;
             }
 
@@ -363,6 +411,7 @@ export async function syncNow(userId: string | null) {
         }
 
         throw error;
+
     } finally {
         emitSyncChanged();
     }

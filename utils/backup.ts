@@ -9,6 +9,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Alert } from "react-native";
+import { getIsOnline } from "../services/networkService";
 
 export async function exportBackup() {
 
@@ -52,17 +53,28 @@ export async function importBackup(onComplete?: () => void) {
     }
 
     async function performImport() {
-
         try {
-
             validateBackup(data);
 
             const userId = authService.getCurrentUserId();
 
+            // ✅ 1. Clear stale deletions FIRST (fix for your original bug)
+            if (userId) {
+                deletedRecordRepo.clearAllPendingDeletions(userId);
+            }
+
+            // ✅ 2. Capture current state BEFORE overwrite
             const existingPractices = practiceRepo.getAllPractices();
 
+            // ✅ 3. Replace local DB with backup
             await restoreBackupData(data);
 
+            if (userId && getIsOnline()) {
+                console.log("IMPORT: wiping remote before sync");
+                await syncService.wipeRemoteUserData(userId);
+            }
+
+            // ✅ 4. Compute what should be deleted remotely
             const importedIds = new Set(
                 data.practices.map((p: any) => p.id)
             );
@@ -71,11 +83,12 @@ export async function importBackup(onComplete?: () => void) {
                 p => !importedIds.has(p.id)
             );
 
+            // ✅ 5. Create correct deletion intent
             if (userId) {
                 const now = Date.now();
 
                 for (const p of deletedPractices) {
-
+                    // only delete things that actually existed remotely
                     if (!p.lastSyncedAt) continue;
 
                     deletedRecordRepo.insertDeletedRecord(
@@ -96,9 +109,9 @@ export async function importBackup(onComplete?: () => void) {
                 }
             }
 
+            // ✅ 6. Reset sync state so everything is pushed cleanly
             if (userId) {
                 await syncService.resetLocalSyncState();
-                deletedRecordRepo.clearAllPendingDeletions(userId);
                 await syncService.requestSync(userId, { immediate: true });
             }
 
@@ -111,7 +124,6 @@ export async function importBackup(onComplete?: () => void) {
             alert("Backup restored successfully");
 
         } catch (error) {
-
             Alert.alert(
                 "Backup failed",
                 error instanceof Error
