@@ -1,7 +1,10 @@
+import * as deletedRecordRepo from "@/repositories/deletedRecordRepo";
+import * as practiceRepo from "@/repositories/practiceRepo";
 import * as authService from "@/services/authService";
 import { getBackupData, restoreBackupData, validateBackup } from "@/services/backupService";
 import * as syncService from "@/services/syncService";
 import { emitDataChanged } from "@/utils/events";
+import { randomUUID } from "expo-crypto";
 import * as DocumentPicker from "expo-document-picker";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
@@ -56,11 +59,46 @@ export async function importBackup(onComplete?: () => void) {
 
             const userId = authService.getCurrentUserId();
 
+            const existingPractices = practiceRepo.getAllPractices();
+
             await restoreBackupData(data);
 
+            const importedIds = new Set(
+                data.practices.map((p: any) => p.id)
+            );
+
+            const deletedPractices = existingPractices.filter(
+                p => !importedIds.has(p.id)
+            );
+
             if (userId) {
-                await syncService.reassignLocalDataToUser(userId);
-                await syncService.requestSync(userId);
+                const now = Date.now();
+
+                for (const p of deletedPractices) {
+
+                    if (!p.lastSyncedAt) continue;
+
+                    deletedRecordRepo.insertDeletedRecord(
+                        randomUUID(),
+                        "practice",
+                        p.id,
+                        userId,
+                        now,
+                        "pending",
+                        JSON.stringify({
+                            name: p.name,
+                            targetCount: p.targetCount,
+                            orderIndex: p.orderIndex,
+                            imageKey: p.imageKey ?? null,
+                            defaultAddCount: p.defaultAddCount ?? 108,
+                        })
+                    );
+                }
+            }
+
+            if (userId) {
+                await syncService.resetLocalSyncState();
+                await syncService.requestSync(userId, { immediate: true });
             }
 
             if (onComplete) {

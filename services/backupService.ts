@@ -4,14 +4,13 @@ import * as practiceRepo from "@/repositories/practiceRepo";
 import * as sessionRepo from "@/repositories/sessionRepo";
 import * as authService from "@/services/authService";
 import { MAX_PRACTICE_COUNT, MAX_REPETITIONS_PER_DAY, MAX_TARGET_COUNT } from "@/utils/numberUtils";
-import { randomUUID } from "expo-crypto";
 
 const BACKUP_APP_ID = "app108again";
 
 export function getBackupData() {
 
     const practices = practiceRepo.getAllPractices();
-    const sessions = sessionRepo.getSessionsForBackup();
+    const sessions = sessionRepo.getAllSessionsForSync();
 
     return {
         app: BACKUP_APP_ID,
@@ -70,23 +69,12 @@ export async function restoreBackupData(data: any) {
 
             });
 
-            const practices = practiceRepo.getAllPractices();
-
-            const practiceMap: Record<number, string> = {};
-
-            practices.forEach(p => {
-                practiceMap[p.orderIndex] = p.id;
-            });
-
             sessions.forEach((s: any) => {
-
-                const practiceId = practiceMap[s.orderIndex];
-
-                if (!practiceId) return;
-
+                
+                const id = s.id ?? `${s.practiceId}-${s.createdAt}`;
                 sessionRepo.insertSession(
-                    randomUUID(),
-                    practiceId,
+                    id,
+                    s.practiceId,
                     s.count,
                     s.createdAt,
                     syncMetadata
@@ -174,8 +162,8 @@ export function validateBackup(data: any) {
             throw new Error("Invalid session date");
         }
 
-        if (typeof s.orderIndex !== "number") {
-            throw new Error("Invalid session order index");
+        if (!s.practiceId || typeof s.practiceId !== "string") {
+            throw new Error("Invalid session practiceId");
         }
 
         if (
