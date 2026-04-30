@@ -86,3 +86,11 @@ export function deleteDeletedRecord(id: string) {
 export function deleteAllDeletedRecords() {
     db.execSync(`DELETE FROM deleted_records`);
 }
+
+export function clearAllPendingDeletions(userId: string) {
+    db.runSync(
+        `DELETE FROM deleted_records 
+         WHERE userId = ? AND syncStatus = 'pending'`,
+        [userId]
+    );
+}

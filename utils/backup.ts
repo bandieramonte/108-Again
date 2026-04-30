@@ -98,6 +98,7 @@ export async function importBackup(onComplete?: () => void) {
 
             if (userId) {
                 await syncService.resetLocalSyncState();
+                deletedRecordRepo.clearAllPendingDeletions(userId);
                 await syncService.requestSync(userId, { immediate: true });
             }
 
