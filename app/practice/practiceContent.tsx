@@ -102,11 +102,14 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         });
     }, [targetDate, total, targetCount]);
     const [customAmount, setCustomAmount] = useState("");
-
     const dailyAnimRef = useRef<FloatingAddAnimationRef>(null);
     const customAnimRef = useRef<FloatingAddAnimationRef>(null);
     const [calendarOpen, setCalendarOpen] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
+    const [dateAdjustedInfo, setDateAdjustedInfo] = useState<{
+        selected: Date;
+        actual: Date;
+    } | null>(null);
 
     useEffect(() => {
         schedulePracticeRefresh();
@@ -185,11 +188,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         );
     }
 
-    async function deletePractice() {
-        await practiceService.deletePractice(practiceId);
-        router.replace("/");
-    }
-
     const handleEdit = useCallback((date: string, newValue: number) => {
         if (!Number.isFinite(newValue)) return;
 
@@ -214,6 +212,20 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         }
     }, [practiceId]);
 
+    const chevronRotation = rotateAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["0deg", "180deg"],
+    });
+
+    const calendarStartDate = useMemo(
+        () => appService.getCalendarStartDate(),
+        []
+    );
+
+    async function deletePractice() {
+        await practiceService.deletePractice(practiceId);
+        router.replace("/");
+    }
 
     function openEditPractice() {
         setMenuOpen(false);
@@ -258,15 +270,21 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         }).start();
     }
 
-    const chevronRotation = rotateAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ["0deg", "180deg"],
-    });
+    function isSameDay(a: Date, b: Date) {
+        return (
+            a.getFullYear() === b.getFullYear() &&
+            a.getMonth() === b.getMonth() &&
+            a.getDate() === b.getDate()
+        );
+    }
 
-    const calendarStartDate = useMemo(
-        () => appService.getCalendarStartDate(),
-        []
-    );
+    function showDateAdjustedModal(selected: Date, actual: Date) {
+        setDateAdjustedInfo({ selected, actual });
+
+        setTimeout(() => {
+            setDateAdjustedInfo(null);
+        }, 4000);
+    }
 
     return (
         <View style={{ flex: 1 }}>
@@ -542,11 +560,27 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                         total={total}
                         currentTargetDate={targetDate}
                         onClose={() => setTargetEditOpen(false)}
-                        onSave={(newDaily) => {
+                        onSave={(newDaily, selectedDateStr) => {
                             practiceService.updatePracticeDefaultAddCount(
                                 practiceId,
                                 newDaily
                             );
+
+                            const selectedDate = new Date(selectedDateStr);
+
+                            const actualDate =
+                                practiceService.getExpectedTargetDate(
+                                    targetCount,
+                                    total,
+                                    newDaily
+                                );
+
+                            if (
+                                actualDate &&
+                                !isSameDay(actualDate, selectedDate)
+                            ) {
+                                showDateAdjustedModal(selectedDate, actualDate);
+                            }
                         }}
                     />
 
@@ -603,6 +637,24 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                     />
                 </View>
             </ScrollView>
+
+            <Modal
+                visible={!!dateAdjustedInfo}
+                transparent
+                animationType="fade"
+            >
+                <View style={styles.infoOverlay}>
+                    <View style={styles.infoModal}>
+                        <Text style={styles.infoText}>
+                            You'll finish sooner than that.
+                        </Text>
+
+                        <Text style={styles.infoText}>
+                            We adjusted the date to match your pace.
+                        </Text>
+                    </View>
+                </View>
+            </Modal>
 
             <Pressable
                 style={styles.calendarButtonFixed}

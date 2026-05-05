@@ -10,7 +10,7 @@ type Props = {
     total: number;
     currentTargetDate: Date | null;
     onClose: () => void;
-    onSave: (newDailyCount: number) => void;
+    onSave: (newDailyCount: number, selectedDate: string) => void;
 };
 
 export default function TargetDateEditor({
@@ -36,7 +36,6 @@ export default function TargetDateEditor({
     }, [visible, currentTargetDate]);
 
     function save() {
-
         const date = new Date(selectedDate);
 
         const required =
@@ -46,7 +45,7 @@ export default function TargetDateEditor({
                 date
             );
 
-        onSave(required);
+        onSave(required, selectedDate);
         onClose();
     }
 
