@@ -64,6 +64,7 @@ export default function TargetDateEditor({
 
                     {selectedDate && (
                         <Calendar
+                            key={selectedDate}
                             current={selectedDate}
                             minDate={today}
                             markedDates={{
