@@ -3,7 +3,6 @@ import * as deletedRecordRepo from "@/repositories/deletedRecordRepo";
 import * as practiceRepo from "@/repositories/practiceRepo";
 import * as sessionRepo from "@/repositories/sessionRepo";
 import { emitAuthInvalid, emitDataChanged, emitSyncChanged } from "@/utils/events";
-import { randomUUID } from "expo-crypto";
 import { SyncState } from "../types/sync";
 import { getIsOnline, subscribeOnline } from "./networkService";
 
@@ -338,37 +337,6 @@ async function pullSessions(userId: string) {
     }
 }
 
-async function reconcileMissingRemotePractices(
-    userId: string,
-    remoteRows: any[]
-) {
-    const localIds = new Set(
-        practiceRepo.getAllPractices().map(p => p.id)
-    );
-
-    const now = Date.now();
-
-    for (const row of remoteRows) {
-        if (!localIds.has(row.id)) {
-            deletedRecordRepo.insertDeletedRecord(
-                randomUUID(),
-                "practice",
-                row.id,
-                userId,
-                now,
-                "pending",
-                JSON.stringify({
-                    name: row.name,
-                    targetCount: row.target_count,
-                    orderIndex: row.order_index,
-                    imageKey: row.image_key ?? null,
-                    defaultAddCount: row.default_add_count ?? 108,
-                })
-            );
-        }
-    }
-}
-
 export async function syncNow(userId: string | null) {
     if (!userId) return;
 
@@ -391,14 +359,11 @@ export async function syncNow(userId: string | null) {
         console.log("SYNC: pushing sessions");
         await pushPendingSessions(userId);
 
+        console.log("SYNC: pushing deletions");
+        await pushPendingDeletions(userId);
+
         console.log("SYNC: pulling practices");
         const remotePractices = await pullPractices(userId);
-
-        console.log("SYNC: reconcile deletions");
-        await reconcileMissingRemotePractices(userId, remotePractices);
-
-        console.log("SYNC: pushing deletions (single pass)");
-        await pushPendingDeletions(userId);
 
         console.log("SYNC: applying remote practices");
         applyRemotePractices(remotePractices);
@@ -411,7 +376,6 @@ export async function syncNow(userId: string | null) {
         emitDataChanged();
         setSyncState("success");
         retryCount = 0;
-
     } catch (error: any) {
         console.error("syncNow error", error);
 
@@ -450,8 +414,6 @@ export async function syncNow(userId: string | null) {
         setTimeout(() => {
             runQueuedSync();
         }, delay);
-
-        // do NOT throw → prevents UI error
     } finally {
         emitSyncChanged();
     }
