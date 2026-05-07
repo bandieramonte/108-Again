@@ -532,3 +532,18 @@ export function getPracticeLifetimeStats(practiceId: string) {
         currentStreak,
     };
 }
+
+export function getEarliestSessionDateForPractice(
+    practiceId: string
+): number | null {
+
+    const result = db.getFirstSync(
+        `
+        SELECT MIN(createdAt) as earliest
+        FROM sessions
+        WHERE practiceId = ?
+        `,
+        [practiceId]
+    ) as { earliest: number | null } | null;
+    return result?.earliest ?? null;
+}

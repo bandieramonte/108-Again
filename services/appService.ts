@@ -172,12 +172,35 @@ export async function restoreDefaults() {
     }
 }
 
-export function getCalendarStartDate(): Date {
+export function getCalendarStartDate(
+    practiceId: string
+): Date {
 
-  const restore = appMetaRepo.getMeta("lastRestoreDate");
-  const install = appMetaRepo.getMeta("installDate");
-  const date = restore ?? install ?? new Date().toISOString();
-  return new Date(date);
+    const install = appMetaRepo.getMeta("installDate");
+    const restore = appMetaRepo.getMeta("lastRestoreDate");
+
+    const earliestSession = sessionRepo.getEarliestSessionDateForPractice(practiceId);
+    const candidates: number[] = [];
+
+    if (install) {
+        candidates.push(new Date(install).getTime());
+    }
+
+    if (restore) {
+        candidates.push(new Date(restore).getTime());
+    }
+
+    if (earliestSession != null) {
+        candidates.push(earliestSession);
+    }
+
+    if (candidates.length === 0) {
+        return new Date();
+    }
+
+    return new Date(
+        Math.min(...candidates)
+    );
 }
 
 export function ensureInstallDate() {

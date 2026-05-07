@@ -218,8 +218,8 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     });
 
     const calendarStartDate = useMemo(
-        () => appService.getCalendarStartDate(),
-        []
+        () => appService.getCalendarStartDate(practiceId),
+        [practiceId, calendarData]
     );
 
     async function deletePractice() {
