@@ -1,4 +1,5 @@
 import { getSupabase } from "@/lib/supabase";
+import * as appMetaRepo from "@/repositories/appMetaRepo";
 import * as profileRepo from "@/repositories/profileRepo";
 import * as syncService from "@/services/syncService";
 import { emitAuthChanged, subscribeAuthInvalid } from "@/utils/events";
@@ -6,6 +7,7 @@ import Constants from "expo-constants";
 import { Alert } from "react-native";
 
 let isPasswordRecoveryFlow = false;
+let blockAuthStateHandler = false;
 
 export function setPasswordRecoveryFlow(value: boolean) {
     isPasswordRecoveryFlow = value;
@@ -67,8 +69,7 @@ async function loadProfileIntoState(userId: string, email: string | null) {
         });
     }
     
-    const supabase = getSupabase();
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
         .from("profiles")
         .select("first_name, updated_at")
         .eq("user_id", userId)
@@ -104,6 +105,11 @@ export async function initializeAuth() {
         authSubscriptionInitialized = true;
         const supabase = getSupabase();
         supabase.auth.onAuthStateChange(async (event, session) => {
+
+            if (blockAuthStateHandler) {
+                console.log("Auth state handler blocked");
+                return;
+            }
 
             try {
                 if (isPasswordRecoveryFlow) {
@@ -189,6 +195,7 @@ export async function signUp(
         throw new Error("Password is required.");
     }
 
+    blockAuthStateHandler = true;
     const { data, error } = await getSupabase().auth.signUp({
         email: trimmedEmail,
         password,
@@ -206,6 +213,23 @@ export async function signUp(
 
     const user = data.user;
 
+    if (isSwitchingAccounts(user?.id ?? '')) {
+
+        const confirmed =
+            await confirmAccountSwitch();
+
+        if (!confirmed) {
+
+            await signOut();
+            blockAuthStateHandler = false;
+            throw new Error(
+                "Sign in cancelled."
+            );
+        }
+    }
+
+    blockAuthStateHandler = false;
+    
     if (!user) {
         throw new Error("Account creation succeeded but no user was returned.");
     }
@@ -248,6 +272,7 @@ export async function signIn(email: string, password: string) {
         throw new Error("Password is required.");
     }
 
+    blockAuthStateHandler = true;
     const { data, error } = await getSupabase().auth.signInWithPassword({
         email: trimmedEmail,
         password,
@@ -259,6 +284,20 @@ export async function signIn(email: string, password: string) {
 
     const user = data.user;
 
+    if (isSwitchingAccounts(user.id)) {
+
+        const confirmed = await confirmAccountSwitch();
+
+        if (!confirmed) {
+
+            await signOut();
+            blockAuthStateHandler = false;
+            throw new Error( "Sign in cancelled.");
+        }
+    }
+    
+    blockAuthStateHandler = false;
+    
     if (!user) {
         throw new Error("Log in succeeded but no user was returned.");
     }
@@ -312,6 +351,7 @@ export async function deleteAccount() {
         }
 
         await signOut();
+        appMetaRepo.clearLocalDataOwnerUserId();
         await syncService.resetLocalSyncState();
 
     } catch (e: any) {
@@ -336,4 +376,38 @@ export async function resetPassword(email: string) {
     if (error) {
         throw new Error(error.message);
     }
+}
+
+function isSwitchingAccounts(nextUserId: string): boolean {
+
+    const ownerId = appMetaRepo.getLocalDataOwnerUserId();
+
+    if (!ownerId) {
+        return false;
+    }
+
+    return ownerId !== nextUserId;
+}
+
+function confirmAccountSwitch(): Promise<boolean> {
+
+    return new Promise((resolve) => {
+
+        Alert.alert(
+            "Switch account?",
+            "This device already contains local practice data from another account.\n\nContinuing may transfer offline progress to this account.",
+            [
+                {
+                    text: "Cancel",
+                    style: "cancel",
+                    onPress: () => resolve(false),
+                },
+                {
+                    text: "Continue",
+                    style: "default",
+                    onPress: () => resolve(true),
+                },
+            ]
+        );
+    });
 }

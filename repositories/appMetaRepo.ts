@@ -23,3 +23,24 @@ export function setMeta(key: string, value: string) {
     value
   );
 }
+
+export function getLocalDataOwnerUserId(): string | null {
+  return getMeta("localDataOwnerUserId");
+}
+
+export function setLocalDataOwnerUserId(userId: string | null) {
+
+  if (!userId) return;
+
+  setMeta(
+    "localDataOwnerUserId",
+    userId
+  );
+}
+
+export function clearLocalDataOwnerUserId() {
+  db.runSync(
+    `DELETE FROM app_meta WHERE key = ?`,
+    "localDataOwnerUserId"
+  );
+}

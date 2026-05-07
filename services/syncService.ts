@@ -1,4 +1,5 @@
 import { getSupabase, recreateSupabase } from "@/lib/supabase";
+import * as appMetaRepo from "@/repositories/appMetaRepo";
 import * as deletedRecordRepo from "@/repositories/deletedRecordRepo";
 import * as practiceRepo from "@/repositories/practiceRepo";
 import * as sessionRepo from "@/repositories/sessionRepo";
@@ -218,7 +219,7 @@ async function pushPendingDeletions(userId: string) {
                     default_add_count: parsed.defaultAddCount ?? 108,
                 };
             }
-            
+
             const onConflict =
                 tableName === "practices"
                     ? "id,user_id"
@@ -380,6 +381,8 @@ export async function syncNow(userId: string | null) {
         await pullSessions(userId);
 
         console.log("SYNC: finished");
+        
+        appMetaRepo.setLocalDataOwnerUserId(userId);
 
         emitDataChanged();
         setSyncState("success");
