@@ -107,7 +107,7 @@ async function pushPendingPractices(userId: string) {
     }));
     const { error } = await withTimeout(async () => getSupabase()
         .from("practices")
-        .upsert(payload, { onConflict: "id" }));
+        .upsert(payload, { onConflict: "id,user_id" }));
 
     if (error) {
         throw error;
@@ -218,10 +218,18 @@ async function pushPendingDeletions(userId: string) {
                     default_add_count: parsed.defaultAddCount ?? 108,
                 };
             }
-            const { data, error } = await withTimeout(async () => getSupabase()
-                .from(tableName)
-                .upsert(payload, { onConflict: "id" })
-                .select());
+            
+            const onConflict =
+                tableName === "practices"
+                    ? "id,user_id"
+                    : "id";
+
+            const { data, error } = await withTimeout(async () =>
+                getSupabase()
+                    .from(tableName)
+                    .upsert(payload, { onConflict })
+                    .select()
+            );
 
             if (error) {
                 console.error("Deletion sync failed payload:", payload);

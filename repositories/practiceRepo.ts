@@ -308,24 +308,6 @@ export function upsertPracticeFromRemote(row: {
     );
 }
 
-export function backfillLegacyPracticesForUser(userId: string, now: number) {
-    db.runSync(
-        `
-    UPDATE practices
-    SET
-      userId = ?,
-      updatedAt = COALESCE(updatedAt, ?),
-      syncStatus = 'pending',
-      lastSyncedAt = NULL
-    WHERE
-      userId IS NULL
-      OR lastSyncedAt IS NULL
-    `,
-        userId,
-        now
-    );
-}
-
 export function resetAllSyncState() {
     db.runSync(`
         UPDATE practices
