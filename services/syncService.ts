@@ -58,7 +58,7 @@ export async function withTimeout<T>(
     await new Promise(r => setTimeout(r, 100)); // small buffer
 
     if (failureCount >= 2) {
-        recreateSupabase();
+        await recreateSupabase();
         await new Promise(r => setTimeout(r, 300));
     }
 

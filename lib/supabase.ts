@@ -30,8 +30,20 @@ export function getSupabase() {
     return client;
 }
 
-export function recreateSupabase() {
+export async function recreateSupabase() {
     console.warn("🔥 Recreating Supabase client");
+
+    try {
+
+        await client.realtime.disconnect();
+
+    } catch (e) {
+
+        console.warn(
+            "Failed to disconnect realtime",
+            e
+        );
+    }
 
     client = createClient(supabaseUrl, supabaseKey, {
         auth: {

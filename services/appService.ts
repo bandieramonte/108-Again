@@ -1,6 +1,6 @@
 import { DEFAULT_PRACTICES, SEEDED_IDS } from "@/constants/defaultPractices";
 import { enqueueWrite } from "@/database/writeQueue";
-import { recreateSupabase } from "@/lib/supabase";
+import { getSupabase, recreateSupabase } from "@/lib/supabase";
 import { randomUUID } from "expo-crypto";
 import { AppState } from "react-native";
 import { db, initializeDatabase } from "../database/db";
@@ -18,7 +18,7 @@ import { initializeSyncRetry } from "./syncService";
 
 const INACTIVE_THRESHOLD = 10 * 60 * 1000; //10 minutes
 
-let lastActiveAt: number = Date.now();
+let backgroundedAt: number | null = null;
 
 export async function initializeApp() {
     initializeDatabase();
@@ -217,33 +217,52 @@ export function ensureInstallDate() {
 }
 
 export async function handleAppResume() {
+
+    console.log("entering handle app resume");
+
     const userId = authService.getCurrentUserId();
+        console.log(userId);
+
     if (!userId) return;
 
-    if (shouldForceSync(INACTIVE_THRESHOLD)) {
-        try {
-            console.log("Resume: recovering network + client");
-            recreateSupabase();
-            syncService.setForceFreshClient(true);
-            await new Promise(r => setTimeout(r, 200));
-            await syncService.requestSync(userId, {
-                immediate: true
-            });
+    const inactiveMs =
+        backgroundedAt == null
+            ? 0
+            : Date.now() - backgroundedAt;
 
-        } catch (e) {
-            console.warn("Auto-sync failed after resume", e);
-        }
+    backgroundedAt = null;
+
+    console.log(inactiveMs);
+
+    if (inactiveMs < INACTIVE_THRESHOLD) {
+        return;
     }
 
-    markActive();
-}
+    try {
 
-export function markActive() {
-    lastActiveAt = Date.now();
-}
+        console.log(
+            "Resume: rebuilding Supabase client"
+        );
 
-export function shouldForceSync(thresholdMs: number) {
-    return Date.now() - lastActiveAt > thresholdMs;
+        await recreateSupabase();
+
+        syncService.setForceFreshClient(true);
+
+        await new Promise(r => setTimeout(r, 300));
+
+        await getSupabase().auth.getSession();
+
+        await syncService.requestSync(userId, {
+            immediate: true
+        });
+
+    } catch (e) {
+
+        console.warn(
+            "Resume recovery failed",
+            e
+        );
+    }
 }
 
 let initialized = false;
@@ -255,13 +274,16 @@ export function initAppStateListener(onResume: () => void) {
     initialized = true;
 
     AppState.addEventListener("change", (nextState) => {
+
         console.log("AppState:", lastState, "→", nextState);
 
-        if (
-            lastState.match(/inactive|background/) &&
-            nextState === "active"
-        ) {
-            console.log("App resumed");
+        if (nextState.match(/inactive|background/)) {
+            console.log("inactive");
+            backgroundedAt = Date.now();
+        }
+
+        if (lastState.match(/inactive|background/) && nextState === "active") {
+            console.log("active");
             onResume();
         }
 
