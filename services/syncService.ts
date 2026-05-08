@@ -362,6 +362,8 @@ export async function syncNow(userId: string | null) {
         console.log("SYNC: claim");
         await claimAnonymousLocalDataIfNeeded(userId);
 
+        await wipePendingBackupRestore(userId);
+
         console.log("SYNC: pushing practices");
         await pushPendingPractices(userId);
 
@@ -564,4 +566,18 @@ export async function reassignLocalDataToUser(userId: string) {
 
     practiceRepo.reassignAllPracticesToUser(userId, now);
     sessionRepo.reassignAllSessionsToUser(userId, now);
+}
+
+async function wipePendingBackupRestore(userId: string){
+    const pendingBackupRestore =
+    appMetaRepo.getMeta("pendingBackupRestore");
+
+    if (pendingBackupRestore === "true") {
+        console.log( "SYNC: backup restore detected -> wiping remote");
+        await wipeRemoteUserData(userId);
+        appMetaRepo.setMeta(
+            "pendingBackupRestore",
+            "false"
+        );
+    }
 }

@@ -28,8 +28,8 @@ function getBackupSyncMetadata() {
     return {
         userId,
         updatedAt: now,
-        syncStatus: userId ? ("pending" as const) : ("synced" as const),
-        lastSyncedAt: userId ? null : now,
+        syncStatus: "pending" as const,
+        lastSyncedAt: null,
     };
 }
 
