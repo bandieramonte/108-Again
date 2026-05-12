@@ -250,6 +250,40 @@ export default function PracticeCalendar({
         });
     }
 
+    function scrollByYear(direction: 1 | -1) {
+
+        const centerIndex =
+            currentIndex.current +
+            Math.floor(VISIBLE_WEEKS / 2);
+
+        const centerDate = new Date(baseWeekStart);
+
+        centerDate.setUTCDate(
+            centerDate.getUTCDate() + centerIndex * 7
+        );
+
+        const targetMonth = new Date(Date.UTC(
+            centerDate.getUTCFullYear() + direction,
+            centerDate.getUTCMonth(),
+            1
+        ));
+
+        const targetWeekStart =
+            getWeekStart(targetMonth);
+
+        const diffDays =
+            (targetWeekStart.getTime() - baseWeekStart.getTime()) /
+            (1000 * 60 * 60 * 24);
+
+        const newIndex =
+            Math.floor(diffDays / 7);
+
+        listRef.current?.scrollToOffset({
+            offset: newIndex * WEEK_HEIGHT,
+            animated: true
+        });
+    }
+
     function getTodayWeekIndex() {
 
         const today = new Date();
@@ -272,27 +306,55 @@ export default function PracticeCalendar({
             >
                 <View style={styles.monthHeaderRow}>
 
-                    <Pressable
-                        onPress={() => scrollByMonth(-1)}
-                        style={styles.monthArrow}
-                    >
-                        <Text style={styles.monthArrowText}>
-                            ▲
-                        </Text>
-                    </Pressable>
+                    <View style={styles.arrowGroup}>
 
-                    <Text style={styles.monthHeader} >
+                        <Pressable
+                            onPress={() => scrollByYear(-1)}
+                            style={styles.monthArrow}
+                        >
+                            <View style={styles.doubleArrow}>
+                                <Text style={styles.fastArrowGlyph}>▲</Text>
+                                <Text style={styles.fastArrowGlyph}>▲</Text>
+                            </View>
+                        </Pressable>
+
+                        <Pressable
+                            onPress={() => scrollByMonth(-1)}
+                            style={styles.monthArrow}
+                        >
+                            <Text style={styles.monthArrowText}>
+                                ▲
+                            </Text>
+                        </Pressable>
+
+                    </View>
+
+                    <Text style={styles.monthHeader}>
                         {visibleMonth}
                     </Text>
 
-                    <Pressable
-                        onPress={() => scrollByMonth(1)}
-                        style={styles.monthArrow}
-                    >
-                        <Text style={styles.monthArrowText}>
-                            ▼
-                        </Text>
-                    </Pressable>
+                    <View style={styles.arrowGroup}>
+
+                        <Pressable
+                            onPress={() => scrollByMonth(1)}
+                            style={styles.monthArrow}
+                        >
+                            <Text style={styles.monthArrowText}>
+                                ▼
+                            </Text>
+                        </Pressable>
+
+                        <Pressable
+                            onPress={() => scrollByYear(1)}
+                            style={styles.monthArrow}
+                        >
+                            <View style={styles.doubleArrow}>
+                                <Text style={styles.fastArrowGlyph}>▼</Text>
+                                <Text style={styles.fastArrowGlyph}>▼</Text>
+                            </View>
+                        </Pressable>
+
+                    </View>
 
                 </View>
 
@@ -540,7 +602,7 @@ const styles = StyleSheet.create({
     },
 
     monthArrowText: {
-        fontSize: 14,
+        fontSize: 20,
         fontWeight: "600",
         color: "#555"
     },
@@ -573,5 +635,24 @@ const styles = StyleSheet.create({
         borderRadius: 2,
         backgroundColor: colors.primary,
         opacity: 0.35,
+    },
+
+    arrowGroup: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 20,
+    },
+
+    doubleArrow: {
+        alignItems: "center",
+        justifyContent: "center",
+        gap: -8,
+    },
+
+    fastArrowGlyph: {
+        fontSize: 16,
+        fontWeight: "700",
+        color: "#555",
+        lineHeight: 11,
     },
 });

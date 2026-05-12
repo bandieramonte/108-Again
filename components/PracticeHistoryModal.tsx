@@ -48,6 +48,8 @@ export default function PracticeHistoryModal({
     useEffect(() => {
         if (!visible) return;
 
+        setSelectedIndex(null);
+
         const data =
             sessionService.getDailyPracticeDataWithAdjustments(
                 practiceId,
@@ -139,8 +141,8 @@ export default function PracticeHistoryModal({
         const yScale = (value: number) =>
             (value / maxValue) * chartHeight;
 
-        const tooltipWidth = 40;
-        const tooltipHeight = 20;
+        const tooltipWidth = 72;
+        const tooltipHeight = 36;
         const tooltipOffset = 6;
 
         return (
@@ -261,14 +263,18 @@ export default function PracticeHistoryModal({
                                     tooltipOffset
                                 );
 
+                            const tooltipX = Math.min(
+                                width - padding.right - tooltipWidth,
+                                Math.max(
+                                    padding.left,
+                                    xCenter - tooltipWidth / 2
+                                )
+                            );
+
                             return (
                                 <>
                                     <Rect
-                                        x={
-                                            xCenter -
-                                            tooltipWidth /
-                                            2
-                                        }
+                                        x={tooltipX}
                                         y={yTooltip}
                                         width={
                                             tooltipWidth
@@ -282,19 +288,24 @@ export default function PracticeHistoryModal({
                                     />
 
                                     <SvgText
-                                        x={xCenter}
-                                        y={
-                                            yTooltip +
-                                            tooltipHeight /
-                                            2 +
-                                            4
-                                        }
+                                        x={tooltipX + tooltipWidth / 2}
+                                        y={yTooltip + 14}
                                         fontSize="11"
                                         textAnchor="middle"
                                         fill="#fff"
                                         fontWeight="bold"
                                     >
                                         {d.total}
+                                    </SvgText>
+
+                                    <SvgText
+                                        x={tooltipX + tooltipWidth / 2}
+                                        y={yTooltip + 28}
+                                        fontSize="9"
+                                        textAnchor="middle"
+                                        fill="#fff"
+                                    >
+                                        {formatShortDate(d.date)}
                                     </SvgText>
                                 </>
                             );

@@ -52,11 +52,21 @@ export default function TargetDateEditor({
     const today = new Date().toISOString().split("T")[0];
 
     return (
-        <Modal visible={visible} transparent animationType="fade">
+        <Modal
+            visible={visible}
+            transparent
+            animationType="fade"
+            onRequestClose={onClose}
+        >
 
-            <View style={styles.overlay}>
-                <View style={styles.card}>
-
+            <Pressable
+                style={styles.overlay}
+                onPress={onClose}
+            >
+                <Pressable
+                    style={styles.card}
+                    onPress={() => { }}
+                >
                     <Text style={styles.title}>
                         Edit target date
                     </Text>
@@ -101,8 +111,8 @@ export default function TargetDateEditor({
                         </Pressable>
                     </View>
 
-                </View>
-            </View>
+                </Pressable>
+            </Pressable>
 
         </Modal>
     );
