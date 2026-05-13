@@ -120,13 +120,17 @@ export function updatePractice(
         `UPDATE practices
      SET name = ?,
          targetCount = ?,
+         userId = ?,
          updatedAt = COALESCE(?, updatedAt),
-         syncStatus = COALESCE(?, syncStatus)
+         syncStatus = COALESCE(?, syncStatus),
+         lastSyncedAt = ?
      WHERE id = ?`,
         name,
         target,
+        syncMetadata.userId,
         syncMetadata.updatedAt,
         syncMetadata.syncStatus,
+        syncMetadata.lastSyncedAt,
         id
     );
 }
@@ -150,12 +154,16 @@ export function updatePracticeDefaultAddCount(
     db.runSync(
         `UPDATE practices
      SET defaultAddCount = ?,
+         userId = ?,
          updatedAt = COALESCE(?, updatedAt),
-         syncStatus = COALESCE(?, syncStatus)
+         syncStatus = COALESCE(?, syncStatus),
+         lastSyncedAt = ?
      WHERE id = ?`,
         defaultAddCount,
+        syncMetadata.userId,
         syncMetadata.updatedAt,
         syncMetadata.syncStatus,
+        syncMetadata.lastSyncedAt,
         id
     );
 }
@@ -163,30 +171,44 @@ export function updatePracticeDefaultAddCount(
 export function updatePracticeOrder(
     id: string,
     orderIndex: number,
-    updatedAt: number | null = null,
-    syncStatus: SyncStatus
+    syncMetadata: SyncMetadata
 ): void {
     db.runSync(
         `UPDATE practices
      SET orderIndex = ?,
+         userId = ?,
          updatedAt = COALESCE(?, updatedAt),
-         syncStatus = COALESCE(?, syncStatus)
+         syncStatus = COALESCE(?, syncStatus),
+         lastSyncedAt = ?
      WHERE id = ?`,
         orderIndex,
-        updatedAt,
-        syncStatus,
+        syncMetadata.userId,
+        syncMetadata.updatedAt,
+        syncMetadata.syncStatus,
+        syncMetadata.lastSyncedAt,
         id
     );
 }
 
-export function markPracticeSynced(id: string, lastSyncedAt: number): void {
+export function markPracticeSynced(
+    id: string,
+    lastSyncedAt: number,
+    pushedUpdatedAt: number | null
+): void {
     db.runSync(
         `UPDATE practices
      SET syncStatus = 'synced',
          lastSyncedAt = ?
-     WHERE id = ?`,
+     WHERE id = ?
+       AND syncStatus IN ('pending', 'failed')
+       AND (
+         updatedAt = ?
+         OR (updatedAt IS NULL AND ? IS NULL)
+       )`,
         lastSyncedAt,
-        id
+        id,
+        pushedUpdatedAt,
+        pushedUpdatedAt
     );
 }
 
@@ -326,12 +348,16 @@ export function updatePracticeTotalOffset(
     db.runSync(
         `UPDATE practices
          SET totalOffset = ?,
+             userId = ?,
              updatedAt = COALESCE(?, updatedAt),
-             syncStatus = COALESCE(?, syncStatus)
+             syncStatus = COALESCE(?, syncStatus),
+             lastSyncedAt = ?
          WHERE id = ?`,
         totalOffset,
+        syncMetadata.userId,
         syncMetadata.updatedAt,
         syncMetadata.syncStatus,
+        syncMetadata.lastSyncedAt,
         id
     );
 }
@@ -341,9 +367,11 @@ export function resetPracticeTotals(userId: string | null, updatedAt: number) {
         UPDATE practices
         SET
             totalOffset = 0,
+            userId = ?,
             updatedAt = ?,
-            syncStatus = 'pending'
-    `, updatedAt);
+            syncStatus = 'pending',
+            lastSyncedAt = NULL
+    `, userId, updatedAt);
 }
 
 export function markAllPracticesPending(userId: string, updatedAt: number) {

@@ -46,14 +46,25 @@ export function insertSession(
     );
 }
 
-export function markSessionSynced(id: string, lastSyncedAt: number) {
+export function markSessionSynced(
+    id: string,
+    lastSyncedAt: number,
+    pushedUpdatedAt: number | null
+) {
     db.runSync(
         `UPDATE sessions
      SET syncStatus = 'synced',
          lastSyncedAt = ?
-     WHERE id = ?`,
+     WHERE id = ?
+       AND syncStatus IN ('pending', 'failed')
+       AND (
+         updatedAt = ?
+         OR (updatedAt IS NULL AND ? IS NULL)
+       )`,
         lastSyncedAt,
-        id
+        id,
+        pushedUpdatedAt,
+        pushedUpdatedAt
     );
 }
 

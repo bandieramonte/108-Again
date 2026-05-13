@@ -163,6 +163,7 @@ export async function deletePractice(id: string) {
                         imageKey: practice.imageKey ?? null,
                         defaultAddCount:
                             practice.defaultAddCount ?? 108,
+                        totalOffset: practice.totalOffset ?? 0,
                     })
                 );
             }

@@ -66,6 +66,30 @@ export function markDeletedRecordSynced(id: string) {
     );
 }
 
+export function getPendingDeletedRecordForRecord(
+    userId: string,
+    entityType: "practice" | "session",
+    recordId: string
+): DeletedRecordRow | null {
+    const rows = db.getAllSync(
+        `
+      SELECT id, entityType, recordId, userId, deletedAt, syncStatus, payload
+      FROM deleted_records
+      WHERE userId = ?
+        AND entityType = ?
+        AND recordId = ?
+        AND syncStatus IN ('pending', 'failed')
+      ORDER BY deletedAt DESC
+      LIMIT 1
+    `,
+        userId,
+        entityType,
+        recordId
+    ) as DeletedRecordRow[];
+
+    return rows[0] ?? null;
+}
+
 export function getAllDeletedRecords() {
     return db.getAllSync(
         `

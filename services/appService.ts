@@ -52,11 +52,15 @@ export async function restoreDefaults() {
           const sessions = sessionRepo.getAllSessionsForSync();
 
           for (const s of sessions) {
+              const deletionUserId = s.userId ?? userId;
+
+              if (!deletionUserId) continue;
+
               deletedRecordRepo.insertDeletedRecord(
                   randomUUID(),
                   "session",
                   s.id,
-                  userId,
+                  deletionUserId,
                   now,
                   "pending",
                   JSON.stringify({
@@ -78,11 +82,14 @@ export async function restoreDefaults() {
                   // -------------------------
                   // DELETE USER PRACTICES
                   // -------------------------
+                  const deletionUserId = p.userId ?? userId;
+
+                  if (deletionUserId) {
                   deletedRecordRepo.insertDeletedRecord(
                       randomUUID(),
                       "practice",
                       p.id,
-                      userId,
+                      deletionUserId,
                       now,
                       "pending",
                       JSON.stringify({
@@ -90,9 +97,11 @@ export async function restoreDefaults() {
                           targetCount: p.targetCount,
                           orderIndex: p.orderIndex,
                           imageKey: p.imageKey ?? null,
-                          defaultAddCount: p.defaultAddCount ?? 108
+                          defaultAddCount: p.defaultAddCount ?? 108,
+                          totalOffset: p.totalOffset ?? 0
                       })
                   );
+                  }
 
                   practiceRepo.deletePractice(p.id);
               } else {
