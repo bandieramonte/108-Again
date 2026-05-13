@@ -62,6 +62,29 @@ function isNetworkTimeout(error: any): boolean {
   return error?.message === NETWORK_TIMEOUT_MESSAGE;
 }
 
+function isDeletedUserAuthError(error: any): boolean {
+  const message = String(error?.message ?? "").toLowerCase();
+
+  return (
+    message.includes("user not found") ||
+    message.includes("user from sub claim in jwt does not exist") ||
+    message.includes("user does not exist") ||
+    message.includes("user has been deleted")
+  );
+}
+
+type UserDeletionCheckResult =
+  | "deleted"
+  | "active"
+  | "inconclusive";
+
+export type SyncNowResult =
+  | "auth_invalid"
+  | "offline"
+  | "retry_scheduled"
+  | "success"
+  | "skipped";
+
 async function runWithTimeout<T>(
   promiseFactory: () => Promise<T>,
   ms: number
@@ -589,14 +612,20 @@ async function pullSessions(userId: string) {
     }
 }
 
-export async function syncNow(userId: string | null) {
-    if (!userId) return;
+export async function syncNow(userId: string | null): Promise<SyncNowResult> {
+    if (!userId) return "skipped";
 
     lastUserId = userId;
 
     if (!getIsOnline()) {
         setSyncState("offline");
-        return;
+        return "offline";
+    }
+
+    if (await isUserDeleted()) {
+        console.log("Auth invalid before sync - signing out");
+        emitAuthInvalid();
+        return "auth_invalid";
     }
 
     try {
@@ -632,13 +661,14 @@ export async function syncNow(userId: string | null) {
         emitDataChanged();
         setSyncState("success");
         retryCount = 0;
+        return "success";
     } catch (error: any) {
         console.error("syncNow error", error);
 
         if (await isUserDeleted()) {
-            console.log("Auth invalid — signing out");
+            console.log("Auth invalid - signing out");
             emitAuthInvalid();
-            return;
+            return "auth_invalid";
         }
 
         if (!isNetworkTimeout(error)) {
@@ -657,7 +687,7 @@ export async function syncNow(userId: string | null) {
             }
 
             setSyncState("error");
-            return;
+            return "retry_scheduled";
         }
 
         setSyncState("syncing");
@@ -670,6 +700,8 @@ export async function syncNow(userId: string | null) {
         setTimeout(() => {
             runQueuedSync();
         }, delay);
+
+        return "retry_scheduled";
     } finally {
         emitSyncChanged();
     }
@@ -787,14 +819,68 @@ function getRetryDelay() {
     return Math.min(30000, 2000 * Math.pow(2, retryCount));
 }
 
-export async function isUserDeleted() {
-    try {
-        const { data } = await withTimeout( async () => 
-            getSupabase().auth.getUser(),
+async function checkCurrentSessionUser(): Promise<UserDeletionCheckResult> {
+    const { data: sessionData, error: sessionError } =
+        await withTimeout(
+            async () => getSupabase().auth.getSession(),
             8000
         );
 
-        return !data?.user;
+    if (sessionError) {
+        console.warn(
+            "isUserDeleted session check error:",
+            sessionError
+        );
+        return "inconclusive";
+    }
+
+    const expectedUserId = sessionData.session?.user?.id;
+
+    if (!expectedUserId) {
+        return "active";
+    }
+
+    const { data, error } = await withTimeout( async () =>
+        getSupabase().auth.getUser(),
+        8000
+    );
+
+    if (error) {
+        return isDeletedUserAuthError(error)
+            ? "deleted"
+            : "inconclusive";
+    }
+
+    if (!data?.user) {
+        return "deleted";
+    }
+
+    if (data.user.id !== expectedUserId) {
+        console.warn(
+            "isUserDeleted user mismatch",
+            { expectedUserId, actualUserId: data.user.id }
+        );
+        return "inconclusive";
+    }
+
+    return "active";
+}
+
+export async function isUserDeleted() {
+    try {
+        const firstCheck = await checkCurrentSessionUser();
+
+        if (firstCheck !== "deleted") {
+            return false;
+        }
+
+        await recreateSupabase();
+        await delay(300);
+
+        const confirmationCheck =
+            await checkCurrentSessionUser();
+
+        return confirmationCheck === "deleted";
     } catch (error) {
         console.warn("isUserDeleted timeout/error:", error);
 

@@ -69,16 +69,11 @@ export default function AccountScreen() {
                 return;
             }
 
-            if (await syncService.isUserDeleted()) {
-                Alert.alert(
-                    "Account removed",
-                    "Your account was deleted on another device."
-                );
+            const result = await syncService.syncNow(authState.userId);
 
-                await authService.signOut();
+            if (result === "auth_invalid") {
                 return;
             }
-            await syncService.syncNow(authState.userId);
 
             console.log("SYNC: finished");
             const state = syncService.getSyncState();

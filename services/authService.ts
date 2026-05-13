@@ -339,8 +339,8 @@ export async function deleteAccount() {
 
             if (deleted) {
                 Alert.alert(
-                    "Account removed",
-                    "Your account was deleted on another device."
+                    "Account deleted",
+                    "Your account has been deleted."
                 );
 
                 await signOut();
