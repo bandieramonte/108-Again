@@ -306,9 +306,12 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
-    const { error } = await getSupabase().auth.signOut({
-        scope: "local",
-    });
+    const { error } = await syncService.withTimeout(
+        () => getSupabase().auth.signOut({
+            scope: "local",
+        }),
+        5000
+    );
 
     if (error) {
         throw error;

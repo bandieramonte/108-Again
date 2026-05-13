@@ -1,6 +1,6 @@
 import { DEFAULT_PRACTICES, SEEDED_IDS } from "@/constants/defaultPractices";
 import { enqueueWrite } from "@/database/writeQueue";
-import { getSupabase, recreateSupabase } from "@/lib/supabase";
+import { getSupabase, markSupabaseClientStaleAfterBackground, recreateSupabase } from "@/lib/supabase";
 import { randomUUID } from "expo-crypto";
 import { AppState } from "react-native";
 import { db, initializeDatabase } from "../database/db";
@@ -17,8 +17,24 @@ import { initializeNetworkListener } from "./networkService";
 import { initializeSyncRetry } from "./syncService";
 
 const INACTIVE_THRESHOLD = 10 * 60 * 1000; //10 minutes
+const RESUME_SESSION_TIMEOUT = 5000;
 
 let backgroundedAt: number | null = null;
+
+function withResumeTimeout<T>(
+    promise: Promise<T>,
+    ms: number
+): Promise<T> {
+    return Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+            setTimeout(
+                () => reject(new Error("Resume session timeout")),
+                ms
+            );
+        }),
+    ]);
+}
 
 export async function initializeApp() {
     initializeDatabase();
@@ -229,11 +245,6 @@ export async function handleAppResume() {
 
     console.log("entering handle app resume");
 
-    const userId = authService.getCurrentUserId();
-        console.log(userId);
-
-    if (!userId) return;
-
     const inactiveMs =
         backgroundedAt == null
             ? 0
@@ -247,6 +258,11 @@ export async function handleAppResume() {
         return;
     }
 
+    markSupabaseClientStaleAfterBackground();
+
+    const userId = authService.getCurrentUserId();
+    console.log(userId);
+
     try {
 
         console.log(
@@ -254,12 +270,23 @@ export async function handleAppResume() {
         );
 
         await recreateSupabase();
+        syncService.resetStaleSyncStateAfterResume();
 
-        syncService.setForceFreshClient(true);
+        await new Promise((resolve) => setTimeout(resolve, 300));
 
-        await new Promise(r => setTimeout(r, 300));
+        try {
+            await withResumeTimeout(
+                getSupabase().auth.getSession(),
+                RESUME_SESSION_TIMEOUT
+            );
+        } catch (sessionError) {
+            console.warn(
+                "Resume session refresh failed",
+                sessionError
+            );
+        }
 
-        await getSupabase().auth.getSession();
+        if (!userId) return;
 
         await syncService.requestSync(userId, {
             immediate: true
@@ -288,7 +315,7 @@ export function initAppStateListener(onResume: () => void) {
 
         if (nextState.match(/inactive|background/)) {
             console.log("inactive");
-            backgroundedAt = Date.now();
+            backgroundedAt = backgroundedAt ?? Date.now();
         }
 
         if (lastState.match(/inactive|background/) && nextState === "active") {

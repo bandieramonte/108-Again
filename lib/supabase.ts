@@ -17,40 +17,64 @@ const supabaseKey = requiredEnv(
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
 );
 
-let client: SupabaseClient = createClient(supabaseUrl, supabaseKey, {
-    auth: {
-        storage: AsyncStorage,
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: false, // safer in RN
-    },
-});
+function createSupabaseClient(): SupabaseClient {
+    return createClient(supabaseUrl, supabaseKey, {
+        auth: {
+            storage: AsyncStorage,
+            autoRefreshToken: true,
+            persistSession: true,
+            detectSessionInUrl: false, // safer in RN
+        },
+    });
+}
+
+function timeout(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(resolve, ms);
+    });
+}
+
+let client: SupabaseClient = createSupabaseClient();
+let clientMayBeStaleAfterBackground = false;
 
 export function getSupabase() {
     return client;
 }
 
+export function markSupabaseClientStaleAfterBackground() {
+    clientMayBeStaleAfterBackground = true;
+}
+
+export async function recreateSupabaseIfStaleAfterBackground() {
+    if (!clientMayBeStaleAfterBackground) {
+        return false;
+    }
+
+    await recreateSupabase();
+    return true;
+}
+
 export async function recreateSupabase() {
-    console.warn("🔥 Recreating Supabase client");
+    console.warn("Recreating Supabase client");
+
+    const previousClient = client;
+    client = createSupabaseClient();
+    clientMayBeStaleAfterBackground = false;
 
     try {
-
-        await client.realtime.disconnect();
-
+        void Promise.race([
+            Promise.resolve(previousClient.realtime.disconnect()),
+            timeout(1000),
+        ]).catch((e) => {
+            console.warn(
+                "Failed to disconnect previous realtime client",
+                e
+            );
+        });
     } catch (e) {
-
         console.warn(
-            "Failed to disconnect realtime",
+            "Failed to disconnect previous realtime client",
             e
         );
     }
-
-    client = createClient(supabaseUrl, supabaseKey, {
-        auth: {
-            storage: AsyncStorage,
-            autoRefreshToken: true,
-            persistSession: true,
-            detectSessionInUrl: false,
-        },
-    });
 }

@@ -1,4 +1,4 @@
-import { getSupabase, recreateSupabase } from "@/lib/supabase";
+import { getSupabase, recreateSupabase, recreateSupabaseIfStaleAfterBackground } from "@/lib/supabase";
 import * as appMetaRepo from "@/repositories/appMetaRepo";
 import * as deletedRecordRepo from "@/repositories/deletedRecordRepo";
 import * as practiceRepo from "@/repositories/practiceRepo";
@@ -13,8 +13,7 @@ let scheduledSyncTimeout: ReturnType<typeof setTimeout> | null = null;
 let pendingSyncUserId: string | null = null;
 let lastUserId: string | null = null;
 let retryCount = 0;
-let forceFreshClient = false;
-let failureCount = 0;
+const NETWORK_TIMEOUT_MESSAGE = "Network timeout during sync";
 
 type RemotePracticeRow = {
     id: string;
@@ -39,60 +38,84 @@ type RemoteSessionRow = {
     deleted_at: string | null;
 };
 
-export function setForceFreshClient(value: boolean) {
-    forceFreshClient = value;
+export function resetStaleSyncStateAfterResume() {
+    if (scheduledSyncTimeout) {
+        clearTimeout(scheduledSyncTimeout);
+        scheduledSyncTimeout = null;
+    }
+
+    syncInFlight = null;
+    pendingSyncUserId = null;
+    retryCount = 0;
 }
+
 function setSyncState(next: SyncState) {
     syncState = next;
     emitSyncChanged();
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isNetworkTimeout(error: any): boolean {
+  return error?.message === NETWORK_TIMEOUT_MESSAGE;
+}
+
+async function runWithTimeout<T>(
+  promiseFactory: () => Promise<T>,
+  ms: number
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(
+      () => reject(new Error(NETWORK_TIMEOUT_MESSAGE)),
+      ms
+    );
+  });
+
+  try {
+    return await Promise.race([
+      promiseFactory(),
+      timeoutPromise,
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 export async function withTimeout<T>(
   promiseFactory: () => Promise<T>,
   ms = 6000
 ): Promise<T> {
-
-  if (forceFreshClient) {
-      console.log("Using fresh client (skip timeout)");
-      forceFreshClient = false;
-      return await promiseFactory();
-  }
-
-  const run = () =>
-    Promise.race([
-      promiseFactory(),
-      new Promise<T>((_, reject) =>
-        setTimeout(() => reject(new Error("Network timeout during sync")), ms)
-      ),
-    ]);
+  await recreateSupabaseIfStaleAfterBackground();
 
   try {
-    const result = await run();
-    failureCount = 0;
+    const result = await runWithTimeout(promiseFactory, ms);
     return result;
 
   } catch (error: any) {
 
-    if (error?.message !== "Network timeout during sync") throw error;
+    if (!isNetworkTimeout(error)) throw error;
 
-    failureCount++;
-    console.log(`Timeout detected (${failureCount})`);
+    console.log("Network timeout detected");
 
-    await new Promise(r => setTimeout(r, 100)); // small buffer
+    await recreateSupabase();
+    await delay(300);
 
-    if (failureCount >= 2) {
-        await recreateSupabase();
-        await new Promise(r => setTimeout(r, 300));
-    }
-
-    console.log("Retrying after recovery...");
+    console.log("Retrying after Supabase client recovery...");
 
     try {
-        const retryResult = await run();
-        failureCount = 0; 
+        const retryResult = await runWithTimeout(promiseFactory, ms);
         return retryResult;
 
-    } catch (retryError) {
+    } catch (retryError: any) {
+        if (isNetworkTimeout(retryError)) {
+            console.log("Retry timed out after Supabase client recovery");
+        }
 
         console.log("Final retry failed");
         throw retryError;
@@ -618,7 +641,7 @@ export async function syncNow(userId: string | null) {
             return;
         }
 
-        if (error?.message !== "Network timeout during sync") {
+        if (!isNetworkTimeout(error)) {
             setSyncState("error");
             throw error;
         }

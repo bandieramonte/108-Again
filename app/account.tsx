@@ -22,7 +22,6 @@ export default function AccountScreen() {
     const [syncState, setSyncState] = useState(syncService.getSyncState());
     const [syncing, setSyncing] = useState(false);
     const [deleting, setDeleting] = useState(false);
-    const [deletedMessage, setDeletedMessage] = useState(false);
     const [privacyVisible, setPrivacyVisible] = useState(false);
 
     useEffect(() => {
@@ -237,14 +236,6 @@ export default function AccountScreen() {
                         </Pressable>
                     </>
                 )}
-                {deletedMessage && (
-                    <View style={styles.deletedToast}>
-                        <Text style={styles.deletedToastText}>
-                            Account deleted successfully
-                        </Text>
-                    </View>
-                )}
-
                 <PrivacyModal
                     visible={privacyVisible}
                     onClose={() => setPrivacyVisible(false)}
@@ -333,20 +324,5 @@ const styles = StyleSheet.create({
         textAlign: "center",
         fontWeight: "600",
         fontSize: 16,
-    },
-    deletedToast: {
-        position: "absolute",
-        bottom: 30,
-        left: 20,
-        right: 20,
-        backgroundColor: "#111",
-        padding: 14,
-        borderRadius: 8,
-        alignItems: "center",
-    },
-
-    deletedToastText: {
-        color: "white",
-        fontSize: 14,
     },
 });
