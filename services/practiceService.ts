@@ -117,8 +117,10 @@ export async function deletePractice(id: string) {
                 !!practice.userId &&
                 !!practice.lastSyncedAt;
 
-            if (userId && practiceExistsRemotely) {
+            const deletionOwnerUserId =
+                practice.userId;
 
+            if (deletionOwnerUserId && practiceExistsRemotely) {
                 // -------------------------
                 // SESSION DELETIONS
                 // -------------------------
@@ -134,7 +136,7 @@ export async function deletePractice(id: string) {
                         randomUUID(),
                         "session",
                         session.id,
-                        userId,
+                        deletionOwnerUserId,
                         deletedAt,
                         "pending",
                         JSON.stringify({
@@ -151,7 +153,7 @@ export async function deletePractice(id: string) {
                     randomUUID(),
                     "practice",
                     id,
-                    userId,
+                    deletionOwnerUserId,
                     deletedAt,
                     "pending",
                     JSON.stringify({
