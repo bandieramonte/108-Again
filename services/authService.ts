@@ -8,6 +8,8 @@ import { Alert } from "react-native";
 
 let isPasswordRecoveryFlow = false;
 let blockAuthStateHandler = false;
+const ONE_ACCOUNT_PER_DEVICE_MESSAGE =
+    "Only one account can be used on this device at a time.\n\nLog in with the existing account for this device, or delete that account before creating or using another one.";
 
 export function setPasswordRecoveryFlow(value: boolean) {
     isPasswordRecoveryFlow = value;
@@ -195,70 +197,63 @@ export async function signUp(
         throw new Error("Password is required.");
     }
 
+    if (hasLocalDataOwner()) {
+        throw new Error(ONE_ACCOUNT_PER_DEVICE_MESSAGE);
+    }
+
     blockAuthStateHandler = true;
-    const { data, error } = await getSupabase().auth.signUp({
-        email: trimmedEmail,
-        password,
-        options: {
-            emailRedirectTo: `${Constants.expoConfig?.scheme ?? 'app108again'}://sign-in?confirmed=true`,
-            data: {
-                first_name: trimmedFirstName,
+    try {
+        const { data, error } = await getSupabase().auth.signUp({
+            email: trimmedEmail,
+            password,
+            options: {
+                emailRedirectTo: `${Constants.expoConfig?.scheme ?? 'app108again'}://sign-in?confirmed=true`,
+                data: {
+                    first_name: trimmedFirstName,
+                },
             },
-        },
-    });
+        });
 
-    if (error) {
-        throw error;
-    }
-
-    const user = data.user;
-
-    if (isSwitchingAccounts(user?.id ?? '')) {
-
-        const confirmed =
-            await confirmAccountSwitch();
-
-        if (!confirmed) {
-
-            await signOut();
-            blockAuthStateHandler = false;
-            throw new Error(
-                "Sign in cancelled."
-            );
+        if (error) {
+            throw error;
         }
+
+        const user = data.user;
+
+        if (!user) {
+            throw new Error("Account creation succeeded but no user was returned.");
+        }
+
+        profileRepo.upsertUserProfile(
+            user.id,
+            user.email ?? trimmedEmail,
+            trimmedFirstName,
+            Date.now()
+        );
+
+        appMetaRepo.setLocalDataOwnerUserId(user.id);
+
+        setAuthState({
+            isAuthenticated: !!data.session,
+            userId: data.session?.user.id ?? user.id,
+            email: user.email ?? trimmedEmail,
+            firstName: trimmedFirstName,
+        });
+
+        if (!data.session) {
+            // Email confirmation required
+            return { needsEmailConfirmation: true };
+        }
+
+        if (data.session?.user.id) {
+            await syncService.claimAnonymousLocalDataIfNeeded(data.session.user.id);
+            await syncService.requestSync(data.session.user.id);
+        }
+
+        return { needsEmailConfirmation: false };
+    } finally {
+        blockAuthStateHandler = false;
     }
-
-    blockAuthStateHandler = false;
-    
-    if (!user) {
-        throw new Error("Account creation succeeded but no user was returned.");
-    }
-
-    profileRepo.upsertUserProfile(
-        user.id,
-        user.email ?? trimmedEmail,
-        trimmedFirstName,
-        Date.now()
-    );
-
-    setAuthState({
-        isAuthenticated: !!data.session,
-        userId: data.session?.user.id ?? user.id,
-        email: user.email ?? trimmedEmail,
-        firstName: trimmedFirstName,
-    });
-
-    if (!data.session) {
-        // Email confirmation required
-        return { needsEmailConfirmation: true };
-    }
-
-    if (data.session?.user.id) {
-        await syncService.claimAnonymousLocalDataIfNeeded(data.session.user.id);
-        await syncService.requestSync(data.session.user.id);
-    }
-
-    return { needsEmailConfirmation: false };
 }
 
 export async function signIn(email: string, password: string) {
@@ -273,36 +268,37 @@ export async function signIn(email: string, password: string) {
     }
 
     blockAuthStateHandler = true;
-    const { data, error } = await getSupabase().auth.signInWithPassword({
-        email: trimmedEmail,
-        password,
-    });
+    try {
+        const { data, error } = await getSupabase().auth.signInWithPassword({
+            email: trimmedEmail,
+            password,
+        });
 
-    if (error) {
-        throw error;
-    }
-
-    const user = data.user;
-
-    if (isSwitchingAccounts(user.id)) {
-
-        const confirmed = await confirmAccountSwitch();
-
-        if (!confirmed) {
-
-            await signOut();
-            blockAuthStateHandler = false;
-            throw new Error( "Sign in cancelled.");
+        if (error) {
+            throw error;
         }
-    }
-    
-    blockAuthStateHandler = false;
-    
-    if (!user) {
-        throw new Error("Log in succeeded but no user was returned.");
-    }
 
-    await loadProfileIntoState(user.id, user.email ?? trimmedEmail);
+        const user = data.user;
+
+        if (!user) {
+            throw new Error("Log in succeeded but no user was returned.");
+        }
+
+        if (isDifferentLocalDataOwner(user.id)) {
+            try {
+                await signOut();
+            } catch (error) {
+                console.warn("Failed to sign out blocked account:", error);
+            }
+
+            throw new Error(ONE_ACCOUNT_PER_DEVICE_MESSAGE);
+        }
+
+        appMetaRepo.setLocalDataOwnerUserId(user.id);
+        await loadProfileIntoState(user.id, user.email ?? trimmedEmail);
+    } finally {
+        blockAuthStateHandler = false;
+    }
 }
 
 export async function signOut() {
@@ -391,7 +387,11 @@ export async function resetPassword(email: string) {
     }
 }
 
-function isSwitchingAccounts(nextUserId: string): boolean {
+function hasLocalDataOwner(): boolean {
+    return !!appMetaRepo.getLocalDataOwnerUserId();
+}
+
+function isDifferentLocalDataOwner(nextUserId: string): boolean {
 
     const ownerId = appMetaRepo.getLocalDataOwnerUserId();
 
@@ -400,27 +400,4 @@ function isSwitchingAccounts(nextUserId: string): boolean {
     }
 
     return ownerId !== nextUserId;
-}
-
-function confirmAccountSwitch(): Promise<boolean> {
-
-    return new Promise((resolve) => {
-
-        Alert.alert(
-            "Switch account?",
-            "This device already contains local practice data from another account.\n\nContinuing may transfer offline progress to this account.",
-            [
-                {
-                    text: "Cancel",
-                    style: "cancel",
-                    onPress: () => resolve(false),
-                },
-                {
-                    text: "Continue",
-                    style: "default",
-                    onPress: () => resolve(true),
-                },
-            ]
-        );
-    });
 }
