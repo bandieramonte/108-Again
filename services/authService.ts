@@ -1,4 +1,5 @@
 import { getSupabase } from "@/lib/supabase";
+import { AUTH_FIELD_LIMITS } from "@/constants/authFieldLimits";
 import * as appMetaRepo from "@/repositories/appMetaRepo";
 import * as profileRepo from "@/repositories/profileRepo";
 import * as syncService from "@/services/syncService";
@@ -10,6 +11,16 @@ let isPasswordRecoveryFlow = false;
 let blockAuthStateHandler = false;
 const ONE_ACCOUNT_PER_DEVICE_MESSAGE =
     "Only one account can be used on this device at a time.\n\nLog in with the existing account for this device, or delete that account before creating or using another one.";
+
+function validateAuthFieldLength(
+    value: string,
+    label: string,
+    maxLength: number
+) {
+    if (value.length > maxLength) {
+        throw new Error(`${label} must be ${maxLength} characters or fewer.`);
+    }
+}
 
 export function setPasswordRecoveryFlow(value: boolean) {
     isPasswordRecoveryFlow = value;
@@ -189,13 +200,31 @@ export async function signUp(
         throw new Error("First name is required.");
     }
 
+    validateAuthFieldLength(
+        trimmedFirstName,
+        "First name",
+        AUTH_FIELD_LIMITS.firstName
+    );
+
     if (!trimmedEmail) {
         throw new Error("Email is required.");
     }
 
+    validateAuthFieldLength(
+        trimmedEmail,
+        "Email",
+        AUTH_FIELD_LIMITS.email
+    );
+
     if (!password) {
         throw new Error("Password is required.");
     }
+
+    validateAuthFieldLength(
+        password,
+        "Password",
+        AUTH_FIELD_LIMITS.password
+    );
 
     if (hasLocalDataOwner()) {
         throw new Error(ONE_ACCOUNT_PER_DEVICE_MESSAGE);
@@ -263,9 +292,21 @@ export async function signIn(email: string, password: string) {
         throw new Error("Email is required.");
     }
 
+    validateAuthFieldLength(
+        trimmedEmail,
+        "Email",
+        AUTH_FIELD_LIMITS.email
+    );
+
     if (!password) {
         throw new Error("Password is required.");
     }
+
+    validateAuthFieldLength(
+        password,
+        "Password",
+        AUTH_FIELD_LIMITS.password
+    );
 
     blockAuthStateHandler = true;
     try {
@@ -376,9 +417,20 @@ export async function deleteAccount() {
 
 export async function resetPassword(email: string) {
 
+    const trimmedEmail = email.trim().toLowerCase();
     const redirectTo = `${Constants.expoConfig?.scheme ?? 'app108again'}://reset-password`;
 
-    const { error } = await getSupabase().auth.resetPasswordForEmail(email, {
+    if (!trimmedEmail) {
+        throw new Error("Email is required.");
+    }
+
+    validateAuthFieldLength(
+        trimmedEmail,
+        "Email",
+        AUTH_FIELD_LIMITS.email
+    );
+
+    const { error } = await getSupabase().auth.resetPasswordForEmail(trimmedEmail, {
         redirectTo,
     });
 

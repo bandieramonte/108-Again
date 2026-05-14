@@ -2,6 +2,7 @@ import { getSupabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
+import { AUTH_FIELD_LIMITS } from "../constants/authFieldLimits";
 import {
     ActivityIndicator,
     Alert,
@@ -25,6 +26,22 @@ export default function ResetPasswordScreen() {
     async function handleReset() {
         if (!password || !confirmPassword) {
             Alert.alert("Missing fields", "Please fill all fields.");
+            return;
+        }
+
+        if (password.length > AUTH_FIELD_LIMITS.password) {
+            Alert.alert(
+                "Password too long",
+                `Password must be ${AUTH_FIELD_LIMITS.password} characters or fewer.`
+            );
+            return;
+        }
+
+        if (confirmPassword.length > AUTH_FIELD_LIMITS.password) {
+            Alert.alert(
+                "Password too long",
+                `Confirm password must be ${AUTH_FIELD_LIMITS.password} characters or fewer.`
+            );
             return;
         }
 
@@ -79,6 +96,7 @@ export default function ResetPasswordScreen() {
                     <TextInput
                         value={password}
                         onChangeText={setPassword}
+                        maxLength={AUTH_FIELD_LIMITS.password}
                         secureTextEntry={!showPassword}
                         style={styles.passwordInput}
                         placeholder="Enter new password"
@@ -98,6 +116,7 @@ export default function ResetPasswordScreen() {
                 <TextInput
                     value={confirmPassword}
                     onChangeText={setConfirmPassword}
+                    maxLength={AUTH_FIELD_LIMITS.password}
                     secureTextEntry={!showPassword}
                     style={styles.input}
                     placeholder="Confirm password"

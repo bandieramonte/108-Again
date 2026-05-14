@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
+import { AUTH_FIELD_LIMITS } from "../constants/authFieldLimits";
 import {
     ActivityIndicator,
     Alert,
@@ -61,6 +62,7 @@ export default function SignUpScreen() {
                 <TextInput
                     value={firstName}
                     onChangeText={setFirstName}
+                    maxLength={AUTH_FIELD_LIMITS.firstName}
                     autoCapitalize="words"
                     autoCorrect={false}
                     style={styles.input}
@@ -71,6 +73,7 @@ export default function SignUpScreen() {
                 <TextInput
                     value={email}
                     onChangeText={setEmail}
+                    maxLength={AUTH_FIELD_LIMITS.email}
                     autoCapitalize="none"
                     autoCorrect={false}
                     keyboardType="email-address"
@@ -83,6 +86,7 @@ export default function SignUpScreen() {
                     <TextInput
                         value={password}
                         onChangeText={setPassword}
+                        maxLength={AUTH_FIELD_LIMITS.password}
                         secureTextEntry={!showPassword}
                         style={styles.passwordInput}
                         placeholder="Create a password"

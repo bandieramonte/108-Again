@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
+import { AUTH_FIELD_LIMITS } from "../constants/authFieldLimits";
 import {
     ActivityIndicator,
     Alert,
@@ -102,6 +103,7 @@ export default function SignInScreen() {
                 <TextInput
                     value={email}
                     onChangeText={setEmail}
+                    maxLength={AUTH_FIELD_LIMITS.email}
                     autoCapitalize="none"
                     autoCorrect={false}
                     keyboardType="email-address"
@@ -114,6 +116,7 @@ export default function SignInScreen() {
                     <TextInput
                         value={password}
                         onChangeText={setPassword}
+                        maxLength={AUTH_FIELD_LIMITS.password}
                         secureTextEntry={!showPassword}
                         autoCapitalize="none"
                         autoCorrect={false}
