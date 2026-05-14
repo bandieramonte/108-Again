@@ -136,14 +136,14 @@ export async function initializeAuth() {
         });
         
         subscribeAuthInvalid(async () => {
-        console.log("Auth invalid — signing out");
+            console.log("Auth invalid — signing out");
 
-        Alert.alert(
-            "Account removed",
-            "Your account was deleted on another device."
-        );
+            Alert.alert(
+                "Account removed",
+                "Your account was deleted on another device."
+            );
 
-        await signOut();
+            await signOutDeletedAccount();
         });
     }
 
@@ -325,6 +325,19 @@ export async function signOut() {
     });
 }
 
+async function releaseLocalDataFromDeletedAccount() {
+    appMetaRepo.clearLocalDataOwnerUserId();
+    await syncService.resetLocalSyncState();
+}
+
+async function signOutDeletedAccount() {
+    try {
+        await signOut();
+    } finally {
+        await releaseLocalDataFromDeletedAccount();
+    }
+}
+
 export async function deleteAccount() {
     try {
         const { error } = await syncService.withTimeout(
@@ -343,8 +356,7 @@ export async function deleteAccount() {
                     "Your account has been deleted."
                 );
 
-                await signOut();
-                await syncService.resetLocalSyncState();
+                await signOutDeletedAccount();
                 return;
             }
 
@@ -353,9 +365,7 @@ export async function deleteAccount() {
             );
         }
 
-        await signOut();
-        appMetaRepo.clearLocalDataOwnerUserId();
-        await syncService.resetLocalSyncState();
+        await signOutDeletedAccount();
 
     } catch (e: any) {
         if (e?.message?.includes("timeout")) {

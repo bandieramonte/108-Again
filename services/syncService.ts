@@ -54,6 +54,23 @@ function setSyncState(next: SyncState) {
     emitSyncChanged();
 }
 
+async function markLocalDataOwnerIfSessionIsCurrent(userId: string) {
+    try {
+        const { data, error } = await getSupabase().auth.getSession();
+
+        if (error) {
+            console.warn("Local data owner check failed:", error);
+            return;
+        }
+
+        if (data.session?.user?.id === userId) {
+            appMetaRepo.setLocalDataOwnerUserId(userId);
+        }
+    } catch (error) {
+        console.warn("Local data owner check failed:", error);
+    }
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -656,7 +673,7 @@ export async function syncNow(userId: string | null): Promise<SyncNowResult> {
 
         console.log("SYNC: finished");
         
-        appMetaRepo.setLocalDataOwnerUserId(userId);
+        await markLocalDataOwnerIfSessionIsCurrent(userId);
 
         emitDataChanged();
         setSyncState("success");
