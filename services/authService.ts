@@ -1,5 +1,5 @@
-import { getSupabase } from "@/lib/supabase";
 import { AUTH_FIELD_LIMITS } from "@/constants/authFieldLimits";
+import { getSupabase } from "@/lib/supabase";
 import * as appMetaRepo from "@/repositories/appMetaRepo";
 import * as profileRepo from "@/repositories/profileRepo";
 import * as syncService from "@/services/syncService";
@@ -226,7 +226,7 @@ export async function signUp(
         AUTH_FIELD_LIMITS.password
     );
 
-    if (hasLocalDataOwner()) {
+    if (hasDifferentLocalAccountForEmail(trimmedEmail)) {
         throw new Error(ONE_ACCOUNT_PER_DEVICE_MESSAGE);
     }
 
@@ -325,7 +325,8 @@ export async function signIn(email: string, password: string) {
             throw new Error("Log in succeeded but no user was returned.");
         }
 
-        if (isDifferentLocalDataOwner(user.id)) {
+        if (isDifferentLocalDataOwner(user.id, user.email ?? trimmedEmail)
+        ) {
             try {
                 await signOut();
             } catch (error) {
@@ -439,15 +440,55 @@ export async function resetPassword(email: string) {
     }
 }
 
-function hasLocalDataOwner(): boolean {
-    return !!appMetaRepo.getLocalDataOwnerUserId();
+function normalizeEmail(email: string | null | undefined): string | null {
+    const normalized = email?.trim().toLowerCase();
+    return normalized || null;
 }
 
-function isDifferentLocalDataOwner(nextUserId: string): boolean {
-
+function hasDifferentLocalAccountForEmail(nextEmail: string): boolean {
     const ownerId = appMetaRepo.getLocalDataOwnerUserId();
 
     if (!ownerId) {
+        return false;
+    }
+
+    const ownerProfile = profileRepo.getUserProfileById(ownerId);
+
+    if (!ownerProfile?.email) {
+        return false;
+    }
+
+    return normalizeEmail(ownerProfile.email) !== normalizeEmail(nextEmail);
+}
+
+function isDifferentLocalDataOwner(
+    nextUserId: string,
+    nextEmail: string | null
+): boolean {
+    const ownerId = appMetaRepo.getLocalDataOwnerUserId();
+
+    if (!ownerId) {
+        return false;
+    }
+
+    if (ownerId === nextUserId) {
+        return false;
+    }
+
+    if (profileRepo.getUserProfileById(nextUserId)) {
+        return false;
+    }
+
+    const ownerProfile = profileRepo.getUserProfileById(ownerId);
+
+    if (!ownerProfile?.email) {
+        return false;
+    }
+
+    if (
+        normalizeEmail(ownerProfile.email) ===
+        normalizeEmail(nextEmail)
+    ) {
         return false;
     }
 
