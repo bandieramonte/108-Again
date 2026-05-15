@@ -212,11 +212,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         }
     }, [practiceId]);
 
-    const chevronRotation = rotateAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ["0deg", "180deg"],
-    });
-
     const calendarStartDate = useMemo(
         () => appService.getCalendarStartDate(practiceId),
         [practiceId, calendarData]
@@ -296,20 +291,32 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                 <View>
                                     <Pressable
                                         ref={titleRowRef}
-                                        style={styles.titleRow}
+                                        style={({ pressed }) => [
+                                            styles.titleRow,
+                                            pressed && styles.titleRowPressed,
+                                            menuOpen && styles.titleRowOpen
+                                        ]}
                                         onPress={toggleMenu}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Open actions for ${practiceName}`}
                                     >
                                         <Text style={styles.title}>
                                             {practiceName}
                                         </Text>
 
                                         <Animated.View
-                                            style={{ transform: [{ rotate: chevronRotation }] }}
+                                            style={[
+                                                styles.titleActionIcon,
+                                                { opacity: rotateAnim.interpolate({
+                                                    inputRange: [0, 1],
+                                                    outputRange: [0.78, 1],
+                                                }) }
+                                            ]}
                                         >
                                             <MaterialIcons
-                                                name="keyboard-arrow-down"
-                                                size={28}
-                                                color="#333"
+                                                name="edit"
+                                                size={16}
+                                                color={colors.primary}
                                             />
                                         </Animated.View>
 
@@ -646,7 +653,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                 <View style={styles.infoOverlay}>
                     <View style={styles.infoModal}>
                         <Text style={styles.infoText}>
-                            You'll finish sooner than that.
+                            You&apos;ll finish sooner than that.
                         </Text>
 
                         <Text style={styles.infoText}>
@@ -697,12 +704,33 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        gap: 4,
+        gap: 8,
         alignSelf: "center",
-        paddingHorizontal: 10,
+        paddingLeft: 14,
+        paddingRight: 8,
+        paddingVertical: 5,
         borderRadius: 999,
-        paddingBottom: 4,
-        backgroundColor: "#f3f4f6",
+        backgroundColor: "#eef2ff",
+        borderWidth: 1,
+        borderColor: "#dbe4ff",
+    },
+
+    titleRowPressed: {
+        opacity: 0.78,
+    },
+
+    titleRowOpen: {
+        borderColor: colors.primary,
+        backgroundColor: "#e0e7ff",
+    },
+
+    titleActionIcon: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "white",
     },
 
     imageWrapper: {
