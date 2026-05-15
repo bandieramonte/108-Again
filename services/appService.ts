@@ -10,6 +10,7 @@ import * as deletedRecordRepo from "../repositories/deletedRecordRepo";
 import * as practiceRepo from "../repositories/practiceRepo";
 import * as sessionRepo from "../repositories/sessionRepo";
 import * as authService from "../services/authService";
+import { checkForAppUpdate } from "../services/appUpdateService";
 import * as practiceService from "../services/practiceService";
 import * as syncService from "../services/syncService";
 import { emitDataChanged } from "../utils/events";
@@ -51,6 +52,7 @@ export async function initializeApp() {
     }
 
     await authService.initializeAuth();
+    checkForAppUpdate();
 }
 
 export async function restoreDefaults() {
@@ -244,6 +246,8 @@ export function ensureInstallDate() {
 export async function handleAppResume() {
 
     console.log("entering handle app resume");
+
+    checkForAppUpdate();
 
     const inactiveMs =
         backgroundedAt == null
