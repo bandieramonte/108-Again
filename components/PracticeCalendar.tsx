@@ -15,6 +15,13 @@ type Props = {
     onEditDay: (date: string, value: number) => void;
 };
 
+const ARROW_HIT_SLOP = {
+    top: 18,
+    bottom: 18,
+    left: 18,
+    right: 18,
+};
+
 export default function PracticeCalendar({
     data,
     startDate,
@@ -310,6 +317,7 @@ export default function PracticeCalendar({
 
                         <Pressable
                             onPress={() => scrollByYear(-1)}
+                            hitSlop={ARROW_HIT_SLOP}
                             style={styles.monthArrow}
                         >
                             <View style={styles.doubleArrow}>
@@ -320,6 +328,7 @@ export default function PracticeCalendar({
 
                         <Pressable
                             onPress={() => scrollByMonth(-1)}
+                            hitSlop={ARROW_HIT_SLOP}
                             style={styles.monthArrow}
                         >
                             <Text style={styles.monthArrowText}>
@@ -337,6 +346,7 @@ export default function PracticeCalendar({
 
                         <Pressable
                             onPress={() => scrollByMonth(1)}
+                            hitSlop={ARROW_HIT_SLOP}
                             style={styles.monthArrow}
                         >
                             <Text style={styles.monthArrowText}>
@@ -346,6 +356,7 @@ export default function PracticeCalendar({
 
                         <Pressable
                             onPress={() => scrollByYear(1)}
+                            hitSlop={ARROW_HIT_SLOP}
                             style={styles.monthArrow}
                         >
                             <View style={styles.doubleArrow}>
@@ -594,6 +605,8 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
         gap: 10,
+        paddingVertical: 8,
+        marginVertical: -8,
     },
 
     monthArrow: {
