@@ -2,6 +2,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CelebrationOverlay from "../../components/CelebrationOverlay";
 import FloatingAddAnimation, { FloatingAddAnimationRef } from "../../components/FloatingAddAnimation";
 import PracticeCalendar from "../../components/PracticeCalendar";
@@ -22,6 +23,7 @@ const isSmallScreen = Dimensions.get("window").width < 360;
 
 export default function PracticeContent({ practiceId }: { practiceId: string }) {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const [quickAddOpen, setQuickAddOpen] = useState(false);
     const [targetEditOpen, setTargetEditOpen] = useState(false);
     const initialPractice = practiceService.getPractice(practiceId);
@@ -105,11 +107,18 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     const dailyAnimRef = useRef<FloatingAddAnimationRef>(null);
     const customAnimRef = useRef<FloatingAddAnimationRef>(null);
     const [calendarOpen, setCalendarOpen] = useState(false);
+    const [calendarInfoOpen, setCalendarInfoOpen] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
     const [dateAdjustedInfo, setDateAdjustedInfo] = useState<{
         selected: Date;
         actual: Date;
     } | null>(null);
+    const calendarButtonBottom = Math.max(
+        20,
+        insets.bottom + 12
+    );
+    const scrollBottomPadding =
+        calendarButtonBottom + 76;
 
     useEffect(() => {
         schedulePracticeRefresh();
@@ -283,7 +292,11 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
 
     return (
         <View style={{ flex: 1 }}>
-            <ScrollView >
+            <ScrollView
+                contentContainerStyle={{
+                    paddingBottom: scrollBottomPadding
+                }}
+            >
                 <View style={containers.screen}>
                     <View >
                         <View>
@@ -528,6 +541,20 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                                 Close
                                             </Text>
                                         </Pressable>
+
+                                        <Pressable
+                                            onPress={() => setCalendarInfoOpen(true)}
+                                            style={styles.calendarInfoIcon}
+                                            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                                            accessibilityRole="button"
+                                            accessibilityLabel="Practice calendar information"
+                                        >
+                                            <MaterialIcons
+                                                name="info-outline"
+                                                size={20}
+                                                color="#666"
+                                            />
+                                        </Pressable>
                                     </View>
 
                                     <PracticeCalendar
@@ -539,6 +566,44 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
 
                                 </View>
 
+                            </Pressable>
+                        </Modal>
+
+                        <Modal
+                            visible={calendarInfoOpen}
+                            transparent
+                            animationType="fade"
+                            onRequestClose={() => setCalendarInfoOpen(false)}
+                        >
+                            <Pressable
+                                style={styles.infoOverlay}
+                                onPress={() => setCalendarInfoOpen(false)}
+                            >
+                                <Pressable
+                                    style={styles.infoModal}
+                                    onPress={() => { }}
+                                >
+                                    <Text style={styles.infoTitle}>
+                                        Editing the Calendar
+                                    </Text>
+
+                                    <Text style={styles.infoText}>
+                                        You can edit today or any earlier day in the practice calendar if you forgot to record a practice.
+                                    </Text>
+
+                                    <Text style={styles.infoText}>
+                                        Tap a day, enter the correct total for that date, and the app will update your progress.
+                                    </Text>
+
+                                    <Pressable
+                                        style={styles.infoButton}
+                                        onPress={() => setCalendarInfoOpen(false)}
+                                    >
+                                        <Text style={styles.infoButtonText}>
+                                            OK
+                                        </Text>
+                                    </Pressable>
+                                </Pressable>
                             </Pressable>
                         </Modal>
 
@@ -618,11 +683,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                     and the calendar below will update accordingly.
                                 </Text>
 
-                                <Text style={styles.infoText}>
-                                    You can also modify any daily count in the calendar
-                                    for today or any past day.
-                                </Text>
-
                                 <Pressable
                                     style={styles.infoButton}
                                     onPress={() => setInfoOpen(false)}
@@ -664,7 +724,10 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
             </Modal>
 
             <Pressable
-                style={styles.calendarButtonFixed}
+                style={[
+                    styles.calendarButtonFixed,
+                    { bottom: calendarButtonBottom }
+                ]}
                 onPress={() => setCalendarOpen(true)}
             >
                 <Text style={styles.calendarButtonText}>
@@ -904,6 +967,9 @@ const styles = StyleSheet.create({
     },
 
     calendarHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
         paddingHorizontal: 20,
         paddingBottom: 10,
         borderBottomWidth: 1,
@@ -914,6 +980,13 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: "600",
         color: colors.primary
+    },
+    calendarInfoIcon: {
+        width: 28,
+        height: 28,
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 2
     },
     calendarButtonFixed: {
         position: "absolute",
