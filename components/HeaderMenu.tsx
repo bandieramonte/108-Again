@@ -10,6 +10,7 @@ import {
     Alert,
     Modal,
     Pressable,
+    Share,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -22,6 +23,9 @@ type Props = {
     onSignOut: () => void;
     hideAccountIcon?: boolean;
 };
+
+const PLAY_STORE_URL =
+    "https://play.google.com/store/apps/details?id=com.bandieramonte.app108again";
 
 export default function HeaderMenu({
     isAuthenticated,
@@ -55,6 +59,21 @@ export default function HeaderMenu({
                 }
             ]
         );
+    }
+
+    async function handleShareApp() {
+        try {
+            await Share.share({
+                title: "108 Again",
+                message: `Try 108 Again on Google Play: ${PLAY_STORE_URL}`,
+                url: PLAY_STORE_URL,
+            });
+        } catch (error: any) {
+            Alert.alert(
+                "Share failed",
+                error?.message ?? "Unable to open sharing options."
+            );
+        }
     }
 
     return (
@@ -248,6 +267,16 @@ export default function HeaderMenu({
                             }}
                         >
                             <Text style={styles.destructiveText}>Restore Defaults</Text>
+                        </Pressable>
+
+                        <Pressable
+                            style={styles.item}
+                            onPress={() => {
+                                setMoreOpen(false);
+                                handleShareApp();
+                            }}
+                        >
+                            <Text>Share App</Text>
                         </Pressable>
 
                         <Pressable
