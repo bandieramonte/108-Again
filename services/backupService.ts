@@ -1,5 +1,6 @@
 import { db } from "@/database/db";
 import { enqueueWrite } from "@/database/writeQueue";
+import * as deletedRecordRepo from "@/repositories/deletedRecordRepo";
 import * as practiceRepo from "@/repositories/practiceRepo";
 import * as sessionRepo from "@/repositories/sessionRepo";
 import * as authService from "@/services/authService";
@@ -53,6 +54,7 @@ export async function restoreBackupData(data: any) {
 
             sessionRepo.deleteAllSessions();
             practiceRepo.deleteAllPractices();
+            deletedRecordRepo.deleteAllDeletedRecords();
 
             backupPractices.forEach((p: any) => {
 

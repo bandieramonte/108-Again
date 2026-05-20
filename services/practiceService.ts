@@ -1,3 +1,4 @@
+import { SEEDED_IDS } from "@/constants/defaultPractices";
 import { enqueueWrite } from "@/database/writeQueue";
 import { randomUUID } from "expo-crypto";
 import { db } from "../database/db";
@@ -118,7 +119,11 @@ export async function deletePractice(id: string) {
                 !!practice.lastSyncedAt;
 
             const deletionOwnerUserId =
-                practice.userId;
+                practice.userId ?? userId;
+
+            const shouldCreatePracticeDeletion =
+                practiceExistsRemotely ||
+                SEEDED_IDS.has(id);
 
             if (deletionOwnerUserId && practiceExistsRemotely) {
                 // -------------------------
@@ -145,10 +150,12 @@ export async function deletePractice(id: string) {
                         })
                     );
                 }
+            }
 
-                // -------------------------
-                // PRACTICE DELETION
-                // -------------------------
+            // -------------------------
+            // PRACTICE DELETION
+            // -------------------------
+            if (shouldCreatePracticeDeletion) {
                 deletedRecordRepo.insertDeletedRecord(
                     randomUUID(),
                     "practice",

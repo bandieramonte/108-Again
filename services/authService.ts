@@ -63,7 +63,31 @@ export function isAuthenticated(): boolean {
     return authState.isAuthenticated;
 }
 
-async function loadProfileIntoState(userId: string, email: string | null) {
+function getLoginSyncMode(userId: string): syncService.SyncMode {
+    const ownerId = appMetaRepo.getLocalDataOwnerUserId();
+
+    if (!ownerId) {
+        return "remote_overwrite_local";
+    }
+
+    return ownerId === userId
+        ? "merge_local"
+        : "remote_overwrite_local";
+}
+
+async function loadProfileIntoState(
+    userId: string,
+    email: string | null,
+    options?: {
+        syncMode?: syncService.SyncMode;
+    }
+) {
+    const syncMode = options?.syncMode ?? getLoginSyncMode(userId);
+
+    if (syncMode === "remote_overwrite_local") {
+        syncService.requireRemoteAuthoritativeSync(userId);
+    }
+
     const localProfile = profileRepo.getUserProfileById(userId);
 
     if (localProfile) {
@@ -109,7 +133,8 @@ async function loadProfileIntoState(userId: string, email: string | null) {
     });
 
     void syncService.requestSync(userId, {
-        immediate: true
+        immediate: true,
+        mode: syncMode,
     });
 }
 
@@ -141,7 +166,10 @@ export async function initializeAuth() {
 
                 await loadProfileIntoState(
                     session.user.id,
-                    session.user.email ?? null
+                    session.user.email ?? null,
+                    {
+                        syncMode: getLoginSyncMode(session.user.id),
+                    }
                 );
             } catch (error) {
                 console.error("onAuthStateChange error", error);
@@ -184,7 +212,10 @@ export async function initializeAuth() {
 
     await loadProfileIntoState(
         session.user.id,
-        session.user.email ?? null
+        session.user.email ?? null,
+        {
+            syncMode: getLoginSyncMode(session.user.id),
+        }
     );
 }
 
@@ -336,8 +367,19 @@ export async function signIn(email: string, password: string) {
             throw new Error(ONE_ACCOUNT_PER_DEVICE_MESSAGE);
         }
 
+        const firstLoginOnThisDevice =
+            !appMetaRepo.getLocalDataOwnerUserId();
+
         appMetaRepo.setLocalDataOwnerUserId(user.id);
-        await loadProfileIntoState(user.id, user.email ?? trimmedEmail);
+        await loadProfileIntoState(
+            user.id,
+            user.email ?? trimmedEmail,
+            {
+                syncMode: firstLoginOnThisDevice
+                    ? "remote_overwrite_local"
+                    : "merge_local",
+            }
+        );
     } finally {
         blockAuthStateHandler = false;
     }

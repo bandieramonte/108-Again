@@ -1,4 +1,5 @@
 import { getSupabase, recreateSupabase, recreateSupabaseIfStaleAfterBackground } from "@/lib/supabase";
+import { DEFAULT_PRACTICES, SEEDED_IDS } from "@/constants/defaultPractices";
 import * as appMetaRepo from "@/repositories/appMetaRepo";
 import * as deletedRecordRepo from "@/repositories/deletedRecordRepo";
 import * as practiceRepo from "@/repositories/practiceRepo";
@@ -11,9 +12,12 @@ let syncState: SyncState = "idle";
 let syncInFlight: Promise<void> | null = null;
 let scheduledSyncTimeout: ReturnType<typeof setTimeout> | null = null;
 let pendingSyncUserId: string | null = null;
+let pendingSyncMode: SyncMode | null = null;
 let lastUserId: string | null = null;
 let retryCount = 0;
 const NETWORK_TIMEOUT_MESSAGE = "Network timeout during sync";
+const REMOTE_AUTHORITATIVE_SYNC_USER_ID_META =
+    "remoteAuthoritativeSyncUserId";
 
 type RemotePracticeRow = {
     id: string;
@@ -46,6 +50,7 @@ export function resetStaleSyncStateAfterResume() {
 
     syncInFlight = null;
     pendingSyncUserId = null;
+    pendingSyncMode = null;
     retryCount = 0;
 }
 
@@ -101,6 +106,10 @@ export type SyncNowResult =
   | "retry_scheduled"
   | "success"
   | "skipped";
+
+export type SyncMode =
+  | "merge_local"
+  | "remote_overwrite_local";
 
 async function runWithTimeout<T>(
   promiseFactory: () => Promise<T>,
@@ -167,6 +176,24 @@ export function getSyncState(): SyncState {
     return syncState;
 }
 
+function chooseSyncMode(
+    current: SyncMode | null,
+    next: SyncMode | undefined
+): SyncMode | null {
+    if (current === "remote_overwrite_local") {
+        return current;
+    }
+
+    return next ?? current;
+}
+
+export function requireRemoteAuthoritativeSync(userId: string) {
+    appMetaRepo.setMeta(
+        REMOTE_AUTHORITATIVE_SYNC_USER_ID_META,
+        userId
+    );
+}
+
 export async function claimAnonymousLocalDataIfNeeded(userId: string | null) {
     if (!userId) return;
 
@@ -174,6 +201,31 @@ export async function claimAnonymousLocalDataIfNeeded(userId: string | null) {
 
     practiceRepo.claimAnonymousPractices(userId, now);
     sessionRepo.claimAnonymousSessions(userId, now);
+    deletedRecordRepo.claimAnonymousDeletedRecords(userId);
+}
+
+function isUnchangedSeededPractice(row: practiceRepo.PracticeRow) {
+    if (!SEEDED_IDS.has(row.id)) return false;
+
+    const defaultPractice =
+        DEFAULT_PRACTICES.find((practice) => practice.id === row.id);
+
+    if (!defaultPractice) return false;
+
+    return (
+        row.name === defaultPractice.name &&
+        row.targetCount === defaultPractice.targetCount &&
+        row.orderIndex === defaultPractice.orderIndex &&
+        (row.imageKey ?? null) === (defaultPractice.imageKey ?? null) &&
+        (row.defaultAddCount ?? 108) === (defaultPractice.defaultAddCount ?? 108) &&
+        (row.totalOffset ?? 0) === (defaultPractice.totalOffset ?? 0)
+    );
+}
+
+function isUnchangedSeededPracticeWithoutSessions(row: practiceRepo.PracticeRow) {
+    if (!isUnchangedSeededPractice(row)) return false;
+
+    return sessionRepo.getSessionsByPracticeForSync(row.id).length === 0;
 }
 
 function isDirty(syncStatus: string | null | undefined) {
@@ -257,6 +309,15 @@ async function pushPendingPractices(userId: string) {
     const rowsToPush = rows.filter((row) => {
         const remote = remoteById.get(row.id);
         if (!remote) return true;
+
+        if (
+            remote.deleted_at &&
+            remoteTimestamp(remote) >= (row.updatedAt ?? 0) &&
+            isUnchangedSeededPracticeWithoutSessions(row)
+        ) {
+            practiceRepo.upsertPracticeFromRemote(remote);
+            return false;
+        }
 
         if (remoteTimestamp(remote) > (row.updatedAt ?? 0)) {
             practiceRepo.upsertPracticeFromRemote(remote);
@@ -507,10 +568,6 @@ async function pullPractices(userId: string): Promise<RemotePracticeRow[]> {
                 deleted_at
             `)
             .eq("user_id", userId)
-            .or(
-                "deleted_at.is.null,deleted_at.gt." +
-                new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString()
-            )
             .order("order_index", { ascending: true })
     );
 
@@ -535,7 +592,12 @@ function applyRemotePractices(userId: string, rows: RemotePracticeRow[]) {
             );
 
         if (row.deleted_at) {
-            if (local && isDirty(local.syncStatus) && localUpdatedAt > remoteDeletedAt) {
+            const shouldKeepDirtyLocal =
+                local &&
+                isDirty(local.syncStatus) &&
+                localUpdatedAt > remoteDeletedAt;
+
+            if (shouldKeepDirtyLocal) {
                 continue;
             }
 
@@ -563,7 +625,73 @@ function applyRemotePractices(userId: string, rows: RemotePracticeRow[]) {
     }
 }
 
-async function pullSessions(userId: string) {
+function discardUnchangedLocalSeedsMissingFromRemote(
+    userId: string,
+    remoteRows: RemotePracticeRow[]
+) {
+    if (remoteRows.length === 0) return;
+
+    const remoteIds = new Set(remoteRows.map((row) => row.id));
+
+    for (const local of practiceRepo.getAllPractices()) {
+        if (remoteIds.has(local.id)) continue;
+        if (!isUnchangedSeededPracticeWithoutSessions(local)) continue;
+
+        const pendingDeletion =
+            deletedRecordRepo.getPendingDeletedRecordForRecord(
+                userId,
+                "practice",
+                local.id
+            );
+
+        if (pendingDeletion) continue;
+
+        sessionRepo.deleteSessionsByPractice(local.id);
+        practiceRepo.deletePractice(local.id);
+    }
+}
+
+function replaceLocalDataWithRemoteSnapshot(
+    practices: RemotePracticeRow[],
+    sessions: RemoteSessionRow[]
+) {
+    deletedRecordRepo.deleteAllDeletedRecords();
+    sessionRepo.deleteAllSessions();
+    practiceRepo.deleteAllPractices();
+
+    const activePracticeIds = new Set<string>();
+
+    for (const practice of practices) {
+        if (practice.deleted_at) continue;
+
+        practiceRepo.upsertPracticeFromRemote(practice);
+        activePracticeIds.add(practice.id);
+    }
+
+    for (const session of sessions) {
+        if (session.deleted_at) continue;
+        if (!activePracticeIds.has(session.practice_id)) continue;
+
+        sessionRepo.upsertSessionFromRemote(session);
+    }
+}
+
+async function syncRemoteAuthoritative(userId: string) {
+    console.log("SYNC: pulling remote snapshot");
+    const remotePractices = await pullPractices(userId);
+    const remoteSessions = await pullSessionRows(userId);
+
+    console.log("SYNC: replacing local data with remote snapshot");
+    replaceLocalDataWithRemoteSnapshot(
+        remotePractices,
+        remoteSessions
+    );
+
+    appMetaRepo.deleteMeta("pendingBackupRestore");
+    appMetaRepo.deleteMeta(REMOTE_AUTHORITATIVE_SYNC_USER_ID_META);
+}
+
+async function pullSessionRows(userId: string): Promise<RemoteSessionRow[]> {
     const { data, error } = await withTimeout(async () => getSupabase()
         .from("sessions")
         .select(`
@@ -576,18 +704,21 @@ async function pullSessions(userId: string) {
       deleted_at
     `)
         .eq("user_id", userId)
-        .or("deleted_at.is.null,deleted_at.gt." + new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString()) // keep very recent deletions only
         .order("created_at", { ascending: true }));
 
     if (error) {
         throw error;
     }
 
+    return (data ?? []) as RemoteSessionRow[];
+}
+
+function applyRemoteSessions(userId: string, rows: RemoteSessionRow[]) {
     const localSessionsById = new Map(
         sessionRepo.getAllSessionsForSync().map((row) => [row.id, row])
     );
 
-    for (const row of (data ?? []) as RemoteSessionRow[]) {
+    for (const row of rows) {
         const local = localSessionsById.get(row.id as string);
 
         const remoteUpdatedAt = new Date(row.updated_at as string).getTime();
@@ -629,12 +760,47 @@ async function pullSessions(userId: string) {
     }
 }
 
-export async function syncNow(userId: string | null): Promise<SyncNowResult> {
+async function pullSessions(userId: string) {
+    applyRemoteSessions(
+        userId,
+        await pullSessionRows(userId)
+    );
+}
+
+export async function syncNow(
+    userId: string | null,
+    options?: {
+        mode?: SyncMode;
+    }
+): Promise<SyncNowResult> {
     if (!userId) return "skipped";
 
     lastUserId = userId;
+    const requiredRemoteSyncUserId =
+        appMetaRepo.getMeta(REMOTE_AUTHORITATIVE_SYNC_USER_ID_META);
+    const hasPendingLocalOverwrite =
+        appMetaRepo.getMeta("pendingBackupRestore") === "true";
+
+    if (hasPendingLocalOverwrite) {
+        appMetaRepo.deleteMeta(REMOTE_AUTHORITATIVE_SYNC_USER_ID_META);
+    }
+
+    const mode =
+        !hasPendingLocalOverwrite &&
+        requiredRemoteSyncUserId === userId
+            ? "remote_overwrite_local"
+            : options?.mode ?? "merge_local";
+
+    if (mode === "remote_overwrite_local") {
+        requireRemoteAuthoritativeSync(userId);
+    }
 
     if (!getIsOnline()) {
+        if (mode === "remote_overwrite_local") {
+            pendingSyncUserId = userId;
+            pendingSyncMode = mode;
+        }
+
         setSyncState("offline");
         return "offline";
     }
@@ -648,6 +814,16 @@ export async function syncNow(userId: string | null): Promise<SyncNowResult> {
     try {
         setSyncState("syncing");
 
+        if (mode === "remote_overwrite_local") {
+            await syncRemoteAuthoritative(userId);
+            await markLocalDataOwnerIfSessionIsCurrent(userId);
+
+            emitDataChanged();
+            setSyncState("success");
+            retryCount = 0;
+            return "success";
+        }
+
         console.log("SYNC: claim");
         await claimAnonymousLocalDataIfNeeded(userId);
 
@@ -658,6 +834,7 @@ export async function syncNow(userId: string | null): Promise<SyncNowResult> {
 
         console.log("SYNC: applying remote practices");
         applyRemotePractices(userId, remotePractices);
+        discardUnchangedLocalSeedsMissingFromRemote(userId, remotePractices);
 
         console.log("SYNC: pulling sessions");
         await pullSessions(userId);
@@ -710,6 +887,7 @@ export async function syncNow(userId: string | null): Promise<SyncNowResult> {
         setSyncState("syncing");
 
         pendingSyncUserId = userId;
+        pendingSyncMode = mode;
 
         const delay = getRetryDelay();
         retryCount++;
@@ -728,11 +906,16 @@ export async function requestSync(
     userId: string | null,
     options?: {
         immediate?: boolean;
+        mode?: SyncMode;
     }
 ) {
     if (!userId) return;
 
     pendingSyncUserId = userId;
+    pendingSyncMode = chooseSyncMode(
+        pendingSyncMode,
+        options?.mode
+    );
 
     if (scheduledSyncTimeout) {
         clearTimeout(scheduledSyncTimeout);
@@ -757,12 +940,14 @@ async function runQueuedSync() {
     if (!pendingSyncUserId) return;
 
     const userId = pendingSyncUserId;
+    const mode = pendingSyncMode ?? "merge_local";
     pendingSyncUserId = null;
+    pendingSyncMode = null;
 
     syncInFlight = (async () => {
 
         try {
-            await syncNow(userId);
+            await syncNow(userId, { mode });
         } catch (error) {
             console.warn("Queued sync error:", error);
         }
@@ -808,16 +993,23 @@ export function getSyncLabel(state: SyncState): string {
 }
 
 export async function resetLocalSyncState() {
+    appMetaRepo.deleteMeta(REMOTE_AUTHORITATIVE_SYNC_USER_ID_META);
     practiceRepo.resetAllSyncState();
     sessionRepo.resetAllSyncState();
 }
 
-export async function wipeRemoteUserData(userId: string) {
-    if (!userId) return;
+export async function wipeRemoteUserData(userId: string): Promise<number | null> {
+    if (!userId) return null;
+
+    const deletedAt = Date.now();
+    const deletedAtIso = new Date(deletedAt).toISOString();
     
     const { error: sessionError } = await withTimeout(async () => getSupabase()
         .from("sessions")
-        .delete()
+        .update({
+            updated_at: deletedAtIso,
+            deleted_at: deletedAtIso,
+        })
         .eq("user_id", userId)
         .select());
 
@@ -825,11 +1017,16 @@ export async function wipeRemoteUserData(userId: string) {
 
     const { error: practiceError } = await withTimeout( async () => getSupabase()
         .from("practices")
-        .delete()
+        .update({
+            updated_at: deletedAtIso,
+            deleted_at: deletedAtIso,
+        })
         .eq("user_id", userId)
         .select());
 
     if (practiceError) throw practiceError;
+
+    return deletedAt;
 }
 
 function getRetryDelay() {
@@ -920,7 +1117,22 @@ async function wipePendingBackupRestore(userId: string){
 
     if (pendingBackupRestore === "true") {
         console.log( "SYNC: backup restore detected -> wiping remote");
-        await wipeRemoteUserData(userId);
+        const remoteDeletedAt =
+            await wipeRemoteUserData(userId);
+
+        if (remoteDeletedAt != null) {
+            const localUpdatedAt = remoteDeletedAt + 1;
+
+            practiceRepo.markAllPracticesPending(
+                userId,
+                localUpdatedAt
+            );
+            sessionRepo.markAllSessionsPending(
+                userId,
+                localUpdatedAt
+            );
+        }
+
         appMetaRepo.setMeta(
             "pendingBackupRestore",
             "false"

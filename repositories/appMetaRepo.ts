@@ -24,6 +24,13 @@ export function setMeta(key: string, value: string) {
   );
 }
 
+export function deleteMeta(key: string) {
+  db.runSync(
+    `DELETE FROM app_meta WHERE key = ?`,
+    key
+  );
+}
+
 export function getLocalDataOwnerUserId(): string | null {
   return getMeta("localDataOwnerUserId");
 }
@@ -39,8 +46,5 @@ export function setLocalDataOwnerUserId(userId: string | null) {
 }
 
 export function clearLocalDataOwnerUserId() {
-  db.runSync(
-    `DELETE FROM app_meta WHERE key = ?`,
-    "localDataOwnerUserId"
-  );
+  deleteMeta("localDataOwnerUserId");
 }

@@ -10,7 +10,6 @@ import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Alert } from "react-native";
 import * as appMetaRepo from "../repositories/appMetaRepo";
-import { getIsOnline } from "../services/networkService";
 
 export async function exportBackup() {
 
@@ -74,11 +73,6 @@ export async function importBackup(onComplete?: () => void) {
                 "pendingBackupRestore",
                 "true"
             );
-
-            if (userId && getIsOnline()) {
-                console.log("IMPORT: wiping remote before sync");
-                await syncService.wipeRemoteUserData(userId);
-            }
 
             // ✅ 4. Compute what should be deleted remotely
             const importedIds = new Set(

@@ -42,16 +42,23 @@ export async function initializeApp() {
     initializeNetworkListener();
     initializeSyncRetry();
     ensureInstallDate();
+    await authService.initializeAuth();
 
     const existing = db.getAllSync(
         `SELECT COUNT(*) as count FROM practices`
     ) as { count: number }[];
 
-    if (existing[0].count === 0) {
+    const authState = authService.getAuthState();
+    const hasLocalOwner = !!appMetaRepo.getLocalDataOwnerUserId();
+
+    if (
+        existing[0].count === 0 &&
+        !authState.isAuthenticated &&
+        !hasLocalOwner
+    ) {
         seedPractices();
     }
 
-    await authService.initializeAuth();
     checkForAppUpdate();
 }
 
@@ -175,6 +182,14 @@ export async function restoreDefaults() {
           }
 
           practiceRepo.resetPracticeTotals(userId, now);
+
+          if (userId) {
+              deletedRecordRepo.deleteAllDeletedRecords();
+              appMetaRepo.setMeta(
+                  "pendingBackupRestore",
+                  "true"
+              );
+          }
 
           appMetaRepo.setMeta(
               "lastRestoreDate",

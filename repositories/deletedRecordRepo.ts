@@ -55,6 +55,18 @@ export function getPendingDeletedRecords(userId: string) {
     ) as DeletedRecordRow[];
 }
 
+export function claimAnonymousDeletedRecords(userId: string) {
+    db.runSync(
+        `
+      UPDATE deleted_records
+      SET userId = ?
+      WHERE userId IS NULL
+        AND syncStatus IN ('pending', 'failed')
+    `,
+        userId
+    );
+}
+
 export function markDeletedRecordSynced(id: string) {
     db.runSync(
         `
