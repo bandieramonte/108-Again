@@ -6,11 +6,17 @@ import * as syncService from "@/services/syncService";
 import { emitAuthChanged, subscribeAuthInvalid } from "@/utils/events";
 import Constants from "expo-constants";
 import { Alert } from "react-native";
+import {
+    assertCanCreateAccountOnDevice,
+    assertCanSignInOnDevice,
+} from "./authAccountGuard";
+import {
+    deleteAccountCore,
+    resetPasswordCore,
+} from "./authAccountActions";
 
 let isPasswordRecoveryFlow = false;
 let blockAuthStateHandler = false;
-const ONE_ACCOUNT_PER_DEVICE_MESSAGE =
-    "Only one account can be used on this device at a time.\n\nLog in with the existing account for this device, or delete that account before creating or using another one.";
 
 function validateAuthFieldLength(
     value: string,
@@ -257,9 +263,10 @@ export async function signUp(
         AUTH_FIELD_LIMITS.password
     );
 
-    if (hasDifferentLocalAccountForEmail(trimmedEmail)) {
-        throw new Error(ONE_ACCOUNT_PER_DEVICE_MESSAGE);
-    }
+    assertCanCreateAccountOnDevice(
+        { appMetaRepo, profileRepo },
+        trimmedEmail
+    );
 
     blockAuthStateHandler = true;
     try {
@@ -356,15 +363,23 @@ export async function signIn(email: string, password: string) {
             throw new Error("Log in succeeded but no user was returned.");
         }
 
-        if (isDifferentLocalDataOwner(user.id, user.email ?? trimmedEmail)
-        ) {
+        try {
+            assertCanSignInOnDevice(
+                { appMetaRepo, profileRepo },
+                user.id,
+                user.email ?? trimmedEmail
+            );
+        } catch (error) {
             try {
                 await signOut();
-            } catch (error) {
-                console.warn("Failed to sign out blocked account:", error);
+            } catch (signOutError) {
+                console.warn(
+                    "Failed to sign out blocked account:",
+                    signOutError
+                );
             }
 
-            throw new Error(ONE_ACCOUNT_PER_DEVICE_MESSAGE);
+            throw error;
         }
 
         const firstLoginOnThisDevice =
@@ -419,120 +434,34 @@ async function signOutDeletedAccount() {
 }
 
 export async function deleteAccount() {
-    try {
-        const { error } = await syncService.withTimeout(
-            () => getSupabase().functions.invoke("delete-user"),
-            15000
-        );
-
-        if (error) {
-            console.warn("Delete account error:", error);
-
-            const deleted = await syncService.isUserDeleted();
-
-            if (deleted) {
+    await deleteAccountCore({
+        invokeDeleteUser: () => getSupabase().functions.invoke("delete-user"),
+        isUserDeleted: syncService.isUserDeleted,
+        logger: console,
+        onAccountDeletedDespiteInvokeError: () => {
                 Alert.alert(
                     "Account deleted",
                     "Your account has been deleted."
                 );
-
-                await signOutDeletedAccount();
-                return;
-            }
-
-            throw new Error(
-                "Failed to delete account. Please try again."
-            );
-        }
-
-        await signOutDeletedAccount();
-
-    } catch (e: any) {
-        if (e?.message?.includes("timeout")) {
-            throw new Error(
-                "Request timed out. Please try again in a few minutes. If the issue persists, please reopen the app and try again."
-            );
-        }
-
-        throw e;
-    }
+        },
+        signOutDeletedAccount,
+        withTimeout: syncService.withTimeout,
+    });
 }
 
 export async function resetPassword(email: string) {
 
-    const trimmedEmail = email.trim().toLowerCase();
     const redirectTo = `${Constants.expoConfig?.scheme ?? 'app108again'}://reset-password`;
 
-    if (!trimmedEmail) {
-        throw new Error("Email is required.");
-    }
-
-    validateAuthFieldLength(
-        trimmedEmail,
-        "Email",
-        AUTH_FIELD_LIMITS.email
+    await resetPasswordCore(
+        {
+            redirectTo,
+            resetPasswordForEmail: (trimmedEmail, options) =>
+                getSupabase().auth.resetPasswordForEmail(
+                    trimmedEmail,
+                    options
+                ),
+        },
+        email
     );
-
-    const { error } = await getSupabase().auth.resetPasswordForEmail(trimmedEmail, {
-        redirectTo,
-    });
-
-    if (error) {
-        throw new Error(error.message);
-    }
-}
-
-function normalizeEmail(email: string | null | undefined): string | null {
-    const normalized = email?.trim().toLowerCase();
-    return normalized || null;
-}
-
-function hasDifferentLocalAccountForEmail(nextEmail: string): boolean {
-    const ownerId = appMetaRepo.getLocalDataOwnerUserId();
-
-    if (!ownerId) {
-        return false;
-    }
-
-    const ownerProfile = profileRepo.getUserProfileById(ownerId);
-
-    if (!ownerProfile?.email) {
-        return false;
-    }
-
-    return normalizeEmail(ownerProfile.email) !== normalizeEmail(nextEmail);
-}
-
-function isDifferentLocalDataOwner(
-    nextUserId: string,
-    nextEmail: string | null
-): boolean {
-    const ownerId = appMetaRepo.getLocalDataOwnerUserId();
-
-    if (!ownerId) {
-        return false;
-    }
-
-    if (ownerId === nextUserId) {
-        return false;
-    }
-
-    if (profileRepo.getUserProfileById(nextUserId)) {
-        return false;
-    }
-
-    const ownerProfile = profileRepo.getUserProfileById(ownerId);
-
-    if (!ownerProfile?.email) {
-        return false;
-    }
-
-    if (
-        normalizeEmail(ownerProfile.email) ===
-        normalizeEmail(nextEmail)
-    ) {
-        return false;
-    }
-
-    return ownerId !== nextUserId;
 }

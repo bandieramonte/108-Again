@@ -1,26 +1,9 @@
-import { SEEDED_IDS } from "@/constants/defaultPractices";
-import { enqueueWrite } from "@/database/writeQueue";
-import { randomUUID } from "expo-crypto";
-import { db } from "../database/db";
-import * as deletedRecordRepo from "../repositories/deletedRecordRepo";
-import * as practiceRepo from "../repositories/practiceRepo";
-import * as sessionRepo from "../repositories/sessionRepo";
-import * as authService from "../services/authService";
-import * as syncService from "../services/syncService";
 import { SyncMetadata } from "../types/sync";
-import { emitDataChanged } from "../utils/events";
-import { MAX_TARGET_COUNT } from "../utils/numberUtils";
+import { getAppOperationEngine } from "./appOperationRuntime";
 
 export function getWriteSyncMetadata() : SyncMetadata {
-    const userId = authService.getCurrentUserId();
-    const now = Date.now();
-
-    return {
-        userId,
-        updatedAt: now,
-        syncStatus: userId ? ("pending" as const) : ("synced" as const),
-        lastSyncedAt: userId ? null : now,
-    };
+    return getAppOperationEngine()
+        .getWriteSyncMetadata();
 }
 
 export function createPractice(
@@ -28,29 +11,11 @@ export function createPractice(
     target: number,
     defaultAddCount: number = 108
 ) {
-    const practices = practiceRepo.getAllPractices();
-
-    if (practices.length >= 10) {
-        throw new Error("Maximum of 10 practices reached.");
-    }
-
-    const orderResult = practiceRepo.getMaxOrderIndex();
-    const nextOrder = (orderResult.maxOrder ?? 0) + 1;
-    const syncMetadata = getWriteSyncMetadata();
-
-    practiceRepo.insertPractice(
-        randomUUID(),
+    return getAppOperationEngine().createPractice(
         name,
         target,
-        nextOrder,
-        syncMetadata,
-        null,
-        defaultAddCount,
-        0
+        defaultAddCount
     );
-
-    emitDataChanged();
-    void syncService.requestSync(syncMetadata.userId);
 }
 
 export function updatePractice(
@@ -59,183 +24,42 @@ export function updatePractice(
     target: number,
     newTotal: number
 ) {
-
-    if (newTotal > MAX_TARGET_COUNT) {
-        throw new Error(
-            `Total count cannot exceed ${MAX_TARGET_COUNT.toLocaleString()}`
-        );
-    }
-
-    const currentTotal = sessionRepo.getPracticeTotal(id).total;
-    const difference = newTotal - currentTotal;
-    const syncMetadata = getWriteSyncMetadata();
-
-    practiceRepo.updatePractice(
+    getAppOperationEngine().updatePractice(
         id,
         name,
         target,
-        syncMetadata
+        newTotal
     );
-
-if (difference !== 0) {
-    const practice = practiceRepo.getPracticeById(id);
-
-    const currentOffset = practice?.totalOffset ?? 0;
-    const newOffset = currentOffset + difference;
-
-    practiceRepo.updatePracticeTotalOffset(
-        id,
-        newOffset,
-        syncMetadata
-    );
-}
-
-    emitDataChanged();
-    void syncService.requestSync(syncMetadata.userId);
 }
 
 export async function deletePractice(id: string) {
-
-    const userId = authService.getCurrentUserId();
-    const deletedAt = Date.now();
-
-    await enqueueWrite(() => {
-
-        db.execSync("BEGIN TRANSACTION");
-
-        try {
-
-            const practice = practiceRepo.getPracticeById(id);
-
-            if (!practice) {
-                throw new Error(`Practice not found: ${id}`);
-            }
-
-            const sessions =
-                sessionRepo.getSessionsByPracticeForSync(id);
-
-            const practiceExistsRemotely =
-                !!practice.userId &&
-                !!practice.lastSyncedAt;
-
-            const deletionOwnerUserId =
-                practice.userId ?? userId;
-
-            const shouldCreatePracticeDeletion =
-                practiceExistsRemotely ||
-                SEEDED_IDS.has(id);
-
-            if (deletionOwnerUserId && practiceExistsRemotely) {
-                // -------------------------
-                // SESSION DELETIONS
-                // -------------------------
-                for (const session of sessions) {
-
-                    const sessionExistsRemotely =
-                        !!session.userId &&
-                        !!session.lastSyncedAt;
-
-                    if (!sessionExistsRemotely) continue;
-
-                    deletedRecordRepo.insertDeletedRecord(
-                        randomUUID(),
-                        "session",
-                        session.id,
-                        deletionOwnerUserId,
-                        deletedAt,
-                        "pending",
-                        JSON.stringify({
-                            practiceId: session.practiceId,
-                            createdAt: session.createdAt,
-                        })
-                    );
-                }
-            }
-
-            // -------------------------
-            // PRACTICE DELETION
-            // -------------------------
-            if (shouldCreatePracticeDeletion) {
-                deletedRecordRepo.insertDeletedRecord(
-                    randomUUID(),
-                    "practice",
-                    id,
-                    deletionOwnerUserId,
-                    deletedAt,
-                    "pending",
-                    JSON.stringify({
-                        name: practice.name,
-                        targetCount: practice.targetCount,
-                        orderIndex: practice.orderIndex,
-                        imageKey: practice.imageKey ?? null,
-                        defaultAddCount:
-                            practice.defaultAddCount ?? 108,
-                        totalOffset: practice.totalOffset ?? 0,
-                    })
-                );
-            }
-
-            sessionRepo.deleteSessionsByPractice(id);
-            practiceRepo.deletePractice(id);
-
-            db.execSync("COMMIT");
-
-        } catch (error) {
-
-            db.execSync("ROLLBACK");
-            throw error;
-
-        }
-
-    });
-
-    emitDataChanged();
-    void syncService.requestSync(userId);
+    await getAppOperationEngine().deletePractice(id);
 }
 
 export function getPracticeEditData(id: string) {
-    const practice = practiceRepo.getPracticeById(id);
-
-    if (!practice) {
-        throw new Error(`Practice not found: ${id}`);
-    }
-
-    const totalResult = sessionRepo.getPracticeTotal(id);
-
-    return {
-        name: practice.name,
-        targetCount: practice.targetCount,
-        total: totalResult.total,
-        defaultAddCount: practice.defaultAddCount ?? 108,
-    };
+    return getAppOperationEngine().getPracticeEditData(id);
 }
 
 export function getPracticeName(id: string) {
-    return practiceRepo.getPracticeName(id);
+    return getAppOperationEngine().getPracticeName(id);
 }
 
 export function getPractice(id: string) {
-    return practiceRepo.getPracticeById(id);
+    return getAppOperationEngine().getPractice(id);
 }
 
 export function getAllPractices() {
-    return practiceRepo.getAllPractices();
+    return getAppOperationEngine().getAllPractices();
 }
 
 export function updatePracticeDefaultAddCount(
     id: string,
     defaultAddCount: number
 ) {
-    const syncMetadata = getWriteSyncMetadata();
-
-    practiceRepo.updatePracticeDefaultAddCount(
+    getAppOperationEngine().updatePracticeDefaultAddCount(
         id,
         defaultAddCount,
-        syncMetadata
     );
-
-    emitDataChanged();
-    void syncService.requestSync(syncMetadata.userId);
 }
 
 export function getExpectedTargetDate(

@@ -1,26 +1,15 @@
-import { DEFAULT_PRACTICES, SEEDED_IDS } from "@/constants/defaultPractices";
-import { enqueueWrite } from "@/database/writeQueue";
-import { getSupabase, markSupabaseClientStaleAfterBackground, recreateSupabase } from "@/lib/supabase";
-import { randomUUID } from "expo-crypto";
-import { AppState } from "react-native";
-import { db, initializeDatabase } from "../database/db";
-import { seedPractices } from "../database/seed";
-import * as appMetaRepo from "../repositories/appMetaRepo";
-import * as deletedRecordRepo from "../repositories/deletedRecordRepo";
-import * as practiceRepo from "../repositories/practiceRepo";
-import * as sessionRepo from "../repositories/sessionRepo";
-import * as authService from "../services/authService";
-import { checkForAppUpdate } from "../services/appUpdateService";
-import * as practiceService from "../services/practiceService";
-import * as syncService from "../services/syncService";
-import { emitDataChanged } from "../utils/events";
-import { initializeNetworkListener } from "./networkService";
-import { initializeSyncRetry } from "./syncService";
+import { getAppOperationEngine } from "./appOperationRuntime";
 
 const INACTIVE_THRESHOLD = 10 * 60 * 1000; //10 minutes
 const RESUME_SESSION_TIMEOUT = 5000;
 
+declare const require: {
+    (path: string): any;
+};
+
 let backgroundedAt: number | null = null;
+let initialized = false;
+let lastState = "unknown";
 
 function withResumeTimeout<T>(
     promise: Promise<T>,
@@ -38,13 +27,21 @@ function withResumeTimeout<T>(
 }
 
 export async function initializeApp() {
-    initializeDatabase();
-    initializeNetworkListener();
-    initializeSyncRetry();
+    const database = require("../database/db");
+    const networkService = require("./networkService");
+    const syncService = require("./syncService");
+    const authService = require("../services/authService");
+    const appMetaRepo = require("../repositories/appMetaRepo");
+    const seed = require("../database/seed");
+    const appUpdateService = require("../services/appUpdateService");
+
+    database.initializeDatabase();
+    networkService.initializeNetworkListener();
+    syncService.initializeSyncRetry();
     ensureInstallDate();
     await authService.initializeAuth();
 
-    const existing = db.getAllSync(
+    const existing = database.db.getAllSync(
         `SELECT COUNT(*) as count FROM practices`
     ) as { count: number }[];
 
@@ -56,172 +53,26 @@ export async function initializeApp() {
         !authState.isAuthenticated &&
         !hasLocalOwner
     ) {
-        seedPractices();
+        seed.seedPractices();
     }
 
-    checkForAppUpdate();
+    appUpdateService.checkForAppUpdate();
 }
 
 export async function restoreDefaults() {
-
-    const userId = authService.getCurrentUserId();
-
-    await enqueueWrite(() => {
-
-        db.execSync("BEGIN TRANSACTION");
-
-        try {
-
-          const now = Date.now();
-
-          const sessions = sessionRepo.getAllSessionsForSync();
-
-          for (const s of sessions) {
-              const deletionUserId = s.userId ?? userId;
-
-              if (!deletionUserId) continue;
-
-              deletedRecordRepo.insertDeletedRecord(
-                  randomUUID(),
-                  "session",
-                  s.id,
-                  deletionUserId,
-                  now,
-                  "pending",
-                  JSON.stringify({
-                      practiceId: s.practiceId,
-                      createdAt: s.createdAt,
-                  })
-              );
-          }
-
-          sessionRepo.softDeleteAllSessions(userId, now);
-          sessionRepo.deleteAllSessions();
-
-          const practices = practiceRepo.getAllPractices();
-
-          for (const p of practices) {
-              const isSeeded = SEEDED_IDS.has(p.id);
-
-              if (!isSeeded) {
-                  // -------------------------
-                  // DELETE USER PRACTICES
-                  // -------------------------
-                  const deletionUserId = p.userId ?? userId;
-
-                  if (deletionUserId) {
-                  deletedRecordRepo.insertDeletedRecord(
-                      randomUUID(),
-                      "practice",
-                      p.id,
-                      deletionUserId,
-                      now,
-                      "pending",
-                      JSON.stringify({
-                          name: p.name,
-                          targetCount: p.targetCount,
-                          orderIndex: p.orderIndex,
-                          imageKey: p.imageKey ?? null,
-                          defaultAddCount: p.defaultAddCount ?? 108,
-                          totalOffset: p.totalOffset ?? 0
-                      })
-                  );
-                  }
-
-                  practiceRepo.deletePractice(p.id);
-              } else {
-                  // -------------------------
-                  // RESET SEEDED PRACTICES
-                  // -------------------------
-                  const defaultPractice =
-                      DEFAULT_PRACTICES.find(d => d.id === p.id);
-
-                  if (defaultPractice) {
-                      practiceRepo.updatePractice(
-                          p.id,
-                          defaultPractice.name,
-                          defaultPractice.targetCount,
-                          {
-                              userId,
-                              updatedAt: now,
-                              syncStatus: "pending",
-                              lastSyncedAt: null
-                          }
-                      );
-
-                      practiceRepo.updatePracticeDefaultAddCount(
-                          p.id,
-                          defaultPractice.defaultAddCount ?? 108,
-                          {
-                              userId,
-                              updatedAt: now,
-                              syncStatus: "pending",
-                              lastSyncedAt: null
-                          }
-                      );
-                  }
-              }
-          }
-
-          for (const defaultPractice of DEFAULT_PRACTICES) {
-              const existingPractice =
-                  practiceRepo.getPracticeById(defaultPractice.id);
-
-              if (!existingPractice) {
-                  practiceRepo.insertPractice(
-                      defaultPractice.id,
-                      defaultPractice.name,
-                      defaultPractice.targetCount,
-                      defaultPractice.orderIndex,
-                      practiceService.getWriteSyncMetadata(),
-                      defaultPractice.imageKey ?? null,
-                      defaultPractice.defaultAddCount ?? 108,
-                      0
-                  );
-              }
-          }
-
-          practiceRepo.resetPracticeTotals(userId, now);
-
-          if (userId) {
-              deletedRecordRepo.deleteAllDeletedRecords();
-              appMetaRepo.setMeta(
-                  "pendingBackupRestore",
-                  "true"
-              );
-          }
-
-          appMetaRepo.setMeta(
-              "lastRestoreDate",
-              new Date().toISOString()
-          );
-
-          db.execSync("COMMIT");
-
-        } catch (error) {
-
-            db.execSync("ROLLBACK");
-            throw error;
-
-        }
-
-    });
-
-    emitDataChanged();
-
-    if (userId) {
-      await syncService.requestSync(userId);
-    }
+    await getAppOperationEngine().restoreDefaults();
 }
 
 export function getCalendarStartDate(
     practiceId: string
 ): Date {
+    const appMetaRepo = require("../repositories/appMetaRepo");
+    const sessionRepo = require("../repositories/sessionRepo");
 
     const install = appMetaRepo.getMeta("installDate");
     const restore = appMetaRepo.getMeta("lastRestoreDate");
-
-    const earliestSession = sessionRepo.getEarliestSessionDateForPractice(practiceId);
+    const earliestSession =
+        sessionRepo.getEarliestSessionDateForPractice(practiceId);
     const candidates: number[] = [];
 
     if (install) {
@@ -246,11 +97,10 @@ export function getCalendarStartDate(
 }
 
 export function ensureInstallDate() {
-
+  const appMetaRepo = require("../repositories/appMetaRepo");
   const existing = appMetaRepo.getMeta("installDate");
 
   if (!existing) {
-
     appMetaRepo.setMeta(
       "installDate",
       new Date().toISOString()
@@ -259,10 +109,14 @@ export function ensureInstallDate() {
 }
 
 export async function handleAppResume() {
+    const supabase = require("../lib/supabase");
+    const syncService = require("./syncService");
+    const authService = require("../services/authService");
+    const appUpdateService = require("../services/appUpdateService");
 
     console.log("entering handle app resume");
 
-    checkForAppUpdate();
+    appUpdateService.checkForAppUpdate();
 
     const inactiveMs =
         backgroundedAt == null
@@ -277,25 +131,24 @@ export async function handleAppResume() {
         return;
     }
 
-    markSupabaseClientStaleAfterBackground();
+    supabase.markSupabaseClientStaleAfterBackground();
 
     const userId = authService.getCurrentUserId();
     console.log(userId);
 
     try {
-
         console.log(
             "Resume: rebuilding Supabase client"
         );
 
-        await recreateSupabase();
+        await supabase.recreateSupabase();
         syncService.resetStaleSyncStateAfterResume();
 
         await new Promise((resolve) => setTimeout(resolve, 300));
 
         try {
             await withResumeTimeout(
-                getSupabase().auth.getSession(),
+                supabase.getSupabase().auth.getSession(),
                 RESUME_SESSION_TIMEOUT
             );
         } catch (sessionError) {
@@ -310,9 +163,7 @@ export async function handleAppResume() {
         await syncService.requestSync(userId, {
             immediate: true
         });
-
     } catch (e) {
-
         console.warn(
             "Resume recovery failed",
             e
@@ -320,17 +171,16 @@ export async function handleAppResume() {
     }
 }
 
-let initialized = false;
-let lastState = AppState.currentState;
-
 export function initAppStateListener(onResume: () => void) {
     if (initialized) return;
 
+    const { AppState } = require("react-native");
+
     initialized = true;
+    lastState = AppState.currentState;
 
-    AppState.addEventListener("change", (nextState) => {
-
-        console.log("AppState:", lastState, "→", nextState);
+    AppState.addEventListener("change", (nextState: string) => {
+        console.log("AppState:", lastState, "->", nextState);
 
         if (nextState.match(/inactive|background/)) {
             console.log("inactive");

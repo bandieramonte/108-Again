@@ -1,50 +1,18 @@
 import { db } from "../database/db";
+import { createAppMetaRepo } from "./appMetaRepoFactory";
 
-export function getMeta(key: string): string | null {
+export {
+  createAppMetaRepo,
+  type AppMetaRepository,
+} from "./appMetaRepoFactory";
 
-  const rows = db.getAllSync(
-    `SELECT value FROM app_meta WHERE key = ?`,
-    key
-  ) as { value: string }[];
+const defaultRepo = createAppMetaRepo(db);
 
-  return rows[0]?.value ?? null;
-}
-
-export function setMeta(key: string, value: string) {
-
-  db.runSync(
-    `
-    INSERT INTO app_meta (key, value)
-    VALUES (?, ?)
-    ON CONFLICT(key)
-    DO UPDATE SET value = excluded.value
-    `,
-    key,
-    value
-  );
-}
-
-export function deleteMeta(key: string) {
-  db.runSync(
-    `DELETE FROM app_meta WHERE key = ?`,
-    key
-  );
-}
-
-export function getLocalDataOwnerUserId(): string | null {
-  return getMeta("localDataOwnerUserId");
-}
-
-export function setLocalDataOwnerUserId(userId: string | null) {
-
-  if (!userId) return;
-
-  setMeta(
-    "localDataOwnerUserId",
-    userId
-  );
-}
-
-export function clearLocalDataOwnerUserId() {
-  deleteMeta("localDataOwnerUserId");
-}
+export const {
+  clearLocalDataOwnerUserId,
+  deleteMeta,
+  getLocalDataOwnerUserId,
+  getMeta,
+  setLocalDataOwnerUserId,
+  setMeta,
+} = defaultRepo;

@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "baseUrl": "../..",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "../.build",
+    "rootDir": "../..",
+    "strict": true,
+    "target": "ES2020",
+    "noEmit": false,
+    "noEmitOnError": true,
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "skipLibCheck": true
+  },
+  "include": [
+    "../../constants/authFieldLimits.ts",
+    "../../constants/defaultPractices.ts",
+    "../../database/seedEngine.ts",
+    "../../database/schema.ts",
+    "../../database/sqliteTypes.ts",
+    "../../repositories/appMetaRepoFactory.ts",
+    "../../repositories/deletedRecordRepoFactory.ts",
+    "../../repositories/practiceRepoFactory.ts",
+    "../../repositories/profileRepoFactory.ts",
+    "../../repositories/sessionRepoFactory.ts",
+    "../../services/authAccountActions.ts",
+    "../../services/authAccountGuard.ts",
+    "../../services/appOperationEngine.ts",
+    "../../services/supabaseSyncRemote.ts",
+    "../../services/syncEngine.ts"
+  ]
+}

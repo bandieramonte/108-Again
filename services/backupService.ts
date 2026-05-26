@@ -1,100 +1,14 @@
-import { db } from "@/database/db";
-import { enqueueWrite } from "@/database/writeQueue";
-import * as deletedRecordRepo from "@/repositories/deletedRecordRepo";
-import * as practiceRepo from "@/repositories/practiceRepo";
-import * as sessionRepo from "@/repositories/sessionRepo";
-import * as authService from "@/services/authService";
-import { MAX_PRACTICE_COUNT, MAX_REPETITIONS_PER_DAY, MAX_TARGET_COUNT } from "@/utils/numberUtils";
+import { MAX_PRACTICE_COUNT, MAX_REPETITIONS_PER_DAY, MAX_TARGET_COUNT } from "../utils/numberUtils";
+import { getAppOperationEngine } from "./appOperationRuntime";
 
 const BACKUP_APP_ID = "app108again";
 
 export function getBackupData() {
-
-    const practices = practiceRepo.getAllPractices();
-    const sessions = sessionRepo.getAllSessionsForSync();
-
-    return {
-        app: BACKUP_APP_ID,
-        exportedAt: Date.now(),
-        practices,
-        sessions
-    };
-
-}
-
-function getBackupSyncMetadata() {
-    const userId = authService.getCurrentUserId();
-    const now = Date.now();
-
-    return {
-        userId,
-        updatedAt: now,
-        syncStatus: "pending" as const,
-        lastSyncedAt: null,
-    };
+    return getAppOperationEngine().getBackupData();
 }
 
 export async function restoreBackupData(data: any) {
-
-    const backupPractices = Array.isArray(data?.practices)
-        ? data.practices
-        : [];
-
-    const sessions = Array.isArray(data?.sessions)
-        ? data.sessions
-        : [];
-
-    const syncMetadata = getBackupSyncMetadata();
-
-    await enqueueWrite(() => {
-
-        db.execSync("BEGIN TRANSACTION");
-
-        try {
-
-            sessionRepo.deleteAllSessions();
-            practiceRepo.deleteAllPractices();
-            deletedRecordRepo.deleteAllDeletedRecords();
-
-            backupPractices.forEach((p: any) => {
-
-                practiceRepo.insertPractice(
-                    p.id,
-                    p.name,
-                    p.targetCount,
-                    p.orderIndex,
-                    syncMetadata,
-                    p.imageKey ?? null,
-                    p.defaultAddCount ?? 108,
-                    p.totalOffset ?? 0
-                );
-
-            });
-
-            sessions.forEach((s: any) => {
-                
-                const id = s.id ?? `${s.practiceId}-${s.createdAt}`;
-                sessionRepo.insertSession(
-                    id,
-                    s.practiceId,
-                    s.count,
-                    s.createdAt,
-                    syncMetadata
-                );
-
-            });
-
-            db.execSync("COMMIT");
-
-        } catch (error) {
-
-            db.execSync("ROLLBACK");
-            throw error;
-
-        }
-
-    });
-
+    await getAppOperationEngine().restoreBackupData(data);
 }
 
 export function validateBackup(data: any) {
