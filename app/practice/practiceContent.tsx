@@ -104,6 +104,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         });
     }, [targetDate, total, targetCount]);
     const [customAmount, setCustomAmount] = useState("");
+    const [customAmountOpen, setCustomAmountOpen] = useState(false);
     const dailyAnimRef = useRef<FloatingAddAnimationRef>(null);
     const customAnimRef = useRef<FloatingAddAnimationRef>(null);
     const [calendarOpen, setCalendarOpen] = useState(false);
@@ -220,6 +221,51 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
             alert(error.message);
         }
     }, [practiceId]);
+
+    function openCustomAmountModal() {
+        setCustomAmount("");
+        setCustomAmountOpen(true);
+    }
+
+    function closeCustomAmountModal() {
+        setCustomAmountOpen(false);
+        setCustomAmount("");
+    }
+
+    function addCustomAmount() {
+        const error =
+            validateNonNegativeInteger(
+                customAmount,
+                "Custom amount"
+            );
+
+        if (error) {
+            alert(error);
+            return;
+        }
+
+        const value = Number(customAmount);
+
+        if (value > MAX_REPETITIONS_PER_DAY) {
+            alert(
+                `Custom amount cannot exceed ${MAX_REPETITIONS_PER_DAY.toLocaleString()}`
+            );
+            return;
+        }
+
+        try {
+            sessionService.addSession(
+                practiceId,
+                value
+            );
+            customAnimRef.current?.trigger(
+                `+${formatNumber(value)}\nadded!`
+            );
+            closeCustomAmountModal();
+        } catch (error: any) {
+            alert(error.message);
+        }
+    }
 
     const calendarStartDate = useMemo(
         () => appService.getCalendarStartDate(practiceId),
@@ -455,63 +501,26 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                 <View style={styles.addColumn}>
                                     <View style={styles.headerArea}>
                                         <View style={styles.customHeader}>
-                                            <Text style={styles.sectionTitle}>Add </Text>
-                                            <TextInput
-                                                value={customAmount}
-                                                onChangeText={(text) => {
-                                                    setCustomAmount(digitsOnly(text));
-                                                }}
-                                                keyboardType="numeric"
-                                                placeholder="custom"
-                                                placeholderTextColor="#999"
-                                                style={styles.customInput}
-                                            />
-                                            <Text style={styles.sectionTitle}> amount</Text>
+                                            <Text
+                                                style={[
+                                                    styles.sectionTitle,
+                                                    styles.customSectionTitle
+                                                ]}
+                                                numberOfLines={1}
+                                            >
+                                                Add custom amount
+                                            </Text>
                                         </View>
                                     </View>
 
                                     <Pressable
-                                        style={[
-                                            styles.quickAddButton,
-                                            !customAmount && { opacity: 0.4 }
-                                        ]}
-                                        onPress={() => {
-
-                                            const error =
-                                                validateNonNegativeInteger(
-                                                    customAmount,
-                                                    "Custom amount"
-                                                );
-
-                                            if (error) {
-                                                alert(error);
-                                                return;
-                                            }
-
-                                            const value = Number(customAmount);
-
-                                            if (value > MAX_REPETITIONS_PER_DAY) {
-                                                alert(
-                                                    `Custom amount cannot exceed ${MAX_REPETITIONS_PER_DAY.toLocaleString()}`
-                                                );
-                                                return;
-                                            }
-
-                                            try {
-                                                sessionService.addSession(
-                                                    practiceId,
-                                                    value
-                                                );
-                                                customAnimRef.current?.trigger(
-                                                    `+${formatNumber(value)}\nadded!`
-                                                );
-                                            } catch (error: any) {
-                                                alert(error.message);
-                                            }
-                                        }}
+                                        style={styles.quickAddButton}
+                                        onPress={openCustomAmountModal}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Tap to add a custom amount"
                                     >
                                         <Text style={styles.quickAddButtonText}>
-                                            {customAmount ? `+${formatNumber(customAmount)}` : "+"}
+                                            +
                                         </Text>
                                         <FloatingAddAnimation ref={customAnimRef} />
                                     </Pressable>
@@ -521,6 +530,62 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                             </View>
 
                         </View>
+
+                        <Modal
+                            visible={customAmountOpen}
+                            transparent
+                            animationType="fade"
+                            onRequestClose={closeCustomAmountModal}
+                        >
+                            <Pressable
+                                style={styles.customAmountOverlay}
+                                onPress={closeCustomAmountModal}
+                            >
+                                <Pressable
+                                    style={styles.customAmountModal}
+                                    onPress={() => { }}
+                                >
+                                    <Text style={styles.customAmountTitle}>
+                                        Add custom amount
+                                    </Text>
+
+                                    <TextInput
+                                        value={customAmount}
+                                        onChangeText={(text) => {
+                                            setCustomAmount(digitsOnly(text));
+                                        }}
+                                        keyboardType="numeric"
+                                        returnKeyType="done"
+                                        onSubmitEditing={addCustomAmount}
+                                        placeholder="Enter amount"
+                                        placeholderTextColor="#999"
+                                        style={styles.customAmountInput}
+                                        maxLength={String(MAX_REPETITIONS_PER_DAY).length}
+                                        autoFocus
+                                    />
+
+                                    <View style={styles.customAmountActions}>
+                                        <Pressable
+                                            style={styles.customAmountCancelButton}
+                                            onPress={closeCustomAmountModal}
+                                        >
+                                            <Text style={styles.customAmountCancelText}>
+                                                Cancel
+                                            </Text>
+                                        </Pressable>
+
+                                        <Pressable
+                                            style={styles.customAmountAddButton}
+                                            onPress={addCustomAmount}
+                                        >
+                                            <Text style={styles.customAmountAddText}>
+                                                Add
+                                            </Text>
+                                        </Pressable>
+                                    </View>
+                                </Pressable>
+                            </Pressable>
+                        </Modal>
 
                         <Modal
                             visible={calendarOpen}
@@ -920,16 +985,69 @@ const styles = StyleSheet.create({
         color: "#2563eb"
     },
 
-    customInput: {
+    customAmountOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.25)",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 20
+    },
+
+    customAmountModal: {
+        width: "100%",
+        maxWidth: 340,
+        backgroundColor: "white",
+        borderRadius: 12,
+        padding: 20
+    },
+
+    customAmountTitle: {
+        fontSize: 18,
+        fontWeight: "700",
+        color: "#111",
+        marginBottom: 14
+    },
+
+    customAmountInput: {
         borderWidth: 1,
         borderColor: "#ddd",
         borderRadius: 8,
-        paddingHorizontal: 7,
-        paddingVertical: 4,
-        width: 65,
-        textAlign: "center",
-        color: "black",
-        alignSelf: "center"
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        fontSize: 16,
+        color: "#111",
+        marginBottom: 18
+    },
+
+    customAmountActions: {
+        flexDirection: "row",
+        justifyContent: "flex-end",
+        alignItems: "center",
+        gap: 12
+    },
+
+    customAmountCancelButton: {
+        paddingHorizontal: 12,
+        paddingVertical: 8
+    },
+
+    customAmountCancelText: {
+        fontSize: 15,
+        fontWeight: "600",
+        color: "#666"
+    },
+
+    customAmountAddButton: {
+        paddingHorizontal: 16,
+        paddingVertical: 9,
+        borderRadius: 8,
+        backgroundColor: colors.primary
+    },
+
+    customAmountAddText: {
+        fontSize: 15,
+        fontWeight: "700",
+        color: "white"
     },
 
     addRow: {
@@ -953,6 +1071,10 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center"
+    },
+    customSectionTitle: {
+        width: 145,
+        textAlign: "center"
     },
     headerArea: {
         height: 60,
