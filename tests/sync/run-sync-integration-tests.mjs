@@ -48,6 +48,14 @@ const TEST_PASSWORD = "123456";
 const TEST_PRACTICE_NAME = "testPractice1";
 const SESSION_COUNT = 500;
 const SEEDED_ID_LIST = [...SEEDED_IDS];
+const AUTOMATED_TEST_EMAILS = new Set([
+  TEST_EMAIL.toLowerCase(),
+  SECOND_TEST_EMAIL.toLowerCase(),
+  THIRD_TEST_EMAIL.toLowerCase(),
+  DELETE_ACCOUNT_TEST_EMAIL.toLowerCase(),
+  RESET_PASSWORD_TEST_EMAIL.toLowerCase(),
+]);
+const createdTestEmails = new Set();
 
 function loadEnv() {
   const envPath = resolve(process.cwd(), ".env");
@@ -256,9 +264,17 @@ function makeSupabaseClient() {
   );
 }
 
-async function deleteExistingAutomatedAccount(email, password) {
+function assertAutomatedTestEmail(email) {
+  if (!AUTOMATED_TEST_EMAILS.has(email.toLowerCase())) {
+    throw new Error(`Refusing to delete non-test account: ${email}`);
+  }
+}
+
+async function deleteAutomatedAccountThroughCore(email, password) {
+  assertAutomatedTestEmail(email);
+
   const client = makeSupabaseClient();
-  const signIn = await client.auth.signInWithPassword({
+  const signIn = await signInWithRateLimitRetry(client, {
     email,
     password,
   });
@@ -272,21 +288,42 @@ async function deleteExistingAutomatedAccount(email, password) {
     throw signIn.error;
   }
 
-  const deletion = await client.functions.invoke("delete-user");
-  if (deletion.error) throw deletion.error;
+  await deleteAccountCore({
+    invokeDeleteUser: () => client.functions.invoke("delete-user"),
+    isUserDeleted: async () => {
+      const probeClient = makeSupabaseClient();
+      const probe = await probeClient.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      return !!probe.error;
+    },
+    logger: silentLogger,
+    signOutDeletedAccount: async () => {
+      const signOut = await client.auth.signOut({
+        scope: "local",
+      });
+
+      if (signOut.error) throw signOut.error;
+    },
+    withTimeout: async (promiseFactory) => promiseFactory(),
+  });
+
   await new Promise((resolve) => setTimeout(resolve, 1000));
 }
 
 async function createAccount(client, email, password) {
-  await deleteExistingAutomatedAccount(email, password);
-
   const signUp = await client.auth.signUp({
     email,
     password,
   });
 
   if (signUp.error) throw signUp.error;
-  if (signUp.data.session?.user) return signUp.data.session.user;
+  if (signUp.data.session?.user) {
+    createdTestEmails.add(email.toLowerCase());
+    return signUp.data.session.user;
+  }
 
   const signIn = await client.auth.signInWithPassword({
     email,
@@ -296,7 +333,49 @@ async function createAccount(client, email, password) {
   if (signIn.error) throw signIn.error;
   if (!signIn.data.user) throw new Error("Supabase sign-in returned no user.");
 
+  createdTestEmails.add(email.toLowerCase());
+
   return signIn.data.user;
+}
+
+async function signInWithRateLimitRetry(client, credentials) {
+  let lastResult = null;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const result = await client.auth.signInWithPassword(credentials);
+    lastResult = result;
+
+    const status = result.error?.status;
+    const code = result.error?.code;
+
+    if (
+      status !== 429 &&
+      code !== "over_request_rate_limit"
+    ) {
+      return result;
+    }
+
+    await new Promise((resolve) =>
+      setTimeout(resolve, (attempt + 1) * 5000)
+    );
+  }
+
+  return lastResult;
+}
+
+async function cleanupCreatedTestAccounts() {
+  const emails = [...createdTestEmails];
+  createdTestEmails.clear();
+
+  for (const email of emails) {
+    await deleteAutomatedAccountThroughCore(email, TEST_PASSWORD);
+  }
+}
+
+async function cleanupKnownAutomatedAccounts() {
+  for (const email of AUTOMATED_TEST_EMAILS) {
+    await deleteAutomatedAccountThroughCore(email, TEST_PASSWORD);
+  }
 }
 
 async function signIn(client, email, password) {
@@ -1475,7 +1554,34 @@ const tests = [
   ],
 ];
 
+loadEnv();
+await cleanupKnownAutomatedAccounts();
+
 for (const [index, [name, test]] of tests.entries()) {
-  await test();
+  let testError = null;
+  let cleanupError = null;
+
+  try {
+    await test();
+  } catch (error) {
+    testError = error;
+  }
+
+  try {
+    await cleanupCreatedTestAccounts();
+  } catch (error) {
+    cleanupError = error;
+  }
+
+  if (testError && cleanupError) {
+    throw new AggregateError(
+      [testError, cleanupError],
+      `${name} failed and account cleanup also failed`
+    );
+  }
+
+  if (testError) throw testError;
+  if (cleanupError) throw cleanupError;
+
   console.log(`ok ${index + 1} - ${name}`);
 }
