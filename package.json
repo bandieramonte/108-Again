@@ -10,8 +10,9 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "hooks:install": "git config core.hooksPath .githooks",
+    "test:app": "npx tsc -p tests/app/tsconfig.json && node ./tests/app/run-app-behavior-tests.mjs",
     "test:sync": "npx tsc -p tests/sync/tsconfig.json && node ./tests/sync/run-sync-integration-tests.mjs",
-    "test:ci": "npm run test:sync"
+    "test:ci": "npm run test:app && npm run test:sync"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

@@ -3,18 +3,40 @@ import HeaderTitle from "@/components/HeaderTitle";
 import { getSupabase } from "@/lib/supabase";
 import { subscribeAuth } from "@/utils/events";
 import { MaterialIcons } from "@expo/vector-icons";
-import { Stack, router } from "expo-router";
+import { Stack, router, usePathname } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Alert, Linking, Pressable, View } from "react-native";
 import * as appService from "../services/appService";
 import * as authService from "../services/authService";
+import * as lastPracticeScreenService from "../services/lastPracticeScreenService";
+import * as practiceService from "../services/practiceService";
 
 export default function Layout() {
     const [authState, setAuthState] = useState(authService.getAuthState());
+    const [appInitialized, setAppInitialized] = useState(false);
+    const [initialUrlChecked, setInitialUrlChecked] = useState(false);
+    const [startupRouteHandled, setStartupRouteHandled] = useState(false);
+    const pathname = usePathname();
     const handledDeepLink = useRef(false);
+    const initialUrlPresent = useRef(false);
+    const restoringPracticeRoute = useRef(false);
 
     useEffect(() => {
-        appService.initializeApp();
+        let cancelled = false;
+
+        async function initialize() {
+            await appService.initializeApp();
+
+            if (!cancelled) {
+                setAppInitialized(true);
+            }
+        }
+
+        initialize();
+
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
 
@@ -28,8 +50,11 @@ export default function Layout() {
         async function handleInitialUrl() {
             const url = await Linking.getInitialURL();
             if (url) {
+                initialUrlPresent.current = true;
                 handleDeepLink(url);
             }
+
+            setInitialUrlChecked(true);
         }
 
         async function handleDeepLink(url: string) {
@@ -78,6 +103,63 @@ export default function Layout() {
 
         return () => sub.remove();
     }, []);
+
+    useEffect(() => {
+        if (!appInitialized || !initialUrlChecked) return;
+
+        let cancelled = false;
+
+        async function restorePracticeRoute() {
+            if (handledDeepLink.current || initialUrlPresent.current) {
+                setStartupRouteHandled(true);
+                return;
+            }
+
+            const practiceId =
+                await lastPracticeScreenService
+                    .getRestorableLastPracticeScreen(
+                        (id) => !!practiceService.getPractice(id)
+                    );
+
+            if (cancelled) return;
+
+            if (!practiceId) {
+                setStartupRouteHandled(true);
+                return;
+            }
+
+            restoringPracticeRoute.current = true;
+
+            router.replace({
+                pathname: "/practice",
+                params: { id: practiceId },
+            });
+
+            if (!cancelled) {
+                setStartupRouteHandled(true);
+            }
+        }
+
+        restorePracticeRoute();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [appInitialized, initialUrlChecked]);
+
+    useEffect(() => {
+        if (!startupRouteHandled) return;
+
+        if (pathname.startsWith("/practice")) {
+            restoringPracticeRoute.current = false;
+            return;
+        }
+
+        if (restoringPracticeRoute.current) return;
+
+        void lastPracticeScreenService
+            .clearLastPracticeScreenIfNonPracticePath(pathname);
+    }, [pathname, startupRouteHandled]);
 
     useEffect(() => {
         const unsubscribe = subscribeAuth(() => {

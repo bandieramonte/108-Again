@@ -1,7 +1,8 @@
-import { useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import PagerView from "react-native-pager-view";
+import * as lastPracticeScreenService from "../../services/lastPracticeScreenService";
 import * as practiceService from "../../services/practiceService";
 import PracticeContent from "./practiceContent";
 
@@ -38,20 +39,33 @@ export default function PracticePager() {
         return Math.abs(index - normalizedIndex) <= 1;
     };
     const pendingJumpRef = useRef<number | null>(null);
+    const visiblePracticeId = useMemo(() => {
+        if (pageCount === 0) return null;
+        if (pageCount === 1) return practices[0].id;
 
-    if (pageCount === 0) {
-        return <View style={{ flex: 1 }} />;
-    }
+        const practiceIndex = normalizedIndex - 1;
+        return practices[practiceIndex]?.id ?? null;
+    }, [normalizedIndex, pageCount, practices]);
 
-    if (pageCount === 1) {
-        return (
-            <View style={{ flex: 1 }}>
-                <PracticeContent practiceId={practices[0].id} />
-            </View>
-        );
-    }
+    useFocusEffect(
+        useCallback(() => {
+            if (!visiblePracticeId) return;
+
+            void lastPracticeScreenService
+                .rememberLastPracticeScreen(visiblePracticeId);
+        }, [visiblePracticeId])
+    );
 
     useEffect(() => {
+        if (!visiblePracticeId) return;
+
+        void lastPracticeScreenService
+            .rememberLastPracticeScreen(visiblePracticeId);
+    }, [visiblePracticeId]);
+
+    useEffect(() => {
+        if (pageCount <= 1) return;
+
         const id = setTimeout(() => {
             setLoaded(prev => {
                 const next = new Set(prev);
@@ -66,7 +80,19 @@ export default function PracticePager() {
         }, 0);
 
         return () => clearTimeout(id);
-    }, []);
+    }, [initialPage, pageCount, practices.length]);
+
+    if (pageCount === 0) {
+        return <View style={{ flex: 1 }} />;
+    }
+
+    if (pageCount === 1) {
+        return (
+            <View style={{ flex: 1 }}>
+                <PracticeContent practiceId={practices[0].id} />
+            </View>
+        );
+    }
 
     return (
         <PagerView
@@ -82,6 +108,12 @@ export default function PracticePager() {
             }}
             onPageSelected={(e) => {
                 const index = e.nativeEvent.position;
+                const selectedPractice = extended[index];
+
+                if (selectedPractice) {
+                    void lastPracticeScreenService
+                        .rememberLastPracticeScreen(selectedPractice.id);
+                }
 
                 setLoaded(prev => {
                     const next = new Set(prev);

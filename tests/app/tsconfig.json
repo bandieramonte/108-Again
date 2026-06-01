@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "baseUrl": "../..",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "../.build",
+    "rootDir": "../..",
+    "strict": true,
+    "target": "ES2020",
+    "noEmit": false,
+    "noEmitOnError": true,
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "skipLibCheck": true
+  },
+  "include": [
+    "../../constants/defaultPractices.ts",
+    "../../database/schema.ts",
+    "../../database/sqliteTypes.ts",
+    "../../repositories/appMetaRepoFactory.ts",
+    "../../repositories/deletedRecordRepoFactory.ts",
+    "../../repositories/practiceRepoFactory.ts",
+    "../../repositories/sessionRepoFactory.ts",
+    "../../services/appOperationEngine.ts",
+    "../../services/lastPracticeScreenService.ts",
+    "../../types/sync.ts",
+    "../../utils/numberUtils.ts"
+  ]
+}
