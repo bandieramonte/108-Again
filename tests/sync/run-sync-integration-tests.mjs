@@ -1507,6 +1507,43 @@ async function runBackupDefaultsAndRestoreBackupSyncTest() {
   );
 }
 
+async function runRestoreDefaultsBeatsStaleRemoteOverwriteTest() {
+  const { device: deviceA, remote, user } =
+    await createLoggedInDeviceA({ seedDefaults: true });
+
+  await deviceA.operations.restoreDefaults();
+
+  assertOnlySeededDeviceZero(
+    deviceA,
+    "Device A immediately after logged-in restore defaults"
+  );
+
+  await deviceA.sync("remote_overwrite_local");
+
+  assertOnlySeededDeviceZero(
+    deviceA,
+    "Device A after stale remote overwrite sync request"
+  );
+
+  const remoteSnapshot = await pullRemoteSnapshot(remote, user.id);
+
+  assertOnlySeededRemoteZero(
+    remoteSnapshot,
+    "Remote after stale remote overwrite sync request"
+  );
+
+  const { device: deviceB } = await createDeviceBForManualSync({
+    seedDefaults: true,
+  });
+
+  await deviceB.sync("remote_overwrite_local");
+
+  assertOnlySeededDeviceZero(
+    deviceB,
+    "Device B after stale remote overwrite sync request"
+  );
+}
+
 const tests = [
   [
     "Device A operations sync to Device B through Supabase",
@@ -1551,6 +1588,10 @@ const tests = [
   [
     "backup, restore defaults, and backup import sync end to end",
     runBackupDefaultsAndRestoreBackupSyncTest,
+  ],
+  [
+    "restore defaults beats stale remote-overwrite sync",
+    runRestoreDefaultsBeatsStaleRemoteOverwriteTest,
   ],
 ];
 

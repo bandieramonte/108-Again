@@ -220,9 +220,10 @@ export function createSyncEngine(deps: SyncEngineDeps) {
 
         if (hasPendingLocalOverwrite) {
             deps.appMetaRepo.deleteMeta(REMOTE_AUTHORITATIVE_SYNC_USER_ID_META);
+            return "merge_local";
         }
 
-        return !hasPendingLocalOverwrite && requiredRemoteSyncUserId === userId
+        return requiredRemoteSyncUserId === userId
             ? "remote_overwrite_local"
             : requestedMode ?? "merge_local";
     }
