@@ -328,6 +328,7 @@ export function createSyncEngine(deps: SyncEngineDeps) {
 
         for (const local of deps.practiceRepo.getAllPractices()) {
             if (remoteIds.has(local.id)) continue;
+            if (isDirty(local.syncStatus)) continue;
             if (!isUnchangedSeededPracticeWithoutSessions(local)) continue;
 
             const pendingDeletion =

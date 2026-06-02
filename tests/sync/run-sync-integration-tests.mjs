@@ -662,6 +662,27 @@ function assertOnlySeededRemoteZero(snapshot, label) {
   }
 }
 
+function assertOnlySeedIdsRemoteZero(snapshot, seedIds, label) {
+  const active = activeRemotePractices(snapshot);
+  const expectedIds = new Set(seedIds);
+  const activeIds = new Set(active.map((practice) => practice.id));
+
+  assert.equal(
+    active.length,
+    expectedIds.size,
+    `${label}: active remote practice count`
+  );
+
+  for (const seededId of expectedIds) {
+    assert.ok(activeIds.has(seededId), `${label}: has seeded ${seededId}`);
+    assert.equal(
+      remotePracticeTotal(snapshot, seededId),
+      0,
+      `${label}: seeded total is zero for ${seededId}`
+    );
+  }
+}
+
 function assertOnlySeededDeviceZero(device, label) {
   const active = activeLocalPractices(device);
   const activeIds = new Set(active.map((practice) => practice.id));
@@ -1507,6 +1528,75 @@ async function runBackupDefaultsAndRestoreBackupSyncTest() {
   );
 }
 
+async function runRestoreDefaultsAfterPartialSeedBackupSyncTest() {
+  const { device: deviceA, remote, user } =
+    await createLoggedInDeviceA({ seedDefaults: true });
+  const backupSeedPractices = DEFAULT_PRACTICES.slice(0, 4);
+  const backupSeedIds = backupSeedPractices.map((practice) => practice.id);
+  const partialSeedBackup = {
+    app: "app108again",
+    exportedAt: Date.now(),
+    practices: backupSeedPractices.map((practice) => ({
+      id: practice.id,
+      name: practice.name,
+      targetCount: practice.targetCount,
+      orderIndex: practice.orderIndex,
+      imageKey: practice.imageKey ?? null,
+      defaultAddCount: practice.defaultAddCount ?? 108,
+      totalOffset: 0,
+    })),
+    sessions: [],
+  };
+
+  await deviceA.operations.restoreBackupData(partialSeedBackup);
+  await deviceA.sync("merge_local");
+
+  let remoteSnapshot = await pullRemoteSnapshot(remote, user.id);
+
+  assertOnlySeedIdsRemoteZero(
+    remoteSnapshot,
+    backupSeedIds,
+    "Remote after four-seed backup import"
+  );
+  assert.equal(
+    activeLocalPractices(deviceA).length,
+    backupSeedIds.length,
+    "Device A has only the imported four seeded practices before defaults"
+  );
+
+  await deviceA.operations.restoreDefaults();
+
+  assertOnlySeededDeviceZero(
+    deviceA,
+    "Device A immediately after restoring defaults from four-seed backup"
+  );
+
+  await deviceA.sync("merge_local");
+
+  assertOnlySeededDeviceZero(
+    deviceA,
+    "Device A after syncing restored defaults from four-seed backup"
+  );
+
+  remoteSnapshot = await pullRemoteSnapshot(remote, user.id);
+
+  assertOnlySeededRemoteZero(
+    remoteSnapshot,
+    "Remote after syncing restored defaults from four-seed backup"
+  );
+
+  const { device: deviceB } = await createDeviceBForManualSync({
+    seedDefaults: true,
+  });
+
+  await deviceB.sync("remote_overwrite_local");
+
+  assertOnlySeededDeviceZero(
+    deviceB,
+    "Device B after syncing restored defaults from four-seed backup"
+  );
+}
+
 async function runRestoreDefaultsBeatsStaleRemoteOverwriteTest() {
   const { device: deviceA, remote, user } =
     await createLoggedInDeviceA({ seedDefaults: true });
@@ -1588,6 +1678,10 @@ const tests = [
   [
     "backup, restore defaults, and backup import sync end to end",
     runBackupDefaultsAndRestoreBackupSyncTest,
+  ],
+  [
+    "restore defaults restores all seeds after partial seeded backup import",
+    runRestoreDefaultsAfterPartialSeedBackupSyncTest,
   ],
   [
     "restore defaults beats stale remote-overwrite sync",
