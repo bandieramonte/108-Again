@@ -2,6 +2,9 @@ import { DEFAULT_PRACTICES, SEEDED_IDS } from "../constants/defaultPractices";
 
 export const REMOTE_AUTHORITATIVE_SYNC_USER_ID_META =
     "remoteAuthoritativeSyncUserId";
+const PENDING_BACKUP_RESTORE_META = "pendingBackupRestore";
+const PENDING_BACKUP_RESTORE_USER_ID_META =
+    "pendingBackupRestoreUserId";
 
 export type SyncMode =
     | "merge_local"
@@ -216,10 +219,28 @@ export function createSyncEngine(deps: SyncEngineDeps) {
         const requiredRemoteSyncUserId =
             deps.appMetaRepo.getMeta(REMOTE_AUTHORITATIVE_SYNC_USER_ID_META);
         const hasPendingLocalOverwrite =
-            deps.appMetaRepo.getMeta("pendingBackupRestore") === "true";
+            deps.appMetaRepo.getMeta(PENDING_BACKUP_RESTORE_META) === "true";
+        const pendingBackupRestoreUserId =
+            deps.appMetaRepo.getMeta(PENDING_BACKUP_RESTORE_USER_ID_META);
+        const remoteAuthoritativeRequested =
+            requestedMode === "remote_overwrite_local" ||
+            requiredRemoteSyncUserId === userId;
 
         if (hasPendingLocalOverwrite) {
-            deps.appMetaRepo.deleteMeta(REMOTE_AUTHORITATIVE_SYNC_USER_ID_META);
+            if (
+                remoteAuthoritativeRequested &&
+                pendingBackupRestoreUserId !== userId
+            ) {
+                deps.appMetaRepo.deleteMeta(PENDING_BACKUP_RESTORE_META);
+                deps.appMetaRepo.deleteMeta(
+                    PENDING_BACKUP_RESTORE_USER_ID_META
+                );
+                return "remote_overwrite_local";
+            }
+
+            deps.appMetaRepo.deleteMeta(
+                REMOTE_AUTHORITATIVE_SYNC_USER_ID_META
+            );
             return "merge_local";
         }
 
@@ -239,7 +260,7 @@ export function createSyncEngine(deps: SyncEngineDeps) {
 
     async function wipePendingBackupRestore(userId: string) {
         const pendingBackupRestore =
-            deps.appMetaRepo.getMeta("pendingBackupRestore");
+            deps.appMetaRepo.getMeta(PENDING_BACKUP_RESTORE_META);
 
         if (pendingBackupRestore !== "true") return;
 
@@ -261,10 +282,8 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             );
         }
 
-        deps.appMetaRepo.setMeta(
-            "pendingBackupRestore",
-            "false"
-        );
+        deps.appMetaRepo.deleteMeta(PENDING_BACKUP_RESTORE_META);
+        deps.appMetaRepo.deleteMeta(PENDING_BACKUP_RESTORE_USER_ID_META);
     }
 
     function applyRemotePractices(userId: string, rows: RemotePracticeRow[]) {
@@ -693,7 +712,8 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             remoteSessions
         );
 
-        deps.appMetaRepo.deleteMeta("pendingBackupRestore");
+        deps.appMetaRepo.deleteMeta(PENDING_BACKUP_RESTORE_META);
+        deps.appMetaRepo.deleteMeta(PENDING_BACKUP_RESTORE_USER_ID_META);
         deps.appMetaRepo.deleteMeta(REMOTE_AUTHORITATIVE_SYNC_USER_ID_META);
     }
 

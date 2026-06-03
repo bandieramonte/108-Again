@@ -945,6 +945,130 @@ async function runExistingAccountFirstLoginRemoteOverwriteTest() {
   );
 }
 
+async function runExistingAccountFirstLoginAfterBackupRestoreRemoteOverwriteTest() {
+  const { device: deviceA, remote, user } =
+    await createLoggedInDeviceA({ seedDefaults: true });
+  const remoteDeletedSeed = DEFAULT_PRACTICES[2];
+  const remoteKeptSeed = DEFAULT_PRACTICES[3];
+  const backupDeletedSeed = DEFAULT_PRACTICES[4];
+  const backupOnlyPracticeName = "backupOnlyPractice";
+
+  const remotePracticeId = deviceA.operations.createPractice(
+    TEST_PRACTICE_NAME,
+    5000,
+    500
+  );
+
+  deviceA.operations.addSession(remotePracticeId, 700);
+  deviceA.operations.addSession(remoteKeptSeed.id, 222);
+  await deviceA.operations.deletePractice(remoteDeletedSeed.id);
+
+  const remoteExpected = captureExpectedLocalState(deviceA);
+
+  await deviceA.sync("merge_local");
+
+  const deviceBClient = makeSupabaseClient();
+  const deviceB = makeLocalDevice(
+    "Device B",
+    null,
+    createSupabaseSyncRemote(deviceBClient)
+  );
+  const backupOnlyPracticeId = randomUUID();
+  const backupData = {
+    app: "app108again",
+    exportedAt: Date.now(),
+    practices: [
+      ...DEFAULT_PRACTICES
+        .filter((practice) => practice.id !== backupDeletedSeed.id)
+        .map((practice) => ({
+          id: practice.id,
+          name: practice.name,
+          targetCount: practice.targetCount,
+          orderIndex: practice.orderIndex,
+          imageKey: practice.imageKey ?? null,
+          defaultAddCount: practice.defaultAddCount ?? 108,
+          totalOffset: 0,
+        })),
+      {
+        id: backupOnlyPracticeId,
+        name: backupOnlyPracticeName,
+        targetCount: 9999,
+        orderIndex: DEFAULT_PRACTICES.length + 1,
+        imageKey: null,
+        defaultAddCount: 333,
+        totalOffset: 0,
+      },
+    ],
+    sessions: [
+      {
+        id: randomUUID(),
+        practiceId: backupOnlyPracticeId,
+        count: 999,
+        createdAt: Date.now(),
+      },
+      {
+        id: randomUUID(),
+        practiceId: DEFAULT_PRACTICES[0].id,
+        count: 111,
+        createdAt: Date.now(),
+      },
+    ],
+  };
+
+  await deviceB.operations.restoreBackupData(backupData);
+
+  assert.equal(
+    deviceB.appMetaRepo.getMeta("pendingBackupRestore"),
+    "true",
+    "Pre-login backup restore is marked as pending local data"
+  );
+  assert.equal(
+    deviceB.appMetaRepo.getMeta("pendingBackupRestoreUserId"),
+    null,
+    "Pre-login backup restore is not owned by the existing account"
+  );
+
+  await deviceB.loginExistingAndAutoSync(
+    deviceBClient,
+    TEST_EMAIL,
+    TEST_PASSWORD
+  );
+
+  assertDeviceMatchesExpected(
+    deviceB,
+    remoteExpected,
+    "Device B after first login following backup import"
+  );
+  assert.equal(
+    deviceB.practiceRepo.getPracticeById(remoteDeletedSeed.id),
+    null,
+    "First login after backup import keeps remote-deleted seed deleted"
+  );
+  assert.equal(
+    findPracticeByName(deviceB, backupOnlyPracticeName),
+    undefined,
+    "First login after backup import discards backup-only practice"
+  );
+
+  const remoteSnapshot = await pullRemoteSnapshot(remote, user.id);
+
+  assertRemoteMatchesExpected(
+    remoteSnapshot,
+    remoteExpected,
+    "Remote after first login following backup import"
+  );
+  assertRemotePracticeDeleted(
+    remoteSnapshot,
+    remoteDeletedSeed.id,
+    "Remote after first login following backup import deleted seed"
+  );
+  assert.equal(
+    activeRemotePracticeByName(remoteSnapshot, backupOnlyPracticeName),
+    undefined,
+    "Remote was not polluted by backup-only practice"
+  );
+}
+
 async function runDeletedSeededPracticeSyncTest() {
   const { device: deviceA, remote, user } =
     await createLoggedInDeviceA({ seedDefaults: true });
@@ -1646,6 +1770,10 @@ const tests = [
   [
     "existing-account first login overwrites pre-login local data",
     runExistingAccountFirstLoginRemoteOverwriteTest,
+  ],
+  [
+    "existing-account first login overwrites pre-login backup restore",
+    runExistingAccountFirstLoginAfterBackupRestoreRemoteOverwriteTest,
   ],
   [
     "one account per device blocks different account login and signup",

@@ -122,6 +122,7 @@ type OperationDeletedRecordRepo = {
 };
 
 type OperationAppMetaRepo = {
+    deleteMeta(key: string): void;
     setMeta(key: string, value: string): void;
 };
 
@@ -644,6 +645,10 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                         "pendingBackupRestore",
                         "true"
                     );
+                    deps.appMetaRepo.setMeta(
+                        "pendingBackupRestoreUserId",
+                        userId
+                    );
                 }
 
                 deps.appMetaRepo.setMeta(
@@ -711,10 +716,19 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                     );
                 });
 
+                deps.appMetaRepo.setMeta(
+                    "pendingBackupRestore",
+                    "true"
+                );
+
                 if (syncMetadata.userId) {
                     deps.appMetaRepo.setMeta(
-                        "pendingBackupRestore",
-                        "true"
+                        "pendingBackupRestoreUserId",
+                        syncMetadata.userId
+                    );
+                } else {
+                    deps.appMetaRepo.deleteMeta(
+                        "pendingBackupRestoreUserId"
                     );
                 }
             });

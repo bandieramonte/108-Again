@@ -20,6 +20,9 @@ Current covered flows:
   offline, logs back in, and the login sync pushes the merged total.
 - Device B has pre-login local data, logs into an existing account for the
   first time, and the remote account state overwrites local data.
+- Device B restores a backup file before logging into an existing account for
+  the first time, and the remote account state still overwrites local backup
+  data without polluting Supabase.
 - A device that already belongs to one account rejects login or signup for a
   different account and keeps the original local owner data intact.
 - Password reset uses the real Supabase reset-password flow through the core
