@@ -5,10 +5,11 @@ import {
     Pressable,
     StyleSheet,
     Text,
+    useWindowDimensions,
     View,
 } from "react-native";
 
-type Anchor = {
+export type PracticeMenuAnchor = {
     x: number;
     y: number;
     width: number;
@@ -17,7 +18,7 @@ type Anchor = {
 
 type Props = {
     visible: boolean;
-    anchor: Anchor | null;
+    anchor: PracticeMenuAnchor | null;
     onClose: () => void;
     onEdit: () => void;
     onHistory: () => void;
@@ -32,6 +33,36 @@ export default function PracticeDropdownMenu({
     onHistory,
     onDelete,
 }: Props) {
+    const { width: screenWidth, height: screenHeight } =
+        useWindowDimensions();
+    const menuWidth = 220;
+    const estimatedMenuHeight = 138;
+    const screenMargin = 12;
+
+    const menuLeft = anchor
+        ? Math.min(
+            screenWidth - menuWidth - screenMargin,
+            Math.max(
+                screenMargin,
+                anchor.x + anchor.width / 2 - menuWidth / 2
+            )
+        )
+        : screenMargin;
+
+    const preferredMenuTop = anchor
+        ? anchor.y + anchor.height + 8
+        : screenMargin;
+
+    const menuTop =
+        anchor &&
+            preferredMenuTop + estimatedMenuHeight >
+            screenHeight - screenMargin
+            ? Math.max(
+                screenMargin,
+                anchor.y - estimatedMenuHeight - 8
+            )
+            : preferredMenuTop;
+
     return (
         <Modal
             visible={visible}
@@ -48,17 +79,8 @@ export default function PracticeDropdownMenu({
                         style={[
                             styles.menu,
                             {
-                                top:
-                                    anchor.y +
-                                    anchor.height +
-                                    8,
-                                left: Math.max(
-                                    20,
-                                    anchor.x +
-                                    anchor.width /
-                                    2 -
-                                    110
-                                ),
+                                top: menuTop,
+                                left: menuLeft,
                             },
                         ]}
                     >

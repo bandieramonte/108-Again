@@ -45,6 +45,8 @@ const { createAppOperationEngine } =
   require("../.build/services/appOperationEngine.js");
 const { createLastPracticeScreenService } =
   require("../.build/services/lastPracticeScreenService.js");
+const { formatCountProgress } =
+  require("../.build/utils/numberUtils.js");
 
 Module._load = originalLoad;
 
@@ -179,6 +181,31 @@ await test(
       await routeMemory.getLastPracticeScreen(),
       null,
       "Stale deleted practice ids are cleared from route memory"
+    );
+  }
+);
+
+await test(
+  "count progress formatting is shared across total and daily targets",
+  async () => {
+    const numberFormatter = new Intl.NumberFormat();
+
+    assert.equal(
+      formatCountProgress(27),
+      "27",
+      "A count without a target remains a plain count"
+    );
+
+    assert.equal(
+      formatCountProgress(27, 108),
+      "27 / 108",
+      "A daily count includes its target"
+    );
+
+    assert.equal(
+      formatCountProgress(1234, 108000),
+      `${numberFormatter.format(1234)} / ${numberFormatter.format(108000)}`,
+      "Both values use the shared localized number formatting"
     );
   }
 );

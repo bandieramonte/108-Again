@@ -87,3 +87,14 @@ export function formatNumber(value: number | string): string {
 
     return new Intl.NumberFormat().format(num);
 }
+
+export function formatCountProgress(
+    current: number | string,
+    target?: number | string | null
+): string {
+    const currentText = formatNumber(current);
+
+    if (target == null) return currentText;
+
+    return `${currentText} / ${formatNumber(target)}`;
+}

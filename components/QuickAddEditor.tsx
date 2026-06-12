@@ -60,7 +60,7 @@ export default function QuickAddEditor({
                 <View style={styles.card}>
 
                     <Text style={styles.title}>
-                        Edit daily target count
+                        Edit default session count
                     </Text>
 
                     <Text style={styles.subtitle}>

@@ -1,13 +1,14 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CelebrationOverlay from "../../components/CelebrationOverlay";
 import FloatingAddAnimation, { FloatingAddAnimationRef } from "../../components/FloatingAddAnimation";
 import PracticeCalendar from "../../components/PracticeCalendar";
-import PracticeDropdownMenu from "../../components/PracticeDropdownMenu";
-import PracticeHistoryModal from "../../components/PracticeHistoryModal";
+import PracticeActionsMenu, {
+    type PracticeMenuAnchor,
+} from "../../components/PracticeActionsMenu";
 import QuickAddEditor from "../../components/QuickAddEditor";
 import TargetDateEditor from "../../components/TargetDateEditor";
 import { practiceImages } from "../../constants/practiceImages";
@@ -17,7 +18,7 @@ import * as practiceService from "../../services/practiceService";
 import * as sessionService from "../../services/sessionService";
 import { colors, containers } from "../../styles/theme";
 import { subscribeData } from "../../utils/events";
-import { digitsOnly, formatNumber, MAX_REPETITIONS_PER_DAY, validateNonNegativeInteger } from "../../utils/numberUtils";
+import { digitsOnly, formatCountProgress, formatNumber, MAX_REPETITIONS_PER_DAY, validateNonNegativeInteger } from "../../utils/numberUtils";
 
 const isSmallScreen = Dimensions.get("window").width < 360;
 
@@ -61,7 +62,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     const [menuOpen, setMenuOpen] = useState(false);
     const rotateAnim = useRef(new Animated.Value(0)).current;
     const titleRowRef = useRef<View | null>(null);
-    const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+    const [menuAnchor, setMenuAnchor] = useState<PracticeMenuAnchor | null>(null);
     const {
         celebrationFade,
         sparkle1,
@@ -109,7 +110,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     const customAnimRef = useRef<FloatingAddAnimationRef>(null);
     const [calendarOpen, setCalendarOpen] = useState(false);
     const [calendarInfoOpen, setCalendarInfoOpen] = useState(false);
-    const [historyOpen, setHistoryOpen] = useState(false);
     const [dateAdjustedInfo, setDateAdjustedInfo] = useState<{
         selected: Date;
         actual: Date;
@@ -174,28 +174,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
             setTargetCount(practice.targetCount);
             loadSessions(practice.targetCount);
         }
-    }
-
-    function openPracticeHistory() {
-        closeMenu();
-        setHistoryOpen(true);
-    }
-
-    function confirmDelete() {
-        closeMenu();
-
-        Alert.alert(
-            "Delete practice?",
-            "All sessions for this practice will also be deleted.",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: deletePractice
-                }
-            ]
-        );
     }
 
     const handleEdit = useCallback((date: string, newValue: number) => {
@@ -271,23 +249,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         () => appService.getCalendarStartDate(practiceId),
         [practiceId, calendarData]
     );
-
-    async function deletePractice() {
-        await practiceService.deletePractice(practiceId);
-        router.replace("/");
-    }
-
-    function openEditPractice() {
-        setMenuOpen(false);
-
-        router.push({
-            pathname: "/edit-practice",
-            params: {
-                id: practiceId,
-                practiceName
-            }
-        });
-    }
 
     function toggleMenu() {
         if (menuOpen) {
@@ -366,10 +327,12 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                         <Animated.View
                                             style={[
                                                 styles.titleActionIcon,
-                                                { opacity: rotateAnim.interpolate({
-                                                    inputRange: [0, 1],
-                                                    outputRange: [0.78, 1],
-                                                }) }
+                                                {
+                                                    opacity: rotateAnim.interpolate({
+                                                        inputRange: [0, 1],
+                                                        outputRange: [0.78, 1],
+                                                    })
+                                                }
                                             ]}
                                         >
                                             <MaterialIcons
@@ -421,7 +384,10 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                     </Text>
                                     <View style={styles.totalWrapper}>
                                         <Text style={styles.total}>
-                                            {formatNumber(total) + ' ' + (!!targetCount ? '/ ' + formatNumber(targetCount) : '')}
+                                            {formatCountProgress(
+                                                total,
+                                                targetCount || null
+                                            )}
                                         </Text>
                                     </View>
 
@@ -461,7 +427,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                 <View style={styles.addColumn}>
                                     <View style={styles.headerArea}>
                                         <Text style={styles.sectionTitle}>
-                                            Add daily target
+                                            Add default session
                                         </Text>
                                     </View>
 
@@ -672,13 +638,16 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                             </Pressable>
                         </Modal>
 
-                        <PracticeDropdownMenu
+                        <PracticeActionsMenu
                             visible={menuOpen}
                             anchor={menuAnchor}
+                            practice={{
+                                id: practiceId,
+                                name: practiceName,
+                                total,
+                            }}
                             onClose={closeMenu}
-                            onEdit={openEditPractice}
-                            onHistory={openPracticeHistory}
-                            onDelete={confirmDelete}
+                            onDeleted={() => router.replace("/")}
                         />
 
                     </View>
@@ -761,12 +730,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                         </Pressable>
                     </Modal>
 
-                    <PracticeHistoryModal
-                        visible={historyOpen}
-                        onClose={() => setHistoryOpen(false)}
-                        practiceId={practiceId}
-                        total={total}
-                    />
                 </View>
             </ScrollView>
 

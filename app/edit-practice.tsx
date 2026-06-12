@@ -106,7 +106,7 @@ export default function EditPractice() {
                     style={styles.input}
                 />
 
-                <Text>Total count</Text>
+                <Text>Total count so far</Text>
                 <TextInput
                     value={total}
                     onChangeText={(v) => {
@@ -118,7 +118,7 @@ export default function EditPractice() {
                     style={styles.input}
                 />
 
-                <Text>Daily target count</Text>
+                <Text>Daily target</Text>
                 <TextInput
                     value={defaultAdd}
                     onChangeText={(v) => {

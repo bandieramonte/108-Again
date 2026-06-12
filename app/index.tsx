@@ -6,6 +6,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import * as Progress from "react-native-progress";
 import CelebrationOverlay from "../components/CelebrationOverlay";
+import PracticeActionsMenu, {
+  type PracticeMenuAnchor,
+} from "../components/PracticeActionsMenu";
 import QuickAddEditor from "../components/QuickAddEditor";
 import WelcomeModal from "../components/WelcomeModal";
 import { practiceImages } from "../constants/practiceImages";
@@ -14,7 +17,7 @@ import * as dashboardService from "../services/dashboardService";
 import * as practiceService from "../services/practiceService";
 import * as sessionService from "../services/sessionService";
 import { colors, containers } from "../styles/theme";
-import { formatNumber } from "../utils/numberUtils";
+import { formatCountProgress, formatNumber } from "../utils/numberUtils";
 
 type Practice = {
   id: string;
@@ -38,7 +41,10 @@ export default function Dashboard() {
   const [defaultAddInput, setDefaultAddInput] = useState("");
   const [showQuickAddHint, setShowQuickAddHint] = useState(false);
   const quickAddRefs = useRef<Record<string, View | null>>({});
+  const practiceRowRefs = useRef<Record<string, View | null>>({});
   const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
+  const [menuPractice, setMenuPractice] = useState<Practice | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<PracticeMenuAnchor | null>(null);
   const {
     celebrationFade,
     sparkle1,
@@ -158,6 +164,23 @@ export default function Dashboard() {
     setEditDefaultOpen(true);
   }
 
+  function openPracticeMenu(practice: Practice) {
+    const target = practiceRowRefs.current[practice.id];
+    if (!target) return;
+
+    (target as any).measureInWindow(
+      (x: number, y: number, width: number, height: number) => {
+        setMenuPractice(practice);
+        setMenuAnchor({ x, y, width, height });
+      }
+    );
+  }
+
+  function closePracticeMenu() {
+    setMenuPractice(null);
+    setMenuAnchor(null);
+  }
+
   return (
 
     <ScrollView style={containers.screen} contentContainerStyle={{ paddingBottom: 30 }}>
@@ -219,9 +242,17 @@ export default function Dashboard() {
                     }
                   })
                 }
+                onLongPress={() => openPracticeMenu(practice)}
+                delayLongPress={350}
+                accessibilityHint="Long press for practice actions"
               >
 
-                <View style={styles.row}>
+                <View
+                  ref={(node) => {
+                    practiceRowRefs.current[practice.id] = node;
+                  }}
+                  style={styles.row}
+                >
                   <Image
                     source={practice.imageKey && practiceImages[practice.imageKey] ? practiceImages[practice.imageKey] : practiceImages["generic"]}
                     style={styles.icon}
@@ -244,11 +275,17 @@ export default function Dashboard() {
                     />
 
                     <Text style={styles.countText}>
-                      {formatNumber(practice.total) + ' ' + (!!practice.targetCount ? '/ ' + formatNumber(practice.targetCount) : '')}
+                      {formatCountProgress(
+                        practice.total,
+                        practice.targetCount || null
+                      )}
                     </Text>
 
                     <Text style={{ fontSize: 12, color: "#666" }}>
-                      Today: {formatNumber(practice.today)}
+                      Today: {formatCountProgress(
+                        practice.today,
+                        practice.defaultAddCount ?? 108
+                      )}
                     </Text>
 
                     <View style={styles.targetDateRow}>
@@ -325,6 +362,14 @@ export default function Dashboard() {
           onClose={() => setEditDefaultOpen(false)}
         />
 
+        <PracticeActionsMenu
+          visible={menuPractice !== null}
+          anchor={menuAnchor}
+          practice={menuPractice}
+          onClose={closePracticeMenu}
+          onDeleted={refreshDashboard}
+        />
+
         {showQuickAddHint && tooltipPosition && (
           <Pressable
             style={StyleSheet.absoluteFill}
@@ -343,7 +388,7 @@ export default function Dashboard() {
               ]}
             >
               <Text style={styles.anchoredTooltipText}>
-                Tip: Long press this button to change the expected amount of daily repetitions.
+                Tip: Long press this button to change the to change the default session count.
               </Text>
             </View>
           </Pressable>
@@ -375,6 +420,11 @@ export default function Dashboard() {
               <Text style={styles.infoText}>
                 Tip: Long press the quick add button to change
                 the daily repetition count.
+              </Text>
+
+              <Text style={styles.infoText}>
+                Long press a practice to edit it, view its history,
+                or delete it.
               </Text>
 
               <Pressable

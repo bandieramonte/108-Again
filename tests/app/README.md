@@ -11,6 +11,9 @@ The first test verifies the practice-screen resume rule:
 - If the remembered practice is deleted, startup does not restore it and clears
   the stale id.
 
+The count-progress test verifies the shared formatting used for lifetime and
+daily target labels.
+
 The test uses the real `lastPracticeScreenService`, real repository factories,
 and the real `createAppOperationEngine` practice operations. The only test
 double is AsyncStorage, because the React Native native storage module is not
