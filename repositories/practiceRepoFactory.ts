@@ -7,7 +7,8 @@ export type PracticeRow = {
     targetCount: number;
     orderIndex: number;
     imageKey?: string | null;
-    defaultAddCount?: number | null;
+    dailyTargetCount?: number | null;
+    defaultSessionCount?: number | null;
     totalOffset?: number;
     userId?: string | null;
     updatedAt?: number | null;
@@ -28,7 +29,8 @@ export function createPracticeRepo(database: SqliteDatabase) {
       targetCount,
       orderIndex,
       imageKey,
-      defaultAddCount,
+      dailyTargetCount,
+      defaultSessionCount,
       totalOffset,
       userId,
       updatedAt,
@@ -50,7 +52,8 @@ export function createPracticeRepo(database: SqliteDatabase) {
       targetCount,
       orderIndex,
       imageKey,
-      defaultAddCount,
+      dailyTargetCount,
+      defaultSessionCount,
       totalOffset,
       userId,
       updatedAt,
@@ -68,7 +71,8 @@ export function createPracticeRepo(database: SqliteDatabase) {
         orderIndex: number,
         syncMetadata: SyncMetadata,
         imageKey?: string | null,
-        defaultAddCount: number = 108,
+        dailyTargetCount: number | null = null,
+        defaultSessionCount: number = 108,
         totalOffset: number = 0,
     ): void {
         database.runSync(
@@ -78,19 +82,21 @@ export function createPracticeRepo(database: SqliteDatabase) {
       targetCount,
       orderIndex,
       imageKey,
-      defaultAddCount,
+      dailyTargetCount,
+      defaultSessionCount,
       totalOffset,
       userId,
       updatedAt,
       syncStatus,
       lastSyncedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             id,
             name,
             target,
             orderIndex,
             imageKey ?? null,
-            defaultAddCount,
+            dailyTargetCount,
+            defaultSessionCount,
             totalOffset,
             syncMetadata.userId,
             syncMetadata.updatedAt,
@@ -136,17 +142,17 @@ export function createPracticeRepo(database: SqliteDatabase) {
         );
     }
 
-    function updatePracticeDefaultAddCount(
+    function updatePracticeDailyTargetCount(
         id: string,
-        defaultAddCount: number,
+        dailyTargetCount: number | null,
         syncMetadata: SyncMetadata
     ): void {
         if (syncMetadata.updatedAt == null && syncMetadata.syncStatus == null) {
             database.runSync(
                 `UPDATE practices
-       SET defaultAddCount = ?
+       SET dailyTargetCount = ?
        WHERE id = ?`,
-                defaultAddCount,
+                dailyTargetCount,
                 id
             );
             return;
@@ -154,13 +160,46 @@ export function createPracticeRepo(database: SqliteDatabase) {
 
         database.runSync(
             `UPDATE practices
-     SET defaultAddCount = ?,
+     SET dailyTargetCount = ?,
          userId = ?,
          updatedAt = COALESCE(?, updatedAt),
          syncStatus = COALESCE(?, syncStatus),
          lastSyncedAt = ?
      WHERE id = ?`,
-            defaultAddCount,
+            dailyTargetCount,
+            syncMetadata.userId,
+            syncMetadata.updatedAt,
+            syncMetadata.syncStatus,
+            syncMetadata.lastSyncedAt,
+            id
+        );
+    }
+
+    function updatePracticeDefaultSessionCount(
+        id: string,
+        defaultSessionCount: number,
+        syncMetadata: SyncMetadata
+    ): void {
+        if (syncMetadata.updatedAt == null && syncMetadata.syncStatus == null) {
+            database.runSync(
+                `UPDATE practices
+       SET defaultSessionCount = ?
+       WHERE id = ?`,
+                defaultSessionCount,
+                id
+            );
+            return;
+        }
+
+        database.runSync(
+            `UPDATE practices
+     SET defaultSessionCount = ?,
+         userId = ?,
+         updatedAt = COALESCE(?, updatedAt),
+         syncStatus = COALESCE(?, syncStatus),
+         lastSyncedAt = ?
+     WHERE id = ?`,
+            defaultSessionCount,
             syncMetadata.userId,
             syncMetadata.updatedAt,
             syncMetadata.syncStatus,
@@ -221,7 +260,8 @@ export function createPracticeRepo(database: SqliteDatabase) {
       targetCount,
       orderIndex,
       imageKey,
-      defaultAddCount,
+      dailyTargetCount,
+      defaultSessionCount,
       totalOffset,
       userId,
       updatedAt,
@@ -280,7 +320,8 @@ export function createPracticeRepo(database: SqliteDatabase) {
         target_count: number;
         order_index: number;
         image_key: string | null;
-        default_add_count: number;
+        daily_target_count: number | null;
+        default_session_count: number;
         total_offset: number;
         updated_at: string;
         deleted_at: string | null;
@@ -298,20 +339,22 @@ export function createPracticeRepo(database: SqliteDatabase) {
         targetCount,
         orderIndex,
         imageKey,
-        defaultAddCount,
+        dailyTargetCount,
+        defaultSessionCount,
         totalOffset,
         userId,
         updatedAt,
         syncStatus,
         lastSyncedAt
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
       ON CONFLICT(id) DO UPDATE SET
         name = excluded.name,
         targetCount = excluded.targetCount,
         orderIndex = excluded.orderIndex,
         imageKey = excluded.imageKey,
-        defaultAddCount = excluded.defaultAddCount,
+        dailyTargetCount = excluded.dailyTargetCount,
+        defaultSessionCount = excluded.defaultSessionCount,
         totalOffset = excluded.totalOffset,
         userId = excluded.userId,
         updatedAt = excluded.updatedAt,
@@ -323,7 +366,8 @@ export function createPracticeRepo(database: SqliteDatabase) {
             row.target_count,
             row.order_index,
             row.image_key,
-            row.default_add_count,
+            row.daily_target_count,
+            row.default_session_count,
             row.total_offset ?? 0,
             row.user_id,
             new Date(row.updated_at).getTime(),
@@ -413,7 +457,8 @@ export function createPracticeRepo(database: SqliteDatabase) {
         resetAllSyncState,
         resetPracticeTotals,
         updatePractice,
-        updatePracticeDefaultAddCount,
+        updatePracticeDailyTargetCount,
+        updatePracticeDefaultSessionCount,
         updatePracticeOrder,
         updatePracticeTotalOffset,
         upsertPracticeFromRemote,

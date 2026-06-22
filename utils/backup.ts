@@ -103,7 +103,10 @@ export async function importBackup(onComplete?: () => void) {
                             targetCount: p.targetCount,
                             orderIndex: p.orderIndex,
                             imageKey: p.imageKey ?? null,
-                            defaultAddCount: p.defaultAddCount ?? 108,
+                            dailyTargetCount: p.dailyTargetCount ?? null,
+                            defaultSessionCount:
+                                p.defaultSessionCount ?? 108,
+                            totalOffset: p.totalOffset ?? 0,
                         })
                     );
                 }

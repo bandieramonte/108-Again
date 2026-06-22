@@ -9,12 +9,14 @@ export function getWriteSyncMetadata() : SyncMetadata {
 export function createPractice(
     name: string,
     target: number,
-    defaultAddCount: number = 108
+    dailyTargetCount: number | null = null,
+    defaultSessionCount: number = 108
 ) {
     return getAppOperationEngine().createPractice(
         name,
         target,
-        defaultAddCount
+        dailyTargetCount,
+        defaultSessionCount
     );
 }
 
@@ -52,23 +54,33 @@ export function getAllPractices() {
     return getAppOperationEngine().getAllPractices();
 }
 
-export function updatePracticeDefaultAddCount(
+export function updatePracticeDailyTargetCount(
     id: string,
-    defaultAddCount: number
+    dailyTargetCount: number | null
 ) {
-    getAppOperationEngine().updatePracticeDefaultAddCount(
+    getAppOperationEngine().updatePracticeDailyTargetCount(
         id,
-        defaultAddCount,
+        dailyTargetCount,
+    );
+}
+
+export function updatePracticeDefaultSessionCount(
+    id: string,
+    defaultSessionCount: number
+) {
+    getAppOperationEngine().updatePracticeDefaultSessionCount(
+        id,
+        defaultSessionCount,
     );
 }
 
 export function getExpectedTargetDate(
   targetCount: number,
   total: number,
-  defaultAddCount?: number | null
+  dailyTargetCount?: number | null
 ): Date | null {
 
-  const dailyAmount = defaultAddCount ?? 108;
+  const dailyAmount = dailyTargetCount;
 
   if (!Number.isFinite(dailyAmount) || dailyAmount <= 0) {
     return null;

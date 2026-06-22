@@ -25,8 +25,9 @@ Current covered flows:
   data without polluting Supabase.
 - A device that already belongs to one account rejects login or signup for a
   different account and keeps the original local owner data intact.
-- Password reset uses the real Supabase reset-password flow through the core
-  auth action.
+- Password reset verifies the core auth action with an injected reset function,
+  avoiding real recovery emails while still covering normalization, redirect
+  options, validation, and remote error handling.
 - Account deletion uses the real `delete-user` Edge Function through the core
   auth action and clears local account ownership.
 - Device A creates local data before account creation, including a seeded
@@ -44,8 +45,10 @@ The test uses two separate `better-sqlite3` in-memory databases, each wired
 through the real repository factory methods. It does not use fake app action
 methods, fake repository methods, or a fake remote store.
 
-The only harness-level simulation is per-device auth state, because the
-production auth service is a singleton and cannot represent two devices inside
-one Node process. Each login still uses real Supabase auth, checks the same
-core account-ownership guard used by `authService.ts`, and triggers the real
-sync engine.
+The harness-level simulations are per-device auth state and the injected
+password-reset sender. The production auth service is a singleton and cannot
+represent two devices inside one Node process; real Supabase recovery emails
+also depend on external deliverability rules that are outside the app's core
+logic. Each login still uses real Supabase auth, checks the same core
+account-ownership guard used by `authService.ts`, and triggers the real sync
+engine.

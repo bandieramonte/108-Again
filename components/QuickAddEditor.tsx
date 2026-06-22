@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import * as practiceService from "../services/practiceService";
-import { digitsOnly, validateRepetitionsPerSession } from "../utils/numberUtils";
+import { digitsOnly, validateRepetitionCount } from "../utils/numberUtils";
 
 type Props = {
     visible: boolean;
@@ -32,7 +32,10 @@ export default function QuickAddEditor({
         if (!practiceId) return;
 
         const error =
-            validateRepetitionsPerSession(value);
+            validateRepetitionCount(
+                value,
+                "Default session count"
+            );
 
         if (error) {
             alert(error);
@@ -41,7 +44,7 @@ export default function QuickAddEditor({
 
         const num = Number(value);
 
-        practiceService.updatePracticeDefaultAddCount(
+        practiceService.updatePracticeDefaultSessionCount(
             practiceId,
             num
         );

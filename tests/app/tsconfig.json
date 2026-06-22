@@ -25,6 +25,8 @@
     "../../repositories/practiceRepoFactory.ts",
     "../../repositories/sessionRepoFactory.ts",
     "../../services/appOperationEngine.ts",
+    "../../services/appOperationRuntime.ts",
+    "../../services/backupService.ts",
     "../../services/lastPracticeScreenService.ts",
     "../../types/sync.ts",
     "../../utils/numberUtils.ts"

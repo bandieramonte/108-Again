@@ -13,6 +13,10 @@ type Props = {
     onSave: (newDailyCount: number, selectedDate: string) => void;
 };
 
+function todayString() {
+    return new Date().toISOString().split("T")[0];
+}
+
 export default function TargetDateEditor({
     visible,
     targetCount,
@@ -25,12 +29,14 @@ export default function TargetDateEditor({
     const [selectedDate, setSelectedDate] = useState(
         currentTargetDate
             ? currentTargetDate.toISOString().split("T")[0]
-            : ""
+            : todayString()
     );
     useEffect(() => {
-        if (visible && currentTargetDate) {
+        if (visible) {
             setSelectedDate(
-                currentTargetDate.toISOString().split("T")[0]
+                currentTargetDate
+                    ? currentTargetDate.toISOString().split("T")[0]
+                    : todayString()
             );
         }
     }, [visible, currentTargetDate]);
@@ -49,7 +55,7 @@ export default function TargetDateEditor({
         onClose();
     }
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayString();
 
     return (
         <Modal

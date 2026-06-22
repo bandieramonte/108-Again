@@ -39,11 +39,11 @@ const { createSupabaseSyncRemote } =
 const { createSyncEngine } =
   require("../.build/services/syncEngine.js");
 
-const TEST_EMAIL = "automatedTest@test.com";
-const SECOND_TEST_EMAIL = "automatedTest2@test.com";
-const THIRD_TEST_EMAIL = "automatedTest3@test.com";
-const DELETE_ACCOUNT_TEST_EMAIL = "automatedDeleteTest@test.com";
-const RESET_PASSWORD_TEST_EMAIL = "automatedResetTest@test.com";
+const TEST_EMAIL = "automatedTest@example.com";
+const SECOND_TEST_EMAIL = "automatedTest2@example.com";
+const THIRD_TEST_EMAIL = "automatedTest3@example.com";
+const DELETE_ACCOUNT_TEST_EMAIL = "automatedDeleteTest@example.com";
+const RESET_PASSWORD_TEST_EMAIL = "automatedResetTest@example.com";
 const TEST_PASSWORD = "123456";
 const TEST_PRACTICE_NAME = "testPractice1";
 const SESSION_COUNT = 500;
@@ -54,6 +54,13 @@ const AUTOMATED_TEST_EMAILS = new Set([
   THIRD_TEST_EMAIL.toLowerCase(),
   DELETE_ACCOUNT_TEST_EMAIL.toLowerCase(),
   RESET_PASSWORD_TEST_EMAIL.toLowerCase(),
+]);
+const LEGACY_AUTOMATED_TEST_EMAILS = new Set([
+  "automatedtest@test.com",
+  "automatedtest2@test.com",
+  "automatedtest3@test.com",
+  "automateddeletetest@test.com",
+  "automatedresettest@test.com",
 ]);
 const createdTestEmails = new Set();
 
@@ -265,7 +272,12 @@ function makeSupabaseClient() {
 }
 
 function assertAutomatedTestEmail(email) {
-  if (!AUTOMATED_TEST_EMAILS.has(email.toLowerCase())) {
+  const normalizedEmail = email.toLowerCase();
+
+  if (
+    !AUTOMATED_TEST_EMAILS.has(normalizedEmail) &&
+    !LEGACY_AUTOMATED_TEST_EMAILS.has(normalizedEmail)
+  ) {
     throw new Error(`Refusing to delete non-test account: ${email}`);
   }
 }
@@ -373,7 +385,10 @@ async function cleanupCreatedTestAccounts() {
 }
 
 async function cleanupKnownAutomatedAccounts() {
-  for (const email of AUTOMATED_TEST_EMAILS) {
+  for (const email of new Set([
+    ...AUTOMATED_TEST_EMAILS,
+    ...LEGACY_AUTOMATED_TEST_EMAILS,
+  ])) {
     await deleteAutomatedAccountThroughCore(email, TEST_PASSWORD);
   }
 }
@@ -539,6 +554,8 @@ function captureExpectedLocalState(device) {
       {
         id: practice.id,
         name: practice.name,
+        dailyTargetCount: practice.dailyTargetCount ?? null,
+        defaultSessionCount: practice.defaultSessionCount ?? 108,
         total: localPracticeTotal(device, practice.id),
       },
     ])
@@ -565,6 +582,16 @@ function assertRemoteMatchesExpected(snapshot, expected, label) {
       remotePractice.name,
       expectedPractice.name,
       `${label}: remote name for ${expectedPractice.name}`
+    );
+    assert.equal(
+      remotePractice.daily_target_count,
+      expectedPractice.dailyTargetCount,
+      `${label}: remote daily target count for ${expectedPractice.name}`
+    );
+    assert.equal(
+      remotePractice.default_session_count,
+      expectedPractice.defaultSessionCount,
+      `${label}: remote default session count for ${expectedPractice.name}`
     );
     assert.equal(
       remotePracticeTotal(snapshot, practiceId),
@@ -594,6 +621,16 @@ function assertDeviceMatchesExpected(device, expected, label) {
       localPractice.name,
       expectedPractice.name,
       `${label}: local name for ${expectedPractice.name}`
+    );
+    assert.equal(
+      localPractice.dailyTargetCount,
+      expectedPractice.dailyTargetCount,
+      `${label}: local daily target count for ${expectedPractice.name}`
+    );
+    assert.equal(
+      localPractice.defaultSessionCount,
+      expectedPractice.defaultSessionCount,
+      `${label}: local default session count for ${expectedPractice.name}`
     );
     assert.equal(
       localPracticeTotal(device, practiceId),
@@ -766,6 +803,7 @@ async function runDeviceAToDeviceBSupabaseSyncTest() {
   const practiceId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
     1500,
+    null,
     500
   );
   const days = testDays();
@@ -816,6 +854,7 @@ async function runLogoutOfflineLoginAutoSyncTest() {
   const practiceId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
     1500,
+    null,
     500
   );
 
@@ -866,11 +905,12 @@ async function runExistingAccountFirstLoginRemoteOverwriteTest() {
   const remotePracticeId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
     5000,
+    null,
     500
   );
 
   deviceA.operations.addSession(remotePracticeId, 700);
-  deviceA.operations.updatePracticeDefaultAddCount(
+  deviceA.operations.updatePracticeDefaultSessionCount(
     remotePracticeId,
     250
   );
@@ -888,6 +928,7 @@ async function runExistingAccountFirstLoginRemoteOverwriteTest() {
   const localPracticeId = deviceB.operations.createPractice(
     localOnlyPracticeName,
     9999,
+    null,
     333
   );
 
@@ -921,9 +962,9 @@ async function runExistingAccountFirstLoginRemoteOverwriteTest() {
     "First login kept remote custom practice"
   );
   assert.equal(
-    deviceBRemotePractice.defaultAddCount,
+    deviceBRemotePractice.defaultSessionCount,
     250,
-    "First login fetched updated default add count"
+    "First login fetched updated default session count"
   );
   assert.equal(
     localPracticeTotal(deviceB, remotePracticeId),
@@ -956,6 +997,7 @@ async function runExistingAccountFirstLoginAfterBackupRestoreRemoteOverwriteTest
   const remotePracticeId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
     5000,
+    null,
     500
   );
 
@@ -986,7 +1028,8 @@ async function runExistingAccountFirstLoginAfterBackupRestoreRemoteOverwriteTest
           targetCount: practice.targetCount,
           orderIndex: practice.orderIndex,
           imageKey: practice.imageKey ?? null,
-          defaultAddCount: practice.defaultAddCount ?? 108,
+          dailyTargetCount: practice.dailyTargetCount ?? null,
+          defaultSessionCount: practice.defaultSessionCount ?? 108,
           totalOffset: 0,
         })),
       {
@@ -995,7 +1038,8 @@ async function runExistingAccountFirstLoginAfterBackupRestoreRemoteOverwriteTest
         targetCount: 9999,
         orderIndex: DEFAULT_PRACTICES.length + 1,
         imageKey: null,
-        defaultAddCount: 333,
+        dailyTargetCount: null,
+        defaultSessionCount: 333,
         totalOffset: 0,
       },
     ],
@@ -1124,6 +1168,7 @@ async function runOneAccountPerDeviceGuardTest() {
   const markerPracticeId = device.operations.createPractice(
     "ownerMarkerPractice",
     1000,
+    null,
     100
   );
 
@@ -1185,30 +1230,60 @@ async function runOneAccountPerDeviceGuardTest() {
 }
 
 async function runResetPasswordCoreTest() {
-  const { client } = await createFreshAccountFor(
-    RESET_PASSWORD_TEST_EMAIL
-  );
+  const calls = [];
 
   await resetPasswordCore(
     {
       redirectTo: "app108again://reset-password",
-      resetPasswordForEmail: (email, options) =>
-        client.auth.resetPasswordForEmail(email, options),
+      resetPasswordForEmail: async (email, options) => {
+        calls.push({ email, options });
+        return { error: null };
+      },
     },
     `  ${RESET_PASSWORD_TEST_EMAIL.toUpperCase()}  `
+  );
+
+  assert.deepEqual(
+    calls,
+    [
+      {
+        email: RESET_PASSWORD_TEST_EMAIL.toLowerCase(),
+        options: {
+          redirectTo: "app108again://reset-password",
+        },
+      },
+    ],
+    "Reset password normalizes email and passes redirect URL"
   );
 
   await assert.rejects(
     () => resetPasswordCore(
       {
         redirectTo: "app108again://reset-password",
-        resetPasswordForEmail: (email, options) =>
-          client.auth.resetPasswordForEmail(email, options),
+        resetPasswordForEmail: async () => {
+          throw new Error("Remote should not be called for blank email");
+        },
       },
       "   "
     ),
     /Email is required/,
     "Reset password validates blank email before remote call"
+  );
+
+  await assert.rejects(
+    () => resetPasswordCore(
+      {
+        redirectTo: "app108again://reset-password",
+        resetPasswordForEmail: async () => ({
+          error: {
+            message: "Remote reset failed",
+          },
+        }),
+      },
+      RESET_PASSWORD_TEST_EMAIL
+    ),
+    /Remote reset failed/,
+    "Reset password surfaces remote reset failures"
   );
 }
 
@@ -1230,6 +1305,7 @@ async function runDeleteAccountCoreTest() {
   const practiceId = device.operations.createPractice(
     "deleteAccountPractice",
     1000,
+    null,
     100
   );
 
@@ -1319,6 +1395,7 @@ async function runOfflineLocalDataNewAccountSyncTest() {
   const customPracticeId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
     6000,
+    null,
     500
   );
 
@@ -1397,6 +1474,7 @@ async function runEditedTotalsSyncTest() {
   const customPracticeId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
     10000,
+    null,
     500
   );
 
@@ -1466,6 +1544,7 @@ async function runDeletedCustomPracticeSyncTest() {
   const deletedPracticeId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
     4000,
+    null,
     500
   );
 
@@ -1529,7 +1608,12 @@ async function runBackupDefaultsAndRestoreBackupSyncTest() {
   const customPracticeId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
     20000,
+    null,
     500
+  );
+  deviceA.operations.updatePracticeDailyTargetCount(
+    customPracticeId,
+    2000
   );
 
   await deviceA.operations.deletePractice(deletedSeed.id);
@@ -1666,7 +1750,8 @@ async function runRestoreDefaultsAfterPartialSeedBackupSyncTest() {
       targetCount: practice.targetCount,
       orderIndex: practice.orderIndex,
       imageKey: practice.imageKey ?? null,
-      defaultAddCount: practice.defaultAddCount ?? 108,
+      dailyTargetCount: practice.dailyTargetCount ?? null,
+      defaultSessionCount: practice.defaultSessionCount ?? 108,
       totalOffset: 0,
     })),
     sessions: [],
@@ -1780,7 +1865,7 @@ const tests = [
     runOneAccountPerDeviceGuardTest,
   ],
   [
-    "reset password core calls real Supabase reset flow",
+    "reset password core normalizes input and handles reset failures",
     runResetPasswordCoreTest,
   ],
   [

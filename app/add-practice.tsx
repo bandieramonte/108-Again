@@ -3,7 +3,7 @@ import { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput } from "react-native";
 import * as practiceService from "../services/practiceService";
 import { colors } from "../styles/theme";
-import { digitsOnly, MAX_PRACTICE_NAME, MAX_TARGET_COUNT, validateRepetitionsPerSession, validateTargetCount } from "../utils/numberUtils";
+import { digitsOnly, MAX_PRACTICE_NAME, MAX_REPETITIONS_PER_DAY, MAX_TARGET_COUNT, validateRepetitionCount, validateTargetCount } from "../utils/numberUtils";
 
 export default function AddPractice() {
 
@@ -11,7 +11,7 @@ export default function AddPractice() {
 
     const [name, setName] = useState("");
     const [target, setTarget] = useState("");
-    const [defaultAdd, setDefaultAdd] = useState("");
+    const [defaultSession, setDefaultSession] = useState("108");
 
     function savePractice() {
 
@@ -25,11 +25,6 @@ export default function AddPractice() {
             return;
         }
 
-        if (!defaultAdd.trim()) {
-            alert("Please enter amount of repetitions per day");
-            return;
-        }
-
         const targetError =
             validateTargetCount(target);
 
@@ -38,11 +33,14 @@ export default function AddPractice() {
             return;
         }
 
-        const defaultError =
-            validateRepetitionsPerSession(defaultAdd);
+        const defaultSessionError =
+            validateRepetitionCount(
+                defaultSession,
+                "Default session count"
+            );
 
-        if (defaultError) {
-            alert(defaultError);
+        if (defaultSessionError) {
+            alert(defaultSessionError);
             return;
         }
 
@@ -50,7 +48,8 @@ export default function AddPractice() {
             practiceService.createPractice(
                 name,
                 Number(target),
-                Number(defaultAdd) || 108
+                null,
+                Number(defaultSession)
             );
 
             router.back();
@@ -96,13 +95,13 @@ export default function AddPractice() {
                 />
 
                 <TextInput
-                    placeholder="Repetitions per day"
+                    placeholder="Default session count"
                     placeholderTextColor="#999"
-                    value={defaultAdd}
+                    value={defaultSession}
                     onChangeText={(v) => {
                         const clean = digitsOnly(v);
-                        if (Number(clean) > 108000) return;
-                        setDefaultAdd(clean);
+                        if (Number(clean) > MAX_REPETITIONS_PER_DAY) return;
+                        setDefaultSession(clean);
                     }}
                     keyboardType="numeric"
                     style={styles.input}

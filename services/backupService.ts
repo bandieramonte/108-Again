@@ -3,6 +3,23 @@ import { getAppOperationEngine } from "./appOperationRuntime";
 
 const BACKUP_APP_ID = "app108again";
 
+function validateOptionalCount(
+    value: unknown,
+    label: string,
+    minimum = 0
+) {
+    if (value == null) return;
+
+    if (
+        typeof value !== "number" ||
+        !Number.isInteger(value) ||
+        value < minimum ||
+        value > MAX_REPETITIONS_PER_DAY
+    ) {
+        throw new Error(`Invalid ${label}`);
+    }
+}
+
 export function getBackupData() {
     return getAppOperationEngine().getBackupData();
 }
@@ -66,6 +83,20 @@ export function validateBackup(data: any) {
         ) {
             throw new Error("Invalid order index");
         }
+
+        validateOptionalCount(
+            p.dailyTargetCount,
+            "daily target count",
+            1
+        );
+        validateOptionalCount(
+            p.defaultSessionCount,
+            "default session count"
+        );
+        validateOptionalCount(
+            p.defaultAddCount,
+            "default add count"
+        );
     }
 
     for (const s of data.sessions) {

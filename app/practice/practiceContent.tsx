@@ -5,10 +5,10 @@ import { Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CelebrationOverlay from "../../components/CelebrationOverlay";
 import FloatingAddAnimation, { FloatingAddAnimationRef } from "../../components/FloatingAddAnimation";
-import PracticeCalendar from "../../components/PracticeCalendar";
 import PracticeActionsMenu, {
     type PracticeMenuAnchor,
 } from "../../components/PracticeActionsMenu";
+import PracticeCalendar from "../../components/PracticeCalendar";
 import QuickAddEditor from "../../components/QuickAddEditor";
 import TargetDateEditor from "../../components/TargetDateEditor";
 import { practiceImages } from "../../constants/practiceImages";
@@ -22,7 +22,13 @@ import { digitsOnly, formatCountProgress, formatNumber, MAX_REPETITIONS_PER_DAY,
 
 const isSmallScreen = Dimensions.get("window").width < 360;
 
-export default function PracticeContent({ practiceId }: { practiceId: string }) {
+export default function PracticeContent({
+    practiceId,
+    openCalendarInitially = false,
+}: {
+    practiceId: string;
+    openCalendarInitially?: boolean;
+}) {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const [quickAddOpen, setQuickAddOpen] = useState(false);
@@ -34,8 +40,13 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         sessionService.getPracticeTotal(practiceId).total
     );
     const [imageKey, setImageKey] = useState<string | null>(initialPractice?.imageKey ?? null);
-    const [defaultAddCount, setDefaultAddCount] = useState(
-        String(initialPractice?.defaultAddCount ?? 108)
+    const [dailyTargetCount, setDailyTargetCount] = useState(
+        initialPractice?.dailyTargetCount == null
+            ? ""
+            : String(initialPractice.dailyTargetCount)
+    );
+    const [defaultSessionCount, setDefaultSessionCount] = useState(
+        String(initialPractice?.defaultSessionCount ?? 108)
     );
     const [targetCount, setTargetCount] = useState(initialPractice?.targetCount ?? 0);
     const [calendarData, setCalendarData] = useState<
@@ -73,29 +84,34 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     } = useReachedCelebration();
 
     const [infoOpen, setInfoOpen] = useState(false);
+    const effectiveDailyTargetCount =
+        dailyTargetCount.trim()
+            ? Number(dailyTargetCount)
+            : null;
     const calendarEndDate = useMemo(() => {
         return (
             practiceService.getExpectedTargetDate(
                 targetCount,
                 total,
-                Number(defaultAddCount)
+                effectiveDailyTargetCount
             ) ?? new Date()
         );
-    }, [targetCount, total, defaultAddCount]);
+    }, [targetCount, total, effectiveDailyTargetCount]);
 
     const targetDate = useMemo(() => {
         return practiceService.getExpectedTargetDate(
             targetCount,
             total,
-            Number(defaultAddCount)
+            effectiveDailyTargetCount
         );
-    }, [targetCount, total, defaultAddCount]);
+    }, [targetCount, total, effectiveDailyTargetCount]);
 
     const formattedTargetDate = useMemo(() => {
         if (targetCount > 0 && total >= targetCount) {
             return "Reached!";
         }
 
+        if (!effectiveDailyTargetCount) return "Set daily target 1st";
         if (!targetDate) return "No estimate";
 
         return targetDate.toLocaleDateString("en-US", {
@@ -103,12 +119,12 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
             day: "2-digit",
             year: "numeric"
         });
-    }, [targetDate, total, targetCount]);
+    }, [effectiveDailyTargetCount, targetDate, total, targetCount]);
     const [customAmount, setCustomAmount] = useState("");
     const [customAmountOpen, setCustomAmountOpen] = useState(false);
     const dailyAnimRef = useRef<FloatingAddAnimationRef>(null);
     const customAnimRef = useRef<FloatingAddAnimationRef>(null);
-    const [calendarOpen, setCalendarOpen] = useState(false);
+    const [calendarOpen, setCalendarOpen] = useState(openCalendarInitially);
     const [calendarInfoOpen, setCalendarInfoOpen] = useState(false);
     const [dateAdjustedInfo, setDateAdjustedInfo] = useState<{
         selected: Date;
@@ -170,7 +186,12 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         if (practice) {
             setPracticeName(practice.name);
             setImageKey(practice.imageKey ?? null);
-            setDefaultAddCount(String(practice.defaultAddCount ?? 108));
+            setDailyTargetCount(
+                practice.dailyTargetCount == null
+                    ? ""
+                    : String(practice.dailyTargetCount)
+            );
+            setDefaultSessionCount(String(practice.defaultSessionCount ?? 108));
             setTargetCount(practice.targetCount);
             loadSessions(practice.targetCount);
         }
@@ -336,8 +357,8 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                             ]}
                                         >
                                             <MaterialIcons
-                                                name="edit"
-                                                size={16}
+                                                name="more-horiz"
+                                                size={20}
                                                 color={colors.primary}
                                             />
                                         </Animated.View>
@@ -380,7 +401,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                             <View style={{ flexDirection: "row", justifyContent: "space-around" }}>
                                 <View style={styles.indicatorRow}>
                                     <Text style={{ fontWeight: "bold" }}>
-                                        Progress
+                                        Total Progress
                                     </Text>
                                     <View style={styles.totalWrapper}>
                                         <Text style={styles.total}>
@@ -396,10 +417,19 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                 <Pressable
                                     style={styles.indicatorRow}
                                     onPress={() => setTargetEditOpen(true)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Edit target date"
                                 >
-                                    <Text style={{ fontWeight: "bold" }}>
-                                        Target Date
-                                    </Text>
+                                    <View style={styles.targetDateLabelRow}>
+                                        <Text style={{ fontWeight: "bold" }}>
+                                            Target Date
+                                        </Text>
+                                        <MaterialIcons
+                                            name="edit"
+                                            size={16}
+                                            color={colors.primary}
+                                        />
+                                    </View>
                                     <View style={styles.targetDateRow}>
 
                                         <View style={styles.targetDateEditable}>
@@ -426,9 +456,26 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                             <View style={styles.addRow}>
                                 <View style={styles.addColumn}>
                                     <View style={styles.headerArea}>
-                                        <Text style={styles.sectionTitle}>
-                                            Add default session
-                                        </Text>
+                                        <Pressable
+                                            style={styles.defaultSessionTitleButton}
+                                            onPress={() => setQuickAddOpen(true)}
+                                            accessibilityRole="button"
+                                            accessibilityLabel="Edit default session count"
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.sectionTitle,
+                                                    styles.defaultSessionTitleText,
+                                                ]}
+                                            >
+                                                Add default session
+                                            </Text>
+                                            <MaterialIcons
+                                                name="edit"
+                                                size={15}
+                                                color={colors.primary}
+                                            />
+                                        </Pressable>
                                     </View>
 
                                     <View style={styles.quickAddRow}>
@@ -439,10 +486,10 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                                 try {
                                                     sessionService.addSession(
                                                         practiceId,
-                                                        Number(defaultAddCount)
+                                                        Number(defaultSessionCount)
                                                     );
                                                     dailyAnimRef.current?.trigger(
-                                                        `+${formatNumber(defaultAddCount)}\nadded!`
+                                                        `+${formatNumber(defaultSessionCount)}\nadded!`
                                                     );
                                                 } catch (error: any) {
                                                     alert(error.message);
@@ -451,7 +498,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                             onLongPress={() => setQuickAddOpen(true)}
                                         >
                                             <Text style={styles.quickAddButtonText}>
-                                                +{formatNumber(defaultAddCount)}
+                                                +{formatNumber(defaultSessionCount)}
                                             </Text>
                                             <FloatingAddAnimation ref={dailyAnimRef} />
                                         </Pressable>
@@ -656,7 +703,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                         visible={quickAddOpen}
                         practiceId={practiceId}
                         practiceName={practiceName}
-                        defaultValue={Number(defaultAddCount)}
+                        defaultValue={Number(defaultSessionCount)}
                         onClose={() => setQuickAddOpen(false)}
                     />
 
@@ -667,10 +714,11 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                         currentTargetDate={targetDate}
                         onClose={() => setTargetEditOpen(false)}
                         onSave={(newDaily, selectedDateStr) => {
-                            practiceService.updatePracticeDefaultAddCount(
+                            practiceService.updatePracticeDailyTargetCount(
                                 practiceId,
                                 newDaily
                             );
+                            setDailyTargetCount(String(newDaily));
 
                             const selectedDate = new Date(selectedDateStr);
 
@@ -709,12 +757,12 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                 </Text>
 
                                 <Text style={styles.infoText}>
-                                    You can edit the daily repetition count by long pressing its corresponding button. You can also edit the target date by tapping it.
+                                    Long press the default session button to change how much it adds. Tap the target date to adjust the daily target used for estimates.
                                 </Text>
 
                                 <Text style={styles.infoText}>
-                                    Changing one will automatically adjust the other,
-                                    and the calendar below will update accordingly.
+                                    Changing the target date recalculates the daily target,
+                                    and the calendar below updates accordingly.
                                 </Text>
 
                                 <Pressable
@@ -791,6 +839,19 @@ const styles = StyleSheet.create({
         marginBottom: 6
     },
 
+    defaultSessionTitleButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        marginTop: 12,
+        marginBottom: 6,
+    },
+
+    defaultSessionTitleText: {
+        marginTop: 0,
+        marginBottom: 0,
+    },
+
     titleRow: {
         flexDirection: "row",
         alignItems: "center",
@@ -855,6 +916,12 @@ const styles = StyleSheet.create({
     targetDateText: {
         fontSize: 14,
         color: "#666"
+    },
+
+    targetDateLabelRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
     },
 
     quickAddRow: {

@@ -26,7 +26,8 @@ export function createSupabaseSyncRemote(
                     target_count,
                     order_index,
                     image_key,
-                    default_add_count,
+                    daily_target_count,
+                    default_session_count,
                     total_offset,
                     updated_at,
                     deleted_at
@@ -71,7 +72,8 @@ export function createSupabaseSyncRemote(
                     target_count,
                     order_index,
                     image_key,
-                    default_add_count,
+                    daily_target_count,
+                    default_session_count,
                     total_offset,
                     updated_at,
                     deleted_at

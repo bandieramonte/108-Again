@@ -8,7 +8,8 @@ export type OperationPracticeRow = {
     targetCount: number;
     orderIndex: number;
     imageKey?: string | null;
-    defaultAddCount?: number | null;
+    dailyTargetCount?: number | null;
+    defaultSessionCount?: number | null;
     totalOffset?: number;
     userId?: string | null;
     updatedAt?: number | null;
@@ -39,7 +40,8 @@ type OperationPracticeRepo = {
         orderIndex: number,
         syncMetadata: SyncMetadata,
         imageKey?: string | null,
-        defaultAddCount?: number,
+        dailyTargetCount?: number | null,
+        defaultSessionCount?: number,
         totalOffset?: number
     ): void;
     updatePractice(
@@ -48,9 +50,14 @@ type OperationPracticeRepo = {
         target: number,
         syncMetadata: SyncMetadata
     ): void;
-    updatePracticeDefaultAddCount(
+    updatePracticeDailyTargetCount(
         id: string,
-        defaultAddCount: number,
+        dailyTargetCount: number | null,
+        syncMetadata: SyncMetadata
+    ): void;
+    updatePracticeDefaultSessionCount(
+        id: string,
+        defaultSessionCount: number,
         syncMetadata: SyncMetadata
     ): void;
     updatePracticeTotalOffset(
@@ -196,7 +203,8 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
     function createPractice(
         name: string,
         target: number,
-        defaultAddCount = 108
+        dailyTargetCount: number | null = null,
+        defaultSessionCount = 108
     ) {
         const practices = deps.practiceRepo.getAllPractices();
 
@@ -216,7 +224,8 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
             nextOrder,
             syncMetadata,
             null,
-            defaultAddCount,
+            dailyTargetCount,
+            defaultSessionCount,
             0
         );
 
@@ -324,8 +333,10 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                             targetCount: practice.targetCount,
                             orderIndex: practice.orderIndex,
                             imageKey: practice.imageKey ?? null,
-                            defaultAddCount:
-                                practice.defaultAddCount ?? 108,
+                            dailyTargetCount:
+                                practice.dailyTargetCount ?? null,
+                            defaultSessionCount:
+                                practice.defaultSessionCount ?? 108,
                             totalOffset: practice.totalOffset ?? 0,
                         })
                     );
@@ -353,7 +364,8 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
             name: practice.name,
             targetCount: practice.targetCount,
             total: totalResult.total,
-            defaultAddCount: practice.defaultAddCount ?? 108,
+            dailyTargetCount: practice.dailyTargetCount ?? null,
+            defaultSessionCount: practice.defaultSessionCount ?? 108,
         };
     }
 
@@ -471,15 +483,31 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         void deps.requestSync?.(syncMetadata.userId);
     }
 
-    function updatePracticeDefaultAddCount(
+    function updatePracticeDailyTargetCount(
         id: string,
-        defaultAddCount: number
+        dailyTargetCount: number | null
     ) {
         const syncMetadata = getWriteSyncMetadata();
 
-        deps.practiceRepo.updatePracticeDefaultAddCount(
+        deps.practiceRepo.updatePracticeDailyTargetCount(
             id,
-            defaultAddCount,
+            dailyTargetCount,
+            syncMetadata
+        );
+
+        deps.emitDataChanged?.();
+        void deps.requestSync?.(syncMetadata.userId);
+    }
+
+    function updatePracticeDefaultSessionCount(
+        id: string,
+        defaultSessionCount: number
+    ) {
+        const syncMetadata = getWriteSyncMetadata();
+
+        deps.practiceRepo.updatePracticeDefaultSessionCount(
+            id,
+            defaultSessionCount,
             syncMetadata
         );
 
@@ -578,8 +606,10 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                                     targetCount: practice.targetCount,
                                     orderIndex: practice.orderIndex,
                                     imageKey: practice.imageKey ?? null,
-                                    defaultAddCount:
-                                        practice.defaultAddCount ?? 108,
+                                    dailyTargetCount:
+                                        practice.dailyTargetCount ?? null,
+                                    defaultSessionCount:
+                                        practice.defaultSessionCount ?? 108,
                                     totalOffset: practice.totalOffset ?? 0,
                                 })
                             );
@@ -610,9 +640,14 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                         syncMetadata
                     );
 
-                    deps.practiceRepo.updatePracticeDefaultAddCount(
+                    deps.practiceRepo.updatePracticeDailyTargetCount(
                         practice.id,
-                        defaultPractice.defaultAddCount ?? 108,
+                        defaultPractice.dailyTargetCount ?? null,
+                        syncMetadata
+                    );
+                    deps.practiceRepo.updatePracticeDefaultSessionCount(
+                        practice.id,
+                        defaultPractice.defaultSessionCount ?? 108,
                         syncMetadata
                     );
                 }
@@ -632,7 +667,8 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                         defaultPractice.orderIndex,
                         getWriteSyncMetadata(),
                         defaultPractice.imageKey ?? null,
-                        defaultPractice.defaultAddCount ?? 108,
+                        defaultPractice.dailyTargetCount ?? null,
+                        defaultPractice.defaultSessionCount ?? 108,
                         0
                     );
                 }
@@ -697,7 +733,10 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                         practice.orderIndex,
                         syncMetadata,
                         practice.imageKey ?? null,
-                        practice.defaultAddCount ?? 108,
+                        practice.dailyTargetCount ?? null,
+                        practice.defaultSessionCount ??
+                            practice.defaultAddCount ??
+                            108,
                         practice.totalOffset ?? 0
                     );
                 });
@@ -755,6 +794,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         restoreBackupData,
         restoreDefaults,
         updatePractice,
-        updatePracticeDefaultAddCount,
+        updatePracticeDailyTargetCount,
+        updatePracticeDefaultSessionCount,
     };
 }

@@ -130,7 +130,7 @@ export default function Layout() {
 
             restoringPracticeRoute.current = true;
 
-            router.replace({
+            router.push({
                 pathname: "/practice",
                 params: { id: practiceId },
             });

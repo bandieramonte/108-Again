@@ -1,8 +1,6 @@
 import PrivacyModal from "@/components/PrivacyModal";
 import * as appService from "@/services/appService";
-import * as practiceService from "@/services/practiceService";
 import { exportBackup, importBackup } from "@/utils/backup";
-import { MAX_PRACTICE_COUNT } from "@/utils/numberUtils";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
@@ -216,29 +214,6 @@ export default function HeaderMenu({
                             }
                         ]}
                     >
-                        <Pressable
-                            style={styles.item}
-                            onPress={() => {
-                                const practices = practiceService.getAllPractices();
-
-                                if (practices.length >= MAX_PRACTICE_COUNT) {
-                                    setMoreOpen(false);
-
-                                    Alert.alert(
-                                        "Maximum reached",
-                                        "You can only have up to 10 practices."
-                                    );
-
-                                    return;
-                                }
-
-                                setMoreOpen(false);
-                                router.push("/add-practice");
-                            }}
-                        >
-                            <Text>Add Practice</Text>
-                        </Pressable>
-
                         <Pressable
                             style={styles.item}
                             onPress={() => {

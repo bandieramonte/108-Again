@@ -10,7 +10,8 @@ type SeedPracticeRepo = {
     orderIndex: number,
     syncMetadata: SyncMetadata,
     imageKey?: string | null,
-    defaultAddCount?: number,
+    dailyTargetCount?: number | null,
+    defaultSessionCount?: number,
     totalOffset?: number
   ): void;
 };
@@ -44,7 +45,8 @@ export function seedPracticesCore(deps: SeedPracticesDeps) {
       practice.orderIndex,
       syncMetadata,
       practice.imageKey,
-      practice.defaultAddCount ?? 108,
+      practice.dailyTargetCount ?? null,
+      practice.defaultSessionCount ?? 108,
       practice.totalOffset ?? 0
     );
   });

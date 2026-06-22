@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput } from "react-native";
 import * as practiceService from "../services/practiceService";
 import { colors } from "../styles/theme";
-import { digitsOnly, MAX_PRACTICE_NAME, MAX_TARGET_COUNT, validateNonNegativeInteger, validateRepetitionsPerSession, validateTargetCount } from "../utils/numberUtils";
+import { digitsOnly, MAX_PRACTICE_NAME, MAX_REPETITIONS_PER_DAY, MAX_TARGET_COUNT, validateNonNegativeInteger, validateRepetitionCount, validateTargetCount } from "../utils/numberUtils";
 
 export default function EditPractice() {
 
@@ -13,14 +13,20 @@ export default function EditPractice() {
     const [name, setName] = useState("");
     const [target, setTarget] = useState("");
     const [total, setTotal] = useState("");
-    const [defaultAdd, setDefaultAdd] = useState("");
+    const [dailyTarget, setDailyTarget] = useState("");
+    const [defaultSession, setDefaultSession] = useState("");
 
     useEffect(() => {
         const data = practiceService.getPracticeEditData(id as string);
         setName(data.name);
         setTarget(String(data.targetCount));
         setTotal(String(data.total));
-        setDefaultAdd(String(data.defaultAddCount ?? 108));
+        setDailyTarget(
+            data.dailyTargetCount == null
+                ? ""
+                : String(data.dailyTargetCount)
+        );
+        setDefaultSession(String(data.defaultSessionCount ?? 108));
     }, []);
 
     function save() {
@@ -46,11 +52,32 @@ export default function EditPractice() {
             return;
         }
 
-        const defaultError =
-            validateRepetitionsPerSession(defaultAdd);
+        const dailyTargetError =
+            dailyTarget.trim()
+                ? validateRepetitionCount(
+                    dailyTarget,
+                    "Daily target"
+                )
+                : null;
 
-        if (defaultError) {
-            alert(defaultError);
+        if (dailyTargetError) {
+            alert(dailyTargetError);
+            return;
+        }
+
+        if (dailyTarget.trim() && Number(dailyTarget) <= 0) {
+            alert("Daily target must be greater than 0");
+            return;
+        }
+
+        const defaultSessionError =
+            validateRepetitionCount(
+                defaultSession,
+                "Default session count"
+            );
+
+        if (defaultSessionError) {
+            alert(defaultSessionError);
             return;
         }
 
@@ -61,15 +88,20 @@ export default function EditPractice() {
                 Number(target),
                 Number(total)
             );
+            practiceService.updatePracticeDailyTargetCount(
+                id as string,
+                dailyTarget.trim()
+                    ? Number(dailyTarget)
+                    : null
+            );
+            practiceService.updatePracticeDefaultSessionCount(
+                id as string,
+                Number(defaultSession)
+            );
         } catch (error: any) {
             alert(error.message);
             return;
         }
-
-        practiceService.updatePracticeDefaultAddCount(
-            id as string,
-            Number(defaultAdd) || 108
-        );
 
         router.back();
     }
@@ -118,13 +150,27 @@ export default function EditPractice() {
                     style={styles.input}
                 />
 
-                <Text>Daily target</Text>
+                <Text>Daily target (optional)</Text>
                 <TextInput
-                    value={defaultAdd}
+                    value={dailyTarget}
                     onChangeText={(v) => {
                         const clean = digitsOnly(v);
-                        if (Number(clean) > 108000) return;
-                        setDefaultAdd(clean);
+                        if (Number(clean) > MAX_REPETITIONS_PER_DAY) return;
+                        setDailyTarget(clean);
+                    }}
+                    keyboardType="numeric"
+                    placeholder="Disabled"
+                    placeholderTextColor="#999"
+                    style={styles.input}
+                />
+
+                <Text>Default session count</Text>
+                <TextInput
+                    value={defaultSession}
+                    onChangeText={(v) => {
+                        const clean = digitsOnly(v);
+                        if (Number(clean) > MAX_REPETITIONS_PER_DAY) return;
+                        setDefaultSession(clean);
                     }}
                     keyboardType="numeric"
                     style={styles.input}

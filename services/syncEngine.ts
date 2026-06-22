@@ -17,7 +17,8 @@ export type RemotePracticeRow = {
     target_count: number;
     order_index: number;
     image_key: string | null;
-    default_add_count: number;
+    daily_target_count: number | null;
+    default_session_count: number;
     total_offset: number;
     updated_at: string;
     deleted_at: string | null;
@@ -39,7 +40,8 @@ export type LocalPracticeRow = {
     targetCount: number;
     orderIndex: number;
     imageKey?: string | null;
-    defaultAddCount?: number | null;
+    dailyTargetCount?: number | null;
+    defaultSessionCount?: number | null;
     totalOffset?: number;
     userId?: string | null;
     updatedAt?: number | null;
@@ -187,8 +189,10 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             row.targetCount === defaultPractice.targetCount &&
             row.orderIndex === defaultPractice.orderIndex &&
             (row.imageKey ?? null) === (defaultPractice.imageKey ?? null) &&
-            (row.defaultAddCount ?? 108) ===
-                (defaultPractice.defaultAddCount ?? 108) &&
+            (row.dailyTargetCount ?? null) ===
+                (defaultPractice.dailyTargetCount ?? null) &&
+            (row.defaultSessionCount ?? 108) ===
+                (defaultPractice.defaultSessionCount ?? 108) &&
             (row.totalOffset ?? 0) ===
                 (defaultPractice.totalOffset ?? 0)
         );
@@ -460,7 +464,8 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             target_count: row.targetCount,
             order_index: row.orderIndex,
             image_key: row.imageKey ?? null,
-            default_add_count: row.defaultAddCount ?? 108,
+            daily_target_count: row.dailyTargetCount ?? null,
+            default_session_count: row.defaultSessionCount ?? 108,
             total_offset: row.totalOffset ?? 0,
             updated_at: new Date(row.updatedAt ?? now()).toISOString(),
             deleted_at: null,
@@ -632,7 +637,11 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             target_count: parsed.targetCount,
             order_index: parsed.orderIndex,
             image_key: parsed.imageKey ?? null,
-            default_add_count: parsed.defaultAddCount ?? 108,
+            daily_target_count: parsed.dailyTargetCount ?? null,
+            default_session_count:
+                parsed.defaultSessionCount ??
+                parsed.defaultAddCount ??
+                108,
             total_offset: parsed.totalOffset ?? 0,
             updated_at: deletedAt,
             deleted_at: deletedAt,

@@ -1,19 +1,14 @@
-import { useRouter } from "expo-router";
-import { useState } from "react";
-import { Alert } from "react-native";
-import * as practiceService from "../services/practiceService";
+import {
+    type PracticeActionTarget,
+    usePracticeActions,
+} from "../hooks/usePracticeActions";
 import PracticeDropdownMenu, {
     type PracticeMenuAnchor,
 } from "./PracticeDropdownMenu";
 import PracticeHistoryModal from "./PracticeHistoryModal";
 
 export type { PracticeMenuAnchor } from "./PracticeDropdownMenu";
-
-export type PracticeActionTarget = {
-    id: string;
-    name: string;
-    total: number;
-};
+export type { PracticeActionTarget } from "../hooks/usePracticeActions";
 
 type Props = {
     visible: boolean;
@@ -30,55 +25,27 @@ export default function PracticeActionsMenu({
     onClose,
     onDeleted,
 }: Props) {
-    const router = useRouter();
-    const [historyPractice, setHistoryPractice] =
-        useState<PracticeActionTarget | null>(null);
+    const actions = usePracticeActions({ onDeleted });
 
     function editPractice() {
         if (!practice) return;
 
-        const selectedPractice = practice;
         onClose();
-        router.push({
-            pathname: "/edit-practice",
-            params: {
-                id: selectedPractice.id,
-                practiceName: selectedPractice.name,
-            },
-        });
+        actions.editPractice(practice);
     }
 
     function openPracticeHistory() {
         if (!practice) return;
 
-        const selectedPractice = practice;
         onClose();
-        setHistoryPractice(selectedPractice);
+        actions.openPracticeHistory(practice);
     }
 
     function confirmDeletePractice() {
         if (!practice) return;
 
-        const selectedPractice = practice;
         onClose();
-
-        Alert.alert(
-            "Delete practice?",
-            "All sessions for this practice will also be deleted.",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: async () => {
-                        await practiceService.deletePractice(
-                            selectedPractice.id
-                        );
-                        await onDeleted?.();
-                    },
-                },
-            ]
-        );
+        actions.confirmDeletePractice(practice);
     }
 
     return (
@@ -92,12 +59,12 @@ export default function PracticeActionsMenu({
                 onDelete={confirmDeletePractice}
             />
 
-            {historyPractice && (
+            {actions.historyPractice && (
                 <PracticeHistoryModal
                     visible
-                    onClose={() => setHistoryPractice(null)}
-                    practiceId={historyPractice.id}
-                    total={historyPractice.total}
+                    onClose={actions.closePracticeHistory}
+                    practiceId={actions.historyPractice.id}
+                    total={actions.historyPractice.total}
                 />
             )}
         </>

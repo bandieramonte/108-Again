@@ -3,7 +3,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import * as Progress from "react-native-progress";
 import CelebrationOverlay from "../components/CelebrationOverlay";
 import PracticeActionsMenu, {
@@ -11,13 +11,15 @@ import PracticeActionsMenu, {
 } from "../components/PracticeActionsMenu";
 import QuickAddEditor from "../components/QuickAddEditor";
 import WelcomeModal from "../components/WelcomeModal";
+import PracticeHistoryModal from "../components/PracticeHistoryModal";
 import { practiceImages } from "../constants/practiceImages";
+import { usePracticeActions } from "../hooks/usePracticeActions";
 import { useReachedCelebration } from "../hooks/useReachedCelebration";
 import * as dashboardService from "../services/dashboardService";
 import * as practiceService from "../services/practiceService";
 import * as sessionService from "../services/sessionService";
 import { colors, containers } from "../styles/theme";
-import { formatCountProgress, formatNumber } from "../utils/numberUtils";
+import { digitsOnly, formatCountProgress, formatNumber, MAX_REPETITIONS_PER_DAY, validateRepetitionCount } from "../utils/numberUtils";
 
 type Practice = {
   id: string;
@@ -26,7 +28,8 @@ type Practice = {
   total: number;
   today: number;
   imageKey?: string | null;
-  defaultAddCount?: number | null;
+  dailyTargetCount?: number | null;
+  defaultSessionCount?: number | null;
 };
 
 export default function Dashboard() {
@@ -38,7 +41,10 @@ export default function Dashboard() {
   const [editDefaultOpen, setEditDefaultOpen] = useState(false);
   const [selectedPracticeId, setSelectedPracticeId] = useState<string | null>(null);
   const [selectedPracticeName, setSelectedPracticeName] = useState("");
-  const [defaultAddInput, setDefaultAddInput] = useState("");
+  const [defaultSessionInput, setDefaultSessionInput] = useState("");
+  const [dailyTargetPromptPractice, setDailyTargetPromptPractice] =
+    useState<{ id: string; name: string } | null>(null);
+  const [dailyTargetInput, setDailyTargetInput] = useState("");
   const [showQuickAddHint, setShowQuickAddHint] = useState(false);
   const quickAddRefs = useRef<Record<string, View | null>>({});
   const practiceRowRefs = useRef<Record<string, View | null>>({});
@@ -56,6 +62,9 @@ export default function Dashboard() {
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const practiceActions = usePracticeActions({
+    onDeleted: refreshDashboard,
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -157,10 +166,10 @@ export default function Dashboard() {
     await maybeShowQuickAddHint(practiceId);
   }
 
-  function openEditDefaultModal(practiceId: string, practiceName: string, currentDefault: number) {
+  function openEditDefaultModal(practiceId: string, practiceName: string, currentDefaultSession: number) {
     setSelectedPracticeId(practiceId);
     setSelectedPracticeName(practiceName);
-    setDefaultAddInput(String(currentDefault));
+    setDefaultSessionInput(String(currentDefaultSession));
     setEditDefaultOpen(true);
   }
 
@@ -179,6 +188,62 @@ export default function Dashboard() {
   function closePracticeMenu() {
     setMenuPractice(null);
     setMenuAnchor(null);
+  }
+
+  function openDailyTargetPrompt(practice: Practice) {
+    setDailyTargetPromptPractice({
+      id: practice.id,
+      name: practice.name,
+    });
+    setDailyTargetInput("");
+  }
+
+  function closeDailyTargetPrompt() {
+    setDailyTargetPromptPractice(null);
+    setDailyTargetInput("");
+  }
+
+  function saveDailyTarget() {
+    if (!dailyTargetPromptPractice) return;
+
+    const error =
+      validateRepetitionCount(
+        dailyTargetInput,
+        "Daily target"
+      );
+
+    if (error) {
+      alert(error);
+      return;
+    }
+
+    const value = Number(dailyTargetInput);
+
+    if (value <= 0) {
+      alert("Daily target must be greater than 0");
+      return;
+    }
+
+    try {
+      practiceService.updatePracticeDailyTargetCount(
+        dailyTargetPromptPractice.id,
+        value
+      );
+      closeDailyTargetPrompt();
+      refreshDashboard();
+    } catch (error: any) {
+      alert(error.message);
+    }
+  }
+
+  function openPracticeCalendar(practiceId: string) {
+    router.push({
+      pathname: "/practice",
+      params: {
+        id: practiceId,
+        openCalendar: "1",
+      }
+    });
   }
 
   return (
@@ -212,23 +277,38 @@ export default function Dashboard() {
         {practices.map((practice) => {
 
           const currentCycleProgress = practice.total >= practice.targetCount ? 1 : (practice.total % practice.targetCount) / practice.targetCount;
+          const dailyTargetCount = practice.dailyTargetCount ?? null;
+          const hasDailyTarget =
+            dailyTargetCount != null &&
+            dailyTargetCount > 0;
+          const todayTargetProgress =
+            hasDailyTarget
+              ? Math.min(practice.today / dailyTargetCount, 1)
+              : 0;
+          const isTodayTargetFinished =
+            hasDailyTarget &&
+            practice.today >= dailyTargetCount;
           const targetDate =
-            practiceService.getExpectedTargetDate(
-              practice.targetCount,
-              practice.total,
-              practice.defaultAddCount
-            );
+            hasDailyTarget
+              ? practiceService.getExpectedTargetDate(
+                practice.targetCount,
+                practice.total,
+                dailyTargetCount
+              )
+              : null;
 
           const expectedTargetDate =
             practice.targetCount > 0 && practice.total >= practice.targetCount
               ? <Text style={{ color: colors.primary }}>Reached!</Text>
-              : targetDate
-                ? targetDate.toLocaleDateString("en-US", {
-                  month: "long",
-                  day: "2-digit",
-                  year: "numeric"
-                })
-                : "No estimate";
+              : !hasDailyTarget
+                ? "Set daily target 1st"
+                : targetDate
+                  ? targetDate.toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "2-digit",
+                    year: "numeric"
+                  })
+                  : "No estimate";
 
           return (
 
@@ -260,9 +340,93 @@ export default function Dashboard() {
                   />
 
                   <View style={{ flex: 1 }}>
-                    <Text numberOfLines={2} ellipsizeMode="tail" style={styles.practiceName}>
-                      {practice.name}
-                    </Text>
+                    <View style={styles.practiceNameRow}>
+                      <Text numberOfLines={2} ellipsizeMode="tail" style={styles.practiceName}>
+                        {practice.name}
+                      </Text>
+
+                      <View style={styles.practiceActionButtons}>
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.practiceActionButton,
+                            pressed && styles.practiceActionButtonPressed
+                          ]}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            practiceActions.editPractice(practice);
+                          }}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Edit ${practice.name}`}
+                        >
+                          <MaterialIcons
+                            name="edit"
+                            size={18}
+                            color={colors.primary}
+                          />
+                        </Pressable>
+
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.practiceActionButton,
+                            pressed && styles.practiceActionButtonPressed
+                          ]}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            practiceActions.openPracticeHistory(practice);
+                          }}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`View statistics for ${practice.name}`}
+                        >
+                          <MaterialIcons
+                            name="bar-chart"
+                            size={18}
+                            color={colors.primary}
+                          />
+                        </Pressable>
+
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.practiceActionButton,
+                            pressed && styles.practiceActionButtonPressed
+                          ]}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            openPracticeCalendar(practice.id);
+                          }}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`View calendar for ${practice.name}`}
+                        >
+                          <MaterialIcons
+                            name="calendar-today"
+                            size={17}
+                            color={colors.primary}
+                          />
+                        </Pressable>
+
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.practiceActionButton,
+                            pressed && styles.practiceDeleteButtonPressed
+                          ]}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            practiceActions.confirmDeletePractice(practice);
+                          }}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Delete ${practice.name}`}
+                        >
+                          <MaterialIcons
+                            name="delete-outline"
+                            size={18}
+                            color="#c62828"
+                          />
+                        </Pressable>
+                      </View>
+                    </View>
 
                     <Progress.Bar
                       progress={currentCycleProgress}
@@ -274,48 +438,102 @@ export default function Dashboard() {
                       borderRadius={5}
                     />
 
-                    <Text style={styles.countText}>
-                      {formatCountProgress(
-                        practice.total,
-                        practice.targetCount || null
-                      )}
-                    </Text>
-
-                    <Text style={{ fontSize: 12, color: "#666" }}>
-                      Today: {formatCountProgress(
-                        practice.today,
-                        practice.defaultAddCount ?? 108
-                      )}
-                    </Text>
-
-                    <View style={styles.targetDateRow}>
-                      {isCelebrating(practice.id) && (
-                        <CelebrationOverlay
-                          fade={celebrationFade}
-                          sparkle1={sparkle1}
-                          sparkle2={sparkle2}
-                          sparkle3={sparkle3}
-                        />
-                      )}
-                      <Text
-                        style={
-                          !!practice.imageKey
-                            ? { fontSize: 12, color: "#666", marginTop: 2 }
-                            : { fontSize: 12, color: "#666", marginTop: 2, marginBottom: 10 }
-                        }
-                      >
-                        Target date: {expectedTargetDate ?? "No estimate"}
+                    <View
+                      style={[
+                        styles.practiceMetricGroup,
+                        !practice.imageKey && styles.practiceMetricGroupNoImage
+                      ]}
+                    >
+                      <Text style={styles.countText}>
+                        Total Progress: {formatCountProgress(
+                          practice.total,
+                          practice.targetCount || null
+                        )}
                       </Text>
 
-                      {expectedTargetDate === "Reached!" && isCelebrating(practice.id) && (
-                        <Animated.Text
-                          style={[
-                            styles.congratsText,
-                            { opacity: celebrationFade }
+                      <View style={styles.targetDateRow}>
+                        {isCelebrating(practice.id) && (
+                          <CelebrationOverlay
+                            fade={celebrationFade}
+                            sparkle1={sparkle1}
+                            sparkle2={sparkle2}
+                            sparkle3={sparkle3}
+                          />
+                        )}
+                        <Text style={styles.countText}>
+                          Target date: {expectedTargetDate ?? "No estimate"}
+                        </Text>
+
+                        {expectedTargetDate === "Reached!" && isCelebrating(practice.id) && (
+                          <Animated.Text
+                            style={[
+                              styles.congratsText,
+                              { opacity: celebrationFade }
+                            ]}
+                          >
+                            Congratulations!!
+                          </Animated.Text>
+                        )}
+                      </View>
+
+                      {hasDailyTarget ? (
+                        <View style={styles.todayMetricRow}>
+                          <Text style={styles.countText}>
+                            Today&apos;s goal:
+                          </Text>
+
+                          <View
+                            style={[
+                              styles.todayTargetBar,
+                              isTodayTargetFinished &&
+                              styles.todayTargetBarFinished
+                            ]}
+                          >
+                            <View
+                              style={[
+                                styles.todayTargetBarFill,
+                                {
+                                  width: `${todayTargetProgress * 100}%`,
+                                }
+                              ]}
+                            />
+                            <View style={styles.todayTargetBarTextOverlay}>
+                              <Text
+                                style={[
+                                  styles.todayTargetBarText,
+                                  isTodayTargetFinished &&
+                                  styles.todayTargetBarTextFinished
+                                ]}
+                              >
+                                {isTodayTargetFinished
+                                  ? "Finished!"
+                                  : formatCountProgress(
+                                    practice.today,
+                                    dailyTargetCount
+                                  )}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                      ) : (
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.enableDailyTargetButton,
+                            pressed && styles.enableDailyTargetButtonPressed
                           ]}
+                          onPress={() => openDailyTargetPrompt(practice)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Enable daily target for ${practice.name}`}
                         >
-                          Congratulations!!
-                        </Animated.Text>
+                          <MaterialIcons
+                            name="check-circle-outline"
+                            size={16}
+                            color={colors.primary}
+                          />
+                          <Text style={styles.enableDailyTargetText}>
+                            Enable daily target
+                          </Text>
+                        </Pressable>
                       )}
                     </View>
                   </View>
@@ -327,24 +545,25 @@ export default function Dashboard() {
                 ref={(node) => {
                   quickAddRefs.current[practice.id] = node;
                 }}
+                style={styles.quickAddContainer}
               >
                 <Pressable
                   style={({ pressed }) => [
                     styles.quickAddButton,
                     pressed && styles.quickAddButtonPressed
                   ]}
-                  onPress={() => quickAdd(practice.id, practice.defaultAddCount ?? 108)}
+                  onPress={() => quickAdd(practice.id, practice.defaultSessionCount ?? 108)}
                   onLongPress={() =>
                     openEditDefaultModal(
                       practice.id,
                       practice.name,
-                      practice.defaultAddCount ?? 108
+                      practice.defaultSessionCount ?? 108
                     )
                   }
                   delayLongPress={350}
                 >
                   <Text style={styles.quickAddButtonText}>
-                    +{formatNumber(practice.defaultAddCount ?? 108)}
+                    +{formatNumber(practice.defaultSessionCount ?? 108)}
                   </Text>
                 </Pressable>
               </View>
@@ -354,11 +573,35 @@ export default function Dashboard() {
           );
         })}
 
+        <Pressable
+          style={({ pressed }) => [
+            styles.addPracticeCard,
+            pressed && styles.addPracticeCardPressed
+          ]}
+          onPress={() => router.push("/add-practice")}
+          accessibilityRole="button"
+          accessibilityLabel="Add Practice"
+        >
+          <View style={styles.addPracticeCircle}>
+            <MaterialIcons
+              name="add"
+              size={22}
+              color={colors.primary}
+            />
+          </View>
+
+          <View style={styles.addPracticeTextWrapper}>
+            <Text style={styles.addPracticeText}>
+              Add Practice
+            </Text>
+          </View>
+        </Pressable>
+
         <QuickAddEditor
           visible={editDefaultOpen}
           practiceId={selectedPracticeId}
           practiceName={selectedPracticeName}
-          defaultValue={Number(defaultAddInput)}
+          defaultValue={Number(defaultSessionInput)}
           onClose={() => setEditDefaultOpen(false)}
         />
 
@@ -369,6 +612,73 @@ export default function Dashboard() {
           onClose={closePracticeMenu}
           onDeleted={refreshDashboard}
         />
+
+        {practiceActions.historyPractice && (
+          <PracticeHistoryModal
+            visible
+            onClose={practiceActions.closePracticeHistory}
+            practiceId={practiceActions.historyPractice.id}
+            total={practiceActions.historyPractice.total}
+          />
+        )}
+
+        <Modal
+          visible={dailyTargetPromptPractice !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={closeDailyTargetPrompt}
+        >
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={closeDailyTargetPrompt}
+          >
+            <Pressable
+              style={styles.modalCard}
+              onPress={() => { }}
+            >
+              <Text style={styles.modalTitle}>
+                Set daily target
+              </Text>
+
+              <Text style={styles.modalSubtitle}>
+                {dailyTargetPromptPractice?.name}
+              </Text>
+
+              <TextInput
+                value={dailyTargetInput}
+                onChangeText={(value) => {
+                  const clean = digitsOnly(value);
+                  if (Number(clean) > MAX_REPETITIONS_PER_DAY) return;
+                  setDailyTargetInput(clean);
+                }}
+                keyboardType="numeric"
+                returnKeyType="done"
+                onSubmitEditing={saveDailyTarget}
+                placeholder="Daily target"
+                placeholderTextColor="#999"
+                style={styles.modalInput}
+                maxLength={String(MAX_REPETITIONS_PER_DAY).length}
+                autoFocus
+              />
+
+              <View style={styles.modalButtons}>
+                <Pressable
+                  style={styles.modalButton}
+                  onPress={closeDailyTargetPrompt}
+                >
+                  <Text>Cancel</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.modalButton}
+                  onPress={saveDailyTarget}
+                >
+                  <Text>Save</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         {showQuickAddHint && tooltipPosition && (
           <Pressable
@@ -388,7 +698,7 @@ export default function Dashboard() {
               ]}
             >
               <Text style={styles.anchoredTooltipText}>
-                Tip: Long press this button to change the to change the default session count.
+                Tip: Long press this button to change the default session count.
               </Text>
             </View>
           </Pressable>
@@ -419,7 +729,7 @@ export default function Dashboard() {
 
               <Text style={styles.infoText}>
                 Tip: Long press the quick add button to change
-                the daily repetition count.
+                the default session count.
               </Text>
 
               <Text style={styles.infoText}>
@@ -451,6 +761,8 @@ export default function Dashboard() {
 
 const screenWidth = Dimensions.get("window").width;
 const iconSize = screenWidth < 360 ? 60 : 70;
+const addPracticeCardHeight = Math.round(iconSize);
+const todayTargetBarWidth = screenWidth < 360 ? 105 : 128;
 const styles = StyleSheet.create({
 
   title: {
@@ -465,19 +777,171 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
 
+  addPracticeCard: {
+    minHeight: addPracticeCardHeight,
+    marginBottom: 25,
+    marginHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: "transparent",
+    justifyContent: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+  },
+
+  addPracticeCardPressed: {
+    opacity: 0.72,
+  },
+
+  addPracticeCircle: {
+    position: "absolute",
+    left: 18,
+    width: addPracticeCardHeight * .8,
+    height: addPracticeCardHeight * .8,
+    borderRadius: addPracticeCardHeight / 2,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+
+  addPracticeTextWrapper: {
+    alignItems: "center",
+  },
+
+  addPracticeText: {
+    fontSize: 18,
+    color: "#111",
+    textAlign: "center",
+  },
+
   practiceName: {
     fontSize: 18,
+    flex: 1,
+  },
+
+  practiceNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     marginBottom: 6,
   },
 
-  countText: {
-    marginTop: 6,
-    fontSize: 14,
+  practiceActionButtons: {
+    flexDirection: "row",
+    alignItems: "center",
   },
 
-  quickButtons: {
-    marginTop: 6,
-    alignItems: "flex-start"
+  practiceActionButton: {
+    width: 25.5,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  practiceActionButtonPressed: {
+    backgroundColor: "#eef2ff",
+  },
+
+  practiceDeleteButtonPressed: {
+    backgroundColor: "#ffebee",
+  },
+
+  countText: {
+    fontSize: 14,
+    fontWeight: "400",
+  },
+
+  practiceMetricGroup: {
+    marginTop: 8,
+    gap: 5,
+  },
+
+  practiceMetricGroupNoImage: {
+    marginBottom: 10,
+  },
+
+  todayMetricRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  todayTargetBar: {
+    width: todayTargetBarWidth,
+    height: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    backgroundColor: "#F9FAFB",
+    overflow: "hidden",
+  },
+
+  todayTargetBarFinished: {
+    borderColor: colors.primary,
+  },
+
+  todayTargetBarFill: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: "rgba(107, 114, 128, 0.28)",
+  },
+
+  todayTargetBarTextOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  todayTargetBarText: {
+    color: "#111",
+    fontSize: 14,
+    fontWeight: "400",
+    lineHeight: 14,
+    textAlign: "center",
+    includeFontPadding: false,
+    transform: [{ translateY: -0.5 }],
+  },
+
+  todayTargetBarTextFinished: {
+    color: colors.primary,
+  },
+
+  enableDailyTargetButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 7,
+    paddingVertical: 4,
+    paddingHorizontal: 9,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    backgroundColor: "transparent",
+  },
+
+  enableDailyTargetButtonPressed: {
+    opacity: 0.72,
+  },
+
+  enableDailyTargetText: {
+    fontSize: 14,
+    fontWeight: "400",
+    color: "#111",
+  },
+
+  quickAddContainer: {
+    marginTop: -8,
+    alignItems: "flex-start",
   },
 
   row: {

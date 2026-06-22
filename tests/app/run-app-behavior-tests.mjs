@@ -43,6 +43,8 @@ const { createSessionRepo } =
   require("../.build/repositories/sessionRepoFactory.js");
 const { createAppOperationEngine } =
   require("../.build/services/appOperationEngine.js");
+const { validateBackup } =
+  require("../.build/services/backupService.js");
 const { createLastPracticeScreenService } =
   require("../.build/services/lastPracticeScreenService.js");
 const { formatCountProgress } =
@@ -126,6 +128,89 @@ async function test(name, fn) {
 }
 
 await test(
+  "backup round trips daily targets and default session counts",
+  async () => {
+    const source = makeLocalDevice();
+    const practiceId = source.operations.createPractice(
+      "Backup Count Practice",
+      10000,
+      500,
+      125
+    );
+    const backup = source.operations.getBackupData();
+    const exportedPractice = backup.practices.find(
+      (practice) => practice.id === practiceId
+    );
+
+    assert.equal(exportedPractice.dailyTargetCount, 500);
+    assert.equal(exportedPractice.defaultSessionCount, 125);
+    assert.doesNotThrow(() => validateBackup(backup));
+
+    const destination = makeLocalDevice();
+    await destination.operations.restoreBackupData(backup);
+
+    const restoredPractice = destination.practiceRepo.getPracticeById(
+      practiceId
+    );
+    assert.equal(restoredPractice.dailyTargetCount, 500);
+    assert.equal(restoredPractice.defaultSessionCount, 125);
+  }
+);
+
+await test(
+  "legacy backups preserve quick add count and disable daily target",
+  async () => {
+    const destination = makeLocalDevice();
+    const practiceId = randomUUID();
+    const legacyBackup = {
+      app: "app108again",
+      practices: [
+        {
+          id: practiceId,
+          name: "Legacy Backup Practice",
+          targetCount: 10000,
+          orderIndex: 1,
+          defaultAddCount: 333,
+        },
+      ],
+      sessions: [],
+    };
+
+    assert.doesNotThrow(() => validateBackup(legacyBackup));
+    await destination.operations.restoreBackupData(legacyBackup);
+
+    const restoredPractice = destination.practiceRepo.getPracticeById(
+      practiceId
+    );
+    assert.equal(restoredPractice.dailyTargetCount, null);
+    assert.equal(restoredPractice.defaultSessionCount, 333);
+  }
+);
+
+await test(
+  "backup validation rejects a zero daily target",
+  () => {
+    assert.throws(
+      () => validateBackup({
+        app: "app108again",
+        practices: [
+          {
+            id: randomUUID(),
+            name: "Invalid Daily Target",
+            targetCount: 10000,
+            orderIndex: 1,
+            dailyTargetCount: 0,
+            defaultSessionCount: 108,
+          },
+        ],
+        sessions: [],
+      }),
+      /Invalid daily target count/
+    );
+  }
+);
+
+await test(
   "practice content route restores only while last focused route was practice",
   async () => {
     const device = makeLocalDevice();
@@ -133,6 +218,7 @@ await test(
     const practiceId = device.operations.createPractice(
       "Route Test Practice",
       1000,
+      null,
       108
     );
 
