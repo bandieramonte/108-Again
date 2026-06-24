@@ -8,7 +8,7 @@ export default {
         name: "108 Again",
         slug: "108-again",
         scheme,
-        version: "1.1.2",
+        version: "1.1.3",
 
         orientation: "portrait",
         icon: "./assets/images/icon.png",
@@ -20,7 +20,9 @@ export default {
         },
 
         android: {
-            package: "com.bandieramonte.app108again",
+            package: isDev
+                ? "com.bandieramonte.app108again.dev"
+                : "com.bandieramonte.app108again",
             allowBackup: false,
             adaptiveIcon: {
                 backgroundColor: "#1A5FCC",

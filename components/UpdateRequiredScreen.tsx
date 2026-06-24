@@ -1,0 +1,157 @@
+import { MaterialIcons } from "@expo/vector-icons";
+import { useEffect } from "react";
+import {
+    ActivityIndicator,
+    BackHandler,
+    Pressable,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
+import type { UpdateRequirement } from "../services/appUpdatePolicy";
+import { colors } from "../styles/theme";
+
+type RequiredUpdate = Extract<
+    UpdateRequirement,
+    { kind: "required" }
+>;
+
+type Props = {
+    requirement: RequiredUpdate;
+    checking: boolean;
+    onRetry: () => void;
+    onUpdate: () => void;
+};
+
+export default function UpdateRequiredScreen({
+    requirement,
+    checking,
+    onRetry,
+    onUpdate,
+}: Props) {
+    const isMaintenance = requirement.reason === "maintenance";
+
+    useEffect(() => {
+        const subscription = BackHandler.addEventListener(
+            "hardwareBackPress",
+            () => true
+        );
+
+        return () => subscription.remove();
+    }, []);
+
+    return (
+        <SafeAreaView style={styles.screen}>
+            <View style={styles.card}>
+                <MaterialIcons
+                    name={isMaintenance ? "build" : "system-update"}
+                    size={52}
+                    color={colors.primary}
+                />
+
+                <Text style={styles.title}>
+                    {isMaintenance
+                        ? "Temporarily unavailable"
+                        : "Update required"}
+                </Text>
+
+                <Text style={styles.message}>
+                    {requirement.message}
+                </Text>
+
+                {!isMaintenance && (
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.primaryButton,
+                            pressed && styles.buttonPressed,
+                        ]}
+                        onPress={onUpdate}
+                        accessibilityRole="button"
+                        accessibilityLabel="Update 108 Again"
+                    >
+                        <Text style={styles.primaryButtonText}>
+                            Update now
+                        </Text>
+                    </Pressable>
+                )}
+
+                <Pressable
+                    style={({ pressed }) => [
+                        styles.retryButton,
+                        pressed && styles.buttonPressed,
+                    ]}
+                    onPress={onRetry}
+                    disabled={checking}
+                    accessibilityRole="button"
+                    accessibilityLabel="Check again"
+                >
+                    {checking ? (
+                        <ActivityIndicator color={colors.primary} />
+                    ) : (
+                        <Text style={styles.retryButtonText}>
+                            Check again
+                        </Text>
+                    )}
+                </Pressable>
+            </View>
+        </SafeAreaView>
+    );
+}
+
+const styles = StyleSheet.create({
+    screen: {
+        flex: 1,
+        backgroundColor: colors.background,
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+    },
+    card: {
+        width: "100%",
+        maxWidth: 420,
+        alignItems: "center",
+        gap: 18,
+    },
+    title: {
+        fontSize: 24,
+        fontWeight: "700",
+        color: colors.textPrimary,
+        textAlign: "center",
+    },
+    message: {
+        fontSize: 16,
+        lineHeight: 23,
+        color: colors.textSecondary,
+        textAlign: "center",
+        marginBottom: 8,
+    },
+    primaryButton: {
+        width: "100%",
+        minHeight: 52,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: colors.primary,
+    },
+    primaryButtonText: {
+        color: "white",
+        fontSize: 16,
+        fontWeight: "700",
+    },
+    retryButton: {
+        minHeight: 44,
+        minWidth: 140,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 18,
+    },
+    retryButtonText: {
+        color: colors.primary,
+        fontSize: 15,
+        fontWeight: "600",
+    },
+    buttonPressed: {
+        opacity: 0.72,
+    },
+});

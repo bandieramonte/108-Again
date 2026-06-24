@@ -23,20 +23,24 @@ const { createProfileRepo } =
   require("../.build/repositories/profileRepoFactory.js");
 const { createSessionRepo } =
   require("../.build/repositories/sessionRepoFactory.js");
-const {
-  assertCanCreateAccountOnDevice,
-  assertCanSignInOnDevice,
-  ONE_ACCOUNT_PER_DEVICE_MESSAGE,
-} = require("../.build/services/authAccountGuard.js");
+const { ONE_ACCOUNT_PER_DEVICE_MESSAGE } =
+  require("../.build/services/authAccountGuard.js");
 const {
   deleteAccountCore,
   resetPasswordCore,
 } = require("../.build/services/authAccountActions.js");
+const { createAuthSessionEngine } =
+  require("../.build/services/authSessionEngine.js");
 const { createAppOperationEngine } =
   require("../.build/services/appOperationEngine.js");
 const { createSupabaseSyncRemote } =
   require("../.build/services/supabaseSyncRemote.js");
-const { createSyncEngine } =
+const { createSyncCoordinator } =
+  require("../.build/services/syncCoordinator.js");
+const {
+  createSyncEngine,
+  REMOTE_AUTHORITATIVE_SYNC_USER_ID_META,
+} =
   require("../.build/services/syncEngine.js");
 
 const TEST_EMAIL = "automatedTest@test.com";
@@ -135,7 +139,7 @@ function createBetterSqliteDatabase() {
   };
 }
 
-function makeLocalDevice(name, userId, remote) {
+function makeLocalDevice(name, remote) {
   const database = createBetterSqliteDatabase();
   initializeDatabaseSchema(database);
 
@@ -146,6 +150,8 @@ function makeLocalDevice(name, userId, remote) {
   const sessionRepo = createSessionRepo(database);
 
   const device = {
+    authClient: null,
+    authSession: null,
     appMetaRepo,
     database,
     deletedRecordRepo,
@@ -153,12 +159,11 @@ function makeLocalDevice(name, userId, remote) {
     practiceRepo,
     profileRepo,
     sessionRepo,
-    userId,
+    pendingAuthSync: null,
+    get userId() {
+      return this.authSession?.getAuthState().userId ?? null;
+    },
   };
-
-  if (userId) {
-    appMetaRepo.setLocalDataOwnerUserId(userId);
-  }
 
   device.operations = createAppOperationEngine({
     appMetaRepo,
@@ -186,12 +191,7 @@ function makeLocalDevice(name, userId, remote) {
     },
   });
 
-  device.sync = async (mode) => {
-    if (!device.userId) {
-      throw new Error(`${device.name}: cannot sync without a user`);
-    }
-
-    const syncEngine = createSyncEngine({
+  const createDeviceSyncEngine = () => createSyncEngine({
       appMetaRepo,
       deletedRecordRepo,
       logger: silentLogger,
@@ -200,45 +200,101 @@ function makeLocalDevice(name, userId, remote) {
       sessionRepo,
     });
 
-    await syncEngine.syncUserData(device.userId, mode);
-  };
+  device.syncCoordinator = createSyncCoordinator({
+    cancelTimer: clearTimeout,
+    createSyncEngine: createDeviceSyncEngine,
+    emitAuthInvalid: () => {},
+    emitDataChanged: () => {},
+    emitSyncChanged: () => {},
+    getIsOnline: () => true,
+    isAppAccessBlocked: () => false,
+    isNetworkTimeout: (error) =>
+      error?.message === "Network timeout during sync",
+    isUserDeleted: async () => false,
+    logger: silentLogger,
+    markLocalDataOwnerIfSessionIsCurrent: async (currentUserId) => {
+      if (device.userId === currentUserId) {
+        appMetaRepo.setLocalDataOwnerUserId(currentUserId);
+      }
+    },
+    requireRemoteAuthoritativeSync: (currentUserId) => {
+      appMetaRepo.setMeta(
+        REMOTE_AUTHORITATIVE_SYNC_USER_ID_META,
+        currentUserId
+      );
+    },
+    scheduleTimer: setTimeout,
+    validateSessionAfterMaxRetries: async () => {},
+  });
 
-  device.attachAccount = (nextUserId, email = null, firstName = null) => {
-    device.userId = nextUserId;
-    appMetaRepo.setLocalDataOwnerUserId(nextUserId);
+  device.authSession = createAuthSessionEngine({
+    appMetaRepo,
+    claimAnonymousLocalDataIfNeeded: (currentUserId) =>
+      createDeviceSyncEngine()
+        .claimAnonymousLocalDataIfNeeded(currentUserId),
+    emitAuthChanged: () => {},
+    fetchRemoteProfile: async (currentUserId) => {
+      if (!device.authClient) return null;
 
-    if (email) {
-      profileRepo.upsertUserProfile(
-        nextUserId,
-        email,
-        firstName,
-        Date.now()
+      const { data, error } = await device.authClient
+        .from("profiles")
+        .select("first_name")
+        .eq("user_id", currentUserId)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      return data
+        ? { firstName: data.first_name ?? null }
+        : null;
+    },
+    logger: silentLogger,
+    now: () => Date.now(),
+    profileRepo,
+    requestSync: (currentUserId, options) => {
+      device.pendingAuthSync = {
+        options,
+        userId: currentUserId,
+      };
+    },
+    requireRemoteAuthoritativeSync: (currentUserId) => {
+      appMetaRepo.setMeta(
+        REMOTE_AUTHORITATIVE_SYNC_USER_ID_META,
+        currentUserId
+      );
+    },
+  });
+
+  device.flushAuthSync = async () => {
+    const pending = device.pendingAuthSync;
+    device.pendingAuthSync = null;
+
+    if (!pending) return;
+
+    const result = await device.syncCoordinator.syncNow(
+      pending.userId,
+      { mode: pending.options?.mode }
+    );
+
+    if (result !== "success") {
+      throw new Error(
+        `${device.name}: expected auth sync success, received ${result}`
       );
     }
   };
 
-  device.signOutLocal = () => {
-    device.userId = null;
-  };
-
-  device.loginExistingAndAutoSync = async (client, email, password) => {
-    const user = await signIn(client, email, password);
-    const accountEmail = user.email ?? email;
-
-    assertCanSignInOnDevice(
-      { appMetaRepo, profileRepo },
-      user.id,
-      accountEmail
+  device.sync = async (mode) => {
+    device.pendingAuthSync = null;
+    const result = await device.syncCoordinator.syncNow(
+      device.userId,
+      { mode }
     );
 
-    const firstLoginOnDevice = !appMetaRepo.getLocalDataOwnerUserId();
-
-    device.attachAccount(user.id, accountEmail);
-    await device.sync(firstLoginOnDevice
-      ? "remote_overwrite_local"
-      : "merge_local");
-
-    return user;
+    if (result !== "success") {
+      throw new Error(
+        `${device.name}: expected sync success, received ${result}`
+      );
+    }
   };
 
   return device;
@@ -390,6 +446,36 @@ async function signIn(client, email, password) {
   return result.data.user;
 }
 
+async function clearDeviceSession(device, client) {
+  const result = await client.auth.signOut({ scope: "local" });
+
+  if (result.error) throw result.error;
+
+  device.authSession.clearSession();
+}
+
+async function completeNewAccountSession(device, client, user) {
+  device.authClient = client;
+  await device.authSession.completeSignUp(
+    user,
+    "Automated Test",
+    true
+  );
+}
+
+async function signInDevice(device, client, email, password) {
+  device.authClient = client;
+  const user = await signIn(client, email, password);
+
+  await device.authSession.completeSignIn(
+    user,
+    () => clearDeviceSession(device, client)
+  );
+  await device.flushAuthSync();
+
+  return user;
+}
+
 function seedDefaultPractices(device) {
   seedPracticesCore({
     getCurrentUserId: () => device.userId,
@@ -409,7 +495,7 @@ async function createFreshAccountFor(email) {
 
   return {
     client,
-    remote: createSupabaseSyncRemote(client),
+    remote: createSupabaseSyncRemote(() => client),
     user,
   };
 }
@@ -420,13 +506,13 @@ async function createFreshAccount() {
 
 async function createLoggedInDeviceA(options = {}) {
   const { client, remote, user } = await createFreshAccount();
-  const device = makeLocalDevice("Device A", null, remote);
+  const device = makeLocalDevice("Device A", remote);
 
   if (options.seedDefaults) {
     seedDefaultPractices(device);
   }
 
-  device.attachAccount(user.id, user.email ?? TEST_EMAIL);
+  await completeNewAccountSession(device, client, user);
 
   return {
     client,
@@ -436,17 +522,21 @@ async function createLoggedInDeviceA(options = {}) {
   };
 }
 
-async function createDeviceBForManualSync(options = {}) {
+async function createLoggedInDeviceB(options = {}) {
   const client = makeSupabaseClient();
-  const user = await signIn(client, TEST_EMAIL, TEST_PASSWORD);
-  const remote = createSupabaseSyncRemote(client);
-  const device = makeLocalDevice("Device B", null, remote);
+  const remote = createSupabaseSyncRemote(() => client);
+  const device = makeLocalDevice("Device B", remote);
 
   if (options.seedDefaults) {
     seedDefaultPractices(device);
   }
 
-  device.attachAccount(user.id, user.email ?? TEST_EMAIL);
+  const user = await signInDevice(
+    device,
+    client,
+    TEST_EMAIL,
+    TEST_PASSWORD
+  );
 
   return {
     client,
@@ -713,11 +803,7 @@ function createPrng(seed) {
 }
 
 async function signOutDeletedAccountForDevice(device, client, remote) {
-  const signOut = await client.auth.signOut({
-    scope: "local",
-  });
-
-  if (signOut.error) throw signOut.error;
+  await clearDeviceSession(device, client);
 
   const syncEngine = createSyncEngine({
     appMetaRepo: device.appMetaRepo,
@@ -728,7 +814,6 @@ async function signOutDeletedAccountForDevice(device, client, remote) {
     sessionRepo: device.sessionRepo,
   });
 
-  device.userId = null;
   device.appMetaRepo.clearLocalDataOwnerUserId();
   await syncEngine.resetLocalSyncState();
 }
@@ -743,25 +828,25 @@ async function runDeviceAToDeviceBSupabaseSyncTest() {
     TEST_PASSWORD
   );
 
+  const deviceA = makeLocalDevice(
+    "Device A",
+    createSupabaseSyncRemote(() => deviceAClient)
+  );
+  await completeNewAccountSession(deviceA, deviceAClient, userA);
+
   const deviceBClient = makeSupabaseClient();
-  const userB = await signIn(
+  const deviceB = makeLocalDevice(
+    "Device B",
+    createSupabaseSyncRemote(() => deviceBClient)
+  );
+  const userB = await signInDevice(
+    deviceB,
     deviceBClient,
     TEST_EMAIL,
     TEST_PASSWORD
   );
 
   assert.equal(userB.id, userA.id, "Device B logged in to the same account");
-
-  const deviceA = makeLocalDevice(
-    "Device A",
-    userA.id,
-    createSupabaseSyncRemote(deviceAClient)
-  );
-  const deviceB = makeLocalDevice(
-    "Device B",
-    userB.id,
-    createSupabaseSyncRemote(deviceBClient)
-  );
 
   const practiceId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
@@ -820,10 +905,11 @@ async function runLogoutOfflineLoginAutoSyncTest() {
   );
 
   deviceA.operations.addSession(practiceId, 500);
-  deviceA.signOutLocal();
+  await clearDeviceSession(deviceA, deviceAClient);
   deviceA.operations.addSession(practiceId, 1000);
 
-  await deviceA.loginExistingAndAutoSync(
+  await signInDevice(
+    deviceA,
     deviceAClient,
     TEST_EMAIL,
     TEST_PASSWORD
@@ -842,11 +928,9 @@ async function runLogoutOfflineLoginAutoSyncTest() {
     "Remote total is 1500 after login auto-sync"
   );
 
-  const { device: deviceB } = await createDeviceBForManualSync({
+  const { device: deviceB } = await createLoggedInDeviceB({
     seedDefaults: true,
   });
-
-  await deviceB.sync("remote_overwrite_local");
 
   const deviceBPractice = findPracticeByName(deviceB, TEST_PRACTICE_NAME);
 
@@ -879,8 +963,7 @@ async function runExistingAccountFirstLoginRemoteOverwriteTest() {
   const deviceBClient = makeSupabaseClient();
   const deviceB = makeLocalDevice(
     "Device B",
-    null,
-    createSupabaseSyncRemote(deviceBClient)
+    createSupabaseSyncRemote(() => deviceBClient)
   );
 
   seedDefaultPractices(deviceB);
@@ -893,7 +976,8 @@ async function runExistingAccountFirstLoginRemoteOverwriteTest() {
 
   deviceB.operations.addSession(localPracticeId, 999);
 
-  await deviceB.loginExistingAndAutoSync(
+  await signInDevice(
+    deviceB,
     deviceBClient,
     TEST_EMAIL,
     TEST_PASSWORD
@@ -970,8 +1054,7 @@ async function runExistingAccountFirstLoginAfterBackupRestoreRemoteOverwriteTest
   const deviceBClient = makeSupabaseClient();
   const deviceB = makeLocalDevice(
     "Device B",
-    null,
-    createSupabaseSyncRemote(deviceBClient)
+    createSupabaseSyncRemote(() => deviceBClient)
   );
   const backupOnlyPracticeId = randomUUID();
   const backupData = {
@@ -1028,7 +1111,8 @@ async function runExistingAccountFirstLoginAfterBackupRestoreRemoteOverwriteTest
     "Pre-login backup restore is not owned by the existing account"
   );
 
-  await deviceB.loginExistingAndAutoSync(
+  await signInDevice(
+    deviceB,
     deviceBClient,
     TEST_EMAIL,
     TEST_PASSWORD
@@ -1086,11 +1170,9 @@ async function runDeletedSeededPracticeSyncTest() {
     "Deleted seeded practice"
   );
 
-  const { device: deviceB } = await createDeviceBForManualSync({
+  const { device: deviceB } = await createLoggedInDeviceB({
     seedDefaults: true,
   });
-
-  await deviceB.sync("remote_overwrite_local");
 
   assert.equal(
     deviceB.practiceRepo.getPracticeById(deletedSeed.id),
@@ -1111,11 +1193,11 @@ async function runOneAccountPerDeviceGuardTest() {
 
   const device = makeLocalDevice(
     "Device A",
-    null,
     primary.remote
   );
 
-  await device.loginExistingAndAutoSync(
+  await signInDevice(
+    device,
     primary.client,
     TEST_EMAIL,
     TEST_PASSWORD
@@ -1127,26 +1209,19 @@ async function runOneAccountPerDeviceGuardTest() {
     100
   );
 
-  assert.doesNotThrow(() => {
-    assertCanSignInOnDevice(
-      {
-        appMetaRepo: device.appMetaRepo,
-        profileRepo: device.profileRepo,
-      },
-      primary.user.id,
-      TEST_EMAIL
-    );
-  }, "Device can sign back into its existing owner account");
+  await assert.doesNotReject(
+    () => signInDevice(
+      device,
+      primary.client,
+      TEST_EMAIL,
+      TEST_PASSWORD
+    ),
+    "Device can sign back into its existing owner account"
+  );
 
   assert.throws(
     () => {
-      assertCanCreateAccountOnDevice(
-        {
-          appMetaRepo: device.appMetaRepo,
-          profileRepo: device.profileRepo,
-        },
-        THIRD_TEST_EMAIL
-      );
+      device.authSession.assertCanCreateAccount(THIRD_TEST_EMAIL);
     },
     (error) => {
       assert.equal(error.message, ONE_ACCOUNT_PER_DEVICE_MESSAGE);
@@ -1156,7 +1231,8 @@ async function runOneAccountPerDeviceGuardTest() {
   );
 
   await assert.rejects(
-    () => device.loginExistingAndAutoSync(
+    () => signInDevice(
+      device,
       secondary.client,
       SECOND_TEST_EMAIL,
       TEST_PASSWORD
@@ -1170,8 +1246,8 @@ async function runOneAccountPerDeviceGuardTest() {
 
   assert.equal(
     device.userId,
-    primary.user.id,
-    "Blocked login leaves local user id unchanged"
+    null,
+    "Blocked login signs out the rejected remote session"
   );
   assert.equal(
     device.appMetaRepo.getLocalDataOwnerUserId(),
@@ -1185,30 +1261,60 @@ async function runOneAccountPerDeviceGuardTest() {
 }
 
 async function runResetPasswordCoreTest() {
-  const { client } = await createFreshAccountFor(
-    RESET_PASSWORD_TEST_EMAIL
-  );
+  const calls = [];
 
   await resetPasswordCore(
     {
       redirectTo: "app108again://reset-password",
-      resetPasswordForEmail: (email, options) =>
-        client.auth.resetPasswordForEmail(email, options),
+      resetPasswordForEmail: async (email, options) => {
+        calls.push({ email, options });
+        return { error: null };
+      },
     },
     `  ${RESET_PASSWORD_TEST_EMAIL.toUpperCase()}  `
+  );
+
+  assert.deepEqual(
+    calls,
+    [
+      {
+        email: RESET_PASSWORD_TEST_EMAIL.toLowerCase(),
+        options: {
+          redirectTo: "app108again://reset-password",
+        },
+      },
+    ],
+    "Reset password normalizes email and passes redirect URL"
   );
 
   await assert.rejects(
     () => resetPasswordCore(
       {
         redirectTo: "app108again://reset-password",
-        resetPasswordForEmail: (email, options) =>
-          client.auth.resetPasswordForEmail(email, options),
+        resetPasswordForEmail: async () => {
+          throw new Error("Remote should not be called for blank email");
+        },
       },
       "   "
     ),
     /Email is required/,
     "Reset password validates blank email before remote call"
+  );
+
+  await assert.rejects(
+    () => resetPasswordCore(
+      {
+        redirectTo: "app108again://reset-password",
+        resetPasswordForEmail: async () => ({
+          error: {
+            message: "Remote reset failed",
+          },
+        }),
+      },
+      RESET_PASSWORD_TEST_EMAIL
+    ),
+    /Remote reset failed/,
+    "Reset password surfaces remote reset failures"
   );
 }
 
@@ -1218,14 +1324,10 @@ async function runDeleteAccountCoreTest() {
   );
   const device = makeLocalDevice(
     "Delete Account Device",
-    null,
     remote
   );
 
-  device.attachAccount(
-    user.id,
-    user.email ?? DELETE_ACCOUNT_TEST_EMAIL
-  );
+  await completeNewAccountSession(device, client, user);
 
   const practiceId = device.operations.createPractice(
     "deleteAccountPractice",
@@ -1307,8 +1409,8 @@ async function runOfflineLocalDataNewAccountSyncTest() {
   loadEnv();
 
   const deviceAClient = makeSupabaseClient();
-  const remote = createSupabaseSyncRemote(deviceAClient);
-  const deviceA = makeLocalDevice("Device A", null, remote);
+  const remote = createSupabaseSyncRemote(() => deviceAClient);
+  const deviceA = makeLocalDevice("Device A", remote);
   const deletedSeed = DEFAULT_PRACTICES[3];
   const keptSeed = DEFAULT_PRACTICES[4];
 
@@ -1331,8 +1433,8 @@ async function runOfflineLocalDataNewAccountSyncTest() {
     TEST_PASSWORD
   );
 
-  deviceA.attachAccount(user.id);
-  await deviceA.sync("merge_local");
+  await completeNewAccountSession(deviceA, deviceAClient, user);
+  await deviceA.flushAuthSync();
 
   const remoteSnapshot = await pullRemoteSnapshot(remote, user.id);
   const remoteCustom = activeRemotePracticeByName(
@@ -1360,11 +1462,9 @@ async function runOfflineLocalDataNewAccountSyncTest() {
     "New account sync pushed offline seeded deletion"
   );
 
-  const { device: deviceB } = await createDeviceBForManualSync({
+  const { device: deviceB } = await createLoggedInDeviceB({
     seedDefaults: true,
   });
-
-  await deviceB.sync("remote_overwrite_local");
 
   const deviceBCustom = findPracticeByName(deviceB, TEST_PRACTICE_NAME);
 
@@ -1437,11 +1537,9 @@ async function runEditedTotalsSyncTest() {
     "Remote seeded practice total is 1000"
   );
 
-  const { device: deviceB } = await createDeviceBForManualSync({
+  const { device: deviceB } = await createLoggedInDeviceB({
     seedDefaults: true,
   });
-
-  await deviceB.sync("remote_overwrite_local");
 
   const deviceBCustom = findPracticeByName(deviceB, TEST_PRACTICE_NAME);
 
@@ -1501,9 +1599,7 @@ async function runDeletedCustomPracticeSyncTest() {
     "Deleted custom practice"
   );
 
-  const { device: deviceB } = await createDeviceBForManualSync();
-
-  await deviceB.sync("remote_overwrite_local");
+  const { device: deviceB } = await createLoggedInDeviceB();
 
   assert.equal(
     deviceB.practiceRepo.getPracticeById(deletedPracticeId),
@@ -1590,11 +1686,10 @@ async function runBackupDefaultsAndRestoreBackupSyncTest() {
     "Remote after backup source sync deleted seed"
   );
 
-  const { device: deviceB } = await createDeviceBForManualSync({
+  const { device: deviceB } = await createLoggedInDeviceB({
     seedDefaults: true,
   });
 
-  await deviceB.sync("remote_overwrite_local");
   assertDeviceMatchesExpected(
     deviceB,
     backupExpected,
@@ -1709,11 +1804,9 @@ async function runRestoreDefaultsAfterPartialSeedBackupSyncTest() {
     "Remote after syncing restored defaults from four-seed backup"
   );
 
-  const { device: deviceB } = await createDeviceBForManualSync({
+  const { device: deviceB } = await createLoggedInDeviceB({
     seedDefaults: true,
   });
-
-  await deviceB.sync("remote_overwrite_local");
 
   assertOnlySeededDeviceZero(
     deviceB,
@@ -1746,11 +1839,9 @@ async function runRestoreDefaultsBeatsStaleRemoteOverwriteTest() {
     "Remote after stale remote overwrite sync request"
   );
 
-  const { device: deviceB } = await createDeviceBForManualSync({
+  const { device: deviceB } = await createLoggedInDeviceB({
     seedDefaults: true,
   });
-
-  await deviceB.sync("remote_overwrite_local");
 
   assertOnlySeededDeviceZero(
     deviceB,
@@ -1780,7 +1871,7 @@ const tests = [
     runOneAccountPerDeviceGuardTest,
   ],
   [
-    "reset password core calls real Supabase reset flow",
+    "reset password core normalizes input and handles reset failures",
     runResetPasswordCoreTest,
   ],
   [

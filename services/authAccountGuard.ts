@@ -22,7 +22,7 @@ function normalizeEmail(email: string | null | undefined): string | null {
     return normalized || null;
 }
 
-export function hasDifferentLocalAccountForEmail(
+function hasDifferentLocalAccountForEmail(
     deps: AuthAccountGuardDeps,
     nextEmail: string
 ): boolean {
@@ -41,7 +41,7 @@ export function hasDifferentLocalAccountForEmail(
     return normalizeEmail(ownerProfile.email) !== normalizeEmail(nextEmail);
 }
 
-export function isDifferentLocalDataOwner(
+function isDifferentLocalDataOwner(
     deps: AuthAccountGuardDeps,
     nextUserId: string,
     nextEmail: string | null

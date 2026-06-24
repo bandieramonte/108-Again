@@ -1,8 +1,15 @@
 # App Behavior Tests
 
-These tests cover app behavior that is not part of the Supabase sync suite.
+These tests cover focused app behavior that does not require a live Supabase
+account:
 
-The first test verifies the practice-screen resume rule:
+- Update policy decisions for optional, mandatory, and maintenance releases.
+- Classification of unrecoverable refresh-token errors.
+- Sync coordinator behavior for update blocking, offline recovery, queued sync,
+  and deleted accounts.
+- Practice-screen resume behavior.
+
+The practice-screen test verifies:
 
 - When the app last focused a practice content screen, startup can restore that
   exact practice screen.
@@ -11,7 +18,8 @@ The first test verifies the practice-screen resume rule:
 - If the remembered practice is deleted, startup does not restore it and clears
   the stale id.
 
-The test uses the real `lastPracticeScreenService`, real repository factories,
-and the real `createAppOperationEngine` practice operations. The only test
-double is AsyncStorage, because the React Native native storage module is not
-available in Node.
+The suite executes the real `appUpdatePolicy`, `authSessionPolicy`,
+`syncCoordinator`, `lastPracticeScreenService`, repository factories, and
+`createAppOperationEngine`. Test doubles are limited to external boundaries
+such as AsyncStorage, timers, connectivity, and the sync engine dependency in
+the focused coordinator test.

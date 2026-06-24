@@ -25,7 +25,11 @@
     "../../repositories/practiceRepoFactory.ts",
     "../../repositories/sessionRepoFactory.ts",
     "../../services/appOperationEngine.ts",
+    "../../services/authSessionPolicy.ts",
+    "../../services/appUpdatePolicy.ts",
     "../../services/lastPracticeScreenService.ts",
+    "../../services/syncCoordinator.ts",
+    "../../services/syncEngine.ts",
     "../../types/sync.ts",
     "../../utils/numberUtils.ts"
   ]

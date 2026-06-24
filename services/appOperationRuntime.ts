@@ -9,19 +9,7 @@ declare const require: {
     };
 };
 
-let factoryOverride: AppOperationEngineFactory | null = null;
-
-export function setAppOperationEngineFactoryForTests(
-    factory: AppOperationEngineFactory | null
-) {
-    factoryOverride = factory;
-}
-
 export function getAppOperationEngine(): AppOperationEngine {
-    if (factoryOverride) {
-        return factoryOverride();
-    }
-
     return require("./appOperationDeps")
         .createConcreteAppOperationEngine();
 }

@@ -43,8 +43,14 @@ const { createSessionRepo } =
   require("../.build/repositories/sessionRepoFactory.js");
 const { createAppOperationEngine } =
   require("../.build/services/appOperationEngine.js");
+const { isUnrecoverableRefreshTokenError } =
+  require("../.build/services/authSessionPolicy.js");
+const { determineUpdateRequirement } =
+  require("../.build/services/appUpdatePolicy.js");
 const { createLastPracticeScreenService } =
   require("../.build/services/lastPracticeScreenService.js");
+const { createSyncCoordinator } =
+  require("../.build/services/syncCoordinator.js");
 
 Module._load = originalLoad;
 
@@ -122,6 +128,231 @@ async function test(name, fn) {
   testIndex += 1;
   console.log(`ok ${testIndex} - ${name}`);
 }
+
+async function waitFor(predicate, message) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  assert.fail(message);
+}
+
+function createSyncCoordinatorHarness() {
+  const state = {
+    appAccessBlocked: false,
+    authInvalidEvents: 0,
+    createdEngines: 0,
+    executedSyncs: [],
+    isOnline: true,
+    remoteAuthoritativeUsers: [],
+    scheduledTimers: new Map(),
+    userDeleted: false,
+  };
+  let nextTimerId = 1;
+
+  const coordinator = createSyncCoordinator({
+    cancelTimer: (timerId) => {
+      state.scheduledTimers.delete(timerId);
+    },
+    createSyncEngine: () => {
+      state.createdEngines += 1;
+
+      return {
+        executeSync: async (userId, mode) => {
+          state.executedSyncs.push({ mode, userId });
+        },
+        resolveSyncMode: (_userId, requestedMode) =>
+          requestedMode ?? "merge_local",
+      };
+    },
+    emitAuthInvalid: () => {
+      state.authInvalidEvents += 1;
+    },
+    emitDataChanged: () => {},
+    emitSyncChanged: () => {},
+    getIsOnline: () => state.isOnline,
+    isAppAccessBlocked: () => state.appAccessBlocked,
+    isNetworkTimeout: () => false,
+    isUserDeleted: async () => state.userDeleted,
+    logger: {
+      error: () => {},
+      log: () => {},
+      warn: () => {},
+    },
+    markLocalDataOwnerIfSessionIsCurrent: async () => {},
+    requireRemoteAuthoritativeSync: (userId) => {
+      state.remoteAuthoritativeUsers.push(userId);
+    },
+    scheduleTimer: (callback) => {
+      const timerId = nextTimerId;
+      nextTimerId += 1;
+      state.scheduledTimers.set(timerId, callback);
+      return timerId;
+    },
+    validateSessionAfterMaxRetries: async () => {},
+  });
+
+  function runNextTimer() {
+    const next = state.scheduledTimers.entries().next().value;
+    assert.ok(next, "Expected a scheduled sync timer");
+
+    const [timerId, callback] = next;
+    state.scheduledTimers.delete(timerId);
+    callback();
+  }
+
+  return { coordinator, runNextTimer, state };
+}
+
+const basePolicy = {
+  latestVersionCode: 30,
+  minimumSupportedVersionCode: 25,
+  maintenanceMode: false,
+  message: null,
+};
+
+await test(
+  "update policy distinguishes optional and mandatory releases",
+  () => {
+    assert.deepEqual(
+      determineUpdateRequirement({
+        currentVersionCode: 24,
+        policy: basePolicy,
+        playUpdate: null,
+      }),
+      {
+        kind: "required",
+        reason: "minimum-version",
+        availableVersionCode: 30,
+        message:
+          "This version of 108 Again is no longer supported. Please update to continue.",
+      }
+    );
+
+    assert.deepEqual(
+      determineUpdateRequirement({
+        currentVersionCode: 28,
+        policy: basePolicy,
+        playUpdate: null,
+      }),
+      {
+        kind: "optional",
+        availableVersionCode: 30,
+      }
+    );
+
+    assert.deepEqual(
+      determineUpdateRequirement({
+        currentVersionCode: 30,
+        policy: basePolicy,
+        playUpdate: null,
+      }),
+      { kind: "none" }
+    );
+  }
+);
+
+await test(
+  "maintenance mode blocks every supported version",
+  () => {
+    const requirement = determineUpdateRequirement({
+      currentVersionCode: 30,
+      policy: {
+        ...basePolicy,
+        maintenanceMode: true,
+        message: "Brief maintenance in progress.",
+      },
+      playUpdate: null,
+    });
+
+    assert.deepEqual(requirement, {
+      kind: "required",
+      reason: "maintenance",
+      availableVersionCode: null,
+      message: "Brief maintenance in progress.",
+    });
+  }
+);
+
+await test(
+  "only unrecoverable refresh-token errors invalidate the local session",
+  () => {
+    assert.equal(
+      isUnrecoverableRefreshTokenError({
+        code: "refresh_token_not_found",
+        message: "Invalid Refresh Token: Refresh Token Not Found",
+      }),
+      true
+    );
+    assert.equal(
+      isUnrecoverableRefreshTokenError({
+        code: "refresh_token_already_used",
+      }),
+      true
+    );
+    assert.equal(
+      isUnrecoverableRefreshTokenError({
+        code: "over_request_rate_limit",
+        message: "Network request failed",
+      }),
+      false
+    );
+  }
+);
+
+await test(
+  "sync coordinator enforces update, connectivity, and auth guards",
+  async () => {
+    const blocked = createSyncCoordinatorHarness();
+    blocked.state.appAccessBlocked = true;
+
+    assert.equal(
+      await blocked.coordinator.syncNow("user-1"),
+      "skipped"
+    );
+    assert.equal(blocked.state.createdEngines, 0);
+
+    const offline = createSyncCoordinatorHarness();
+    offline.state.isOnline = false;
+
+    assert.equal(
+      await offline.coordinator.syncNow("user-2", {
+        mode: "remote_overwrite_local",
+      }),
+      "offline"
+    );
+    assert.equal(offline.coordinator.getSyncState(), "offline");
+    assert.deepEqual(
+      offline.state.remoteAuthoritativeUsers,
+      ["user-2"]
+    );
+
+    offline.state.isOnline = true;
+    offline.coordinator.handleConnectivityChanged();
+    offline.runNextTimer();
+    await waitFor(
+      () => offline.state.executedSyncs.length === 1,
+      "Queued sync did not execute after connectivity returned"
+    );
+    assert.deepEqual(offline.state.executedSyncs, [
+      {
+        mode: "remote_overwrite_local",
+        userId: "user-2",
+      },
+    ]);
+
+    const deleted = createSyncCoordinatorHarness();
+    deleted.state.userDeleted = true;
+
+    assert.equal(
+      await deleted.coordinator.syncNow("user-3"),
+      "auth_invalid"
+    );
+    assert.equal(deleted.state.authInvalidEvents, 1);
+    assert.equal(deleted.state.executedSyncs.length, 0);
+  }
+);
 
 await test(
   "practice content route restores only while last focused route was practice",

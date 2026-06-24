@@ -5,19 +5,20 @@ import type {
     SyncRemote,
 } from "./syncEngine";
 
-type RunRemoteQuery = <T>(queryFactory: () => PromiseLike<T>) => Promise<T>;
+type RunRemoteQuery = <T>(queryFactory: () => Promise<T>) => Promise<T>;
+type GetSupabaseClient = () => SupabaseClient;
 
-async function runDirect<T>(queryFactory: () => PromiseLike<T>) {
+async function runDirect<T>(queryFactory: () => Promise<T>) {
     return queryFactory();
 }
 
 export function createSupabaseSyncRemote(
-    client: SupabaseClient,
+    getClient: GetSupabaseClient,
     runRemoteQuery: RunRemoteQuery = runDirect
 ): SyncRemote {
     return {
         async pullPractices(userId: string) {
-            const { data, error } = await runRemoteQuery(async () => client
+            const { data, error } = await runRemoteQuery(async () => getClient()
                 .from("practices")
                 .select(`
                     id,
@@ -40,7 +41,7 @@ export function createSupabaseSyncRemote(
         },
 
         async pullSessions(userId: string) {
-            const { data, error } = await runRemoteQuery(async () => client
+            const { data, error } = await runRemoteQuery(async () => getClient()
                 .from("sessions")
                 .select(`
                     id,
@@ -62,7 +63,7 @@ export function createSupabaseSyncRemote(
         async getPracticesById(userId: string, ids: string[]) {
             if (ids.length === 0) return new Map<string, RemotePracticeRow>();
 
-            const { data, error } = await runRemoteQuery(async () => client
+            const { data, error } = await runRemoteQuery(async () => getClient()
                 .from("practices")
                 .select(`
                     id,
@@ -92,7 +93,7 @@ export function createSupabaseSyncRemote(
         async getSessionsById(userId: string, ids: string[]) {
             if (ids.length === 0) return new Map<string, RemoteSessionRow>();
 
-            const { data, error } = await runRemoteQuery(async () => client
+            const { data, error } = await runRemoteQuery(async () => getClient()
                 .from("sessions")
                 .select(`
                     id,
@@ -119,7 +120,7 @@ export function createSupabaseSyncRemote(
         async upsertPractices(rows: RemotePracticeRow[]) {
             if (rows.length === 0) return;
 
-            const { error } = await runRemoteQuery(async () => client
+            const { error } = await runRemoteQuery(async () => getClient()
                 .from("practices")
                 .upsert(rows, { onConflict: "id,user_id" }));
 
@@ -129,7 +130,7 @@ export function createSupabaseSyncRemote(
         async upsertSessions(rows: RemoteSessionRow[]) {
             if (rows.length === 0) return;
 
-            const { error } = await runRemoteQuery(async () => client
+            const { error } = await runRemoteQuery(async () => getClient()
                 .from("sessions")
                 .upsert(rows, { onConflict: "id" }));
 
@@ -140,7 +141,7 @@ export function createSupabaseSyncRemote(
             const deletedAtIso = new Date(deletedAt).toISOString();
 
             const { error: sessionError } = await runRemoteQuery(async () =>
-                client
+                getClient()
                     .from("sessions")
                     .update({
                         updated_at: deletedAtIso,
@@ -153,7 +154,7 @@ export function createSupabaseSyncRemote(
             if (sessionError) throw sessionError;
 
             const { error: practiceError } = await runRemoteQuery(async () =>
-                client
+                getClient()
                     .from("practices")
                     .update({
                         updated_at: deletedAtIso,

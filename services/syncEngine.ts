@@ -758,22 +758,6 @@ export function createSyncEngine(deps: SyncEngineDeps) {
         await syncMergeLocal(userId);
     }
 
-    async function syncUserData(
-        userId: string,
-        requestedMode?: SyncMode
-    ) {
-        const mode = resolveSyncMode(userId, requestedMode);
-
-        if (mode === "remote_overwrite_local") {
-            deps.appMetaRepo.setMeta(
-                REMOTE_AUTHORITATIVE_SYNC_USER_ID_META,
-                userId
-            );
-        }
-
-        await executeSync(userId, mode);
-    }
-
     async function resetLocalSyncState() {
         deps.appMetaRepo.deleteMeta(REMOTE_AUTHORITATIVE_SYNC_USER_ID_META);
         deps.practiceRepo.resetAllSyncState();
@@ -785,9 +769,6 @@ export function createSyncEngine(deps: SyncEngineDeps) {
         executeSync,
         resetLocalSyncState,
         resolveSyncMode,
-        syncMergeLocal,
-        syncRemoteAuthoritative,
-        syncUserData,
         wipeRemoteUserData,
     };
 }

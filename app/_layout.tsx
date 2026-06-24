@@ -1,12 +1,15 @@
 import HeaderMenu from "@/components/HeaderMenu";
 import HeaderTitle from "@/components/HeaderTitle";
+import UpdateRequiredScreen from "@/components/UpdateRequiredScreen";
 import { getSupabase } from "@/lib/supabase";
 import { subscribeAuth } from "@/utils/events";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack, router, usePathname } from "expo-router";
-import { useEffect, useRef, useState } from "react";
-import { Alert, Linking, Pressable, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Linking, Pressable, View } from "react-native";
 import * as appService from "../services/appService";
+import type { UpdateRequirement } from "../services/appUpdatePolicy";
+import * as appUpdateService from "../services/appUpdateService";
 import * as authService from "../services/authService";
 import * as lastPracticeScreenService from "../services/lastPracticeScreenService";
 import * as practiceService from "../services/practiceService";
@@ -16,20 +19,45 @@ export default function Layout() {
     const [appInitialized, setAppInitialized] = useState(false);
     const [initialUrlChecked, setInitialUrlChecked] = useState(false);
     const [startupRouteHandled, setStartupRouteHandled] = useState(false);
+    const [updateRequirement, setUpdateRequirement] =
+        useState<UpdateRequirement | null>(null);
+    const [checkingForUpdate, setCheckingForUpdate] = useState(true);
     const pathname = usePathname();
     const handledDeepLink = useRef(false);
     const initialUrlPresent = useRef(false);
     const restoringPracticeRoute = useRef(false);
+    const appInitializedRef = useRef(false);
+    const initializationRef = useRef<Promise<void> | null>(null);
+
+    const initializeAppOnce = useCallback(async () => {
+        if (!initializationRef.current) {
+            initializationRef.current = appService.initializeApp()
+                .then(() => {
+                    appInitializedRef.current = true;
+                    setAppInitialized(true);
+                });
+        }
+
+        await initializationRef.current;
+    }, []);
+
+    const checkAppAccess = useCallback(async () => {
+        setCheckingForUpdate(true);
+        const requirement =
+            await appUpdateService.checkForAppUpdate();
+        setUpdateRequirement(requirement);
+        setCheckingForUpdate(false);
+        return requirement.kind !== "required";
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
 
         async function initialize() {
-            await appService.initializeApp();
+            const accessAllowed = await checkAppAccess();
 
-            if (!cancelled) {
-                setAppInitialized(true);
-            }
+            if (cancelled || !accessAllowed) return;
+            await initializeAppOnce();
         }
 
         initialize();
@@ -37,16 +65,36 @@ export default function Layout() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [checkAppAccess, initializeAppOnce]);
 
 
     useEffect(() => {
         appService.initAppStateListener(() => {
-            appService.handleAppResume();
+            void (async () => {
+                const wasInitialized = appInitializedRef.current;
+                const accessAllowed = await checkAppAccess();
+
+                if (!accessAllowed) return;
+
+                if (!wasInitialized) {
+                    await initializeAppOnce();
+                    return;
+                }
+
+                await appService.handleAppResume();
+            })();
         });
-    }, []);
+    }, [checkAppAccess, initializeAppOnce]);
 
     useEffect(() => {
+        if (
+            !appInitialized ||
+            !updateRequirement ||
+            updateRequirement.kind === "required"
+        ) {
+            return;
+        }
+
         async function handleInitialUrl() {
             const url = await Linking.getInitialURL();
             if (url) {
@@ -102,7 +150,7 @@ export default function Layout() {
         });
 
         return () => sub.remove();
-    }, []);
+    }, [appInitialized, updateRequirement]);
 
     useEffect(() => {
         if (!appInitialized || !initialUrlChecked) return;
@@ -169,27 +217,6 @@ export default function Layout() {
         return unsubscribe;
     }, []);
 
-    function handleRestoreDefaults() {
-        Alert.alert(
-            "Restore Defaults?",
-            "This will remove all your practices, sessions, adjustments, and local data, and restore the original default practices. This cannot be undone.",
-            [
-                {
-                    text: "Cancel",
-                    style: "cancel",
-                },
-                {
-                    text: "Restore",
-                    style: "destructive",
-                    onPress: async () => {
-                        appService.restoreDefaults();
-                        router.replace("/");
-                    },
-                },
-            ]
-        );
-    }
-
     async function handleSignOut() {
         try {
             await authService.signOut();
@@ -197,6 +224,43 @@ export default function Layout() {
         } catch (error: any) {
             Alert.alert("Log out failed", error?.message ?? "Unknown error");
         }
+    }
+
+    async function retryUpdateCheck() {
+        const accessAllowed = await checkAppAccess();
+        if (accessAllowed) {
+            await initializeAppOnce();
+        }
+    }
+
+    if (!updateRequirement) {
+        return (
+            <View
+                style={{
+                    flex: 1,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "white",
+                }}
+            >
+                <ActivityIndicator size="large" color="#1A5FCC" />
+            </View>
+        );
+    }
+
+    if (updateRequirement.kind === "required") {
+        return (
+            <UpdateRequiredScreen
+                requirement={updateRequirement}
+                checking={checkingForUpdate}
+                onRetry={() => {
+                    void retryUpdateCheck();
+                }}
+                onUpdate={() => {
+                    void appUpdateService.startRequiredUpdate();
+                }}
+            />
+        );
     }
 
     return (
