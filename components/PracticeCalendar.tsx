@@ -1,6 +1,14 @@
-import { FlashList, FlashListRef } from "@shopify/flash-list";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Dimensions, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import {
+    Dimensions,
+    FlatList,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    useWindowDimensions,
+    View,
+} from "react-native";
 import { colors } from "../styles/theme";
 
 type DayData = {
@@ -21,6 +29,16 @@ const ARROW_HIT_SLOP = {
     left: 18,
     right: 18,
 };
+
+function getMonthLabel(baseWeekStart: Date, index: number) {
+    const start = new Date(baseWeekStart);
+    start.setUTCDate(start.getUTCDate() + index * 7);
+
+    return start.toLocaleDateString(undefined, {
+        month: "long",
+        year: "numeric"
+    });
+}
 
 export default function PracticeCalendar({
     data,
@@ -68,10 +86,26 @@ export default function PracticeCalendar({
         return Math.floor(diffDays / 7);
     }, [effectiveEndDate, baseWeekStart]);
 
-    const [visibleEndWeek, setVisibleEndWeek] = useState(endWeekIndex);
-    const totalWeeks = visibleEndWeek + 1;
+    const totalWeeks = endWeekIndex + 1;
 
-    const [visibleMonth, setVisibleMonth] = useState("");
+    const initialScrollIndex = useMemo(() => {
+        const diffDays =
+            (Date.now() - baseWeekStart.getTime()) /
+            (1000 * 60 * 60 * 24);
+        const todayWeekIndex = Math.max(0, Math.floor(diffDays / 7));
+
+        return Math.max(
+            0,
+            todayWeekIndex - Math.floor(VISIBLE_WEEKS / 2)
+        );
+    }, [baseWeekStart]);
+
+    const [visibleMonth, setVisibleMonth] = useState(() =>
+        getMonthLabel(
+            baseWeekStart,
+            initialScrollIndex + Math.floor(VISIBLE_WEEKS / 2)
+        )
+    );
 
 
     const [editingDate, setEditingDate] = useState<string | null>(null);
@@ -91,12 +125,7 @@ export default function PracticeCalendar({
             firstVisibleIndex +
             Math.floor(VISIBLE_WEEKS / 2);
 
-        const month =
-            getMonthFromWeek(dominantIndex);
-
-        currentOffset.current =
-            event.nativeEvent.contentOffset.y;
-
+        const month = getMonthLabel(baseWeekStart, dominantIndex);
 
         setVisibleMonth(prev =>
             prev === month ? prev : month
@@ -117,60 +146,18 @@ export default function PracticeCalendar({
         [totalWeeks]
     );
 
-    const listRef = useRef<FlashListRef<number>>(null);
-    const currentOffset = useRef(0);
-    const currentIndex = useRef(0);
-    const hasInitialScroll = useRef(false);
+    const listRef = useRef<FlatList<number>>(null);
+    const currentIndex = useRef(initialScrollIndex);
 
     useEffect(() => {
-
         const dominantIndex =
-            Math.floor(VISIBLE_WEEKS / 2);
+            initialScrollIndex + Math.floor(VISIBLE_WEEKS / 2);
 
-        const month =
-            getMonthFromWeek(dominantIndex);
+        const month = getMonthLabel(baseWeekStart, dominantIndex);
 
         setVisibleMonth(month);
-
-    }, [startDate]);
-
-    useEffect(() => {
-        setVisibleEndWeek(endWeekIndex);
-    }, [endWeekIndex]);
-
-    useEffect(() => {
-        hasInitialScroll.current = false;
-    }, [startDate]);
-
-    function scrollToToday() {
-        if (hasInitialScroll.current) return;
-        if (!listRef.current) return;
-
-        listRef.current?.scrollToIndex({
-            index: Math.max(
-                0,
-                getTodayWeekIndex() - Math.floor(VISIBLE_WEEKS / 2)
-            ),
-            animated: false
-        });
-
-        hasInitialScroll.current = true;
-    }
-
-    function formatMonth(date: Date) {
-        return date.toLocaleDateString(undefined, {
-            month: "long",
-            year: "numeric"
-        });
-    }
-
-    function getMonthFromWeek(index: number) {
-
-        const start = new Date(baseWeekStart);
-        start.setUTCDate(start.getUTCDate() + index * 7);
-
-        return formatMonth(start);
-    }
+        currentIndex.current = initialScrollIndex;
+    }, [baseWeekStart, initialScrollIndex, WEEK_HEIGHT]);
 
     function getWeekStart(date: Date) {
 
@@ -291,17 +278,6 @@ export default function PracticeCalendar({
         });
     }
 
-    function getTodayWeekIndex() {
-
-        const today = new Date();
-
-        const diffDays =
-            (today.getTime() - baseWeekStart.getTime()) /
-            (1000 * 60 * 60 * 24);
-
-        return Math.max(0, Math.floor(diffDays / 7));
-    }
-
     return (
         <View style={styles.container}>
             <View
@@ -378,10 +354,14 @@ export default function PracticeCalendar({
                 </View>
 
                 <View style={{ height: WEEK_HEIGHT * VISIBLE_WEEKS }}>
-                    <FlashList<number>
-                        onContentSizeChange={() => {
-                            scrollToToday();
-                        }}
+                    <FlatList<number>
+                        getItemLayout={(_, index) => ({
+                            index,
+                            length: WEEK_HEIGHT,
+                            offset: WEEK_HEIGHT * index,
+                        })}
+                        initialScrollIndex={initialScrollIndex}
+                        initialNumToRender={VISIBLE_WEEKS}
                         onScroll={handleScroll}
                         scrollEventThrottle={16}
                         nestedScrollEnabled
