@@ -14,6 +14,8 @@ export type PlayUpdateAvailability = {
     clientVersionStalenessDays: number | null;
 };
 
+export type RemoteSyncAccess = "allowed" | "blocked" | "unavailable";
+
 export type UpdateRequirement =
     | { kind: "none" }
     | {

@@ -145,6 +145,8 @@ function createSyncCoordinatorHarness() {
     createdEngines: 0,
     executedSyncs: [],
     isOnline: true,
+    remoteAccessChecks: 0,
+    remoteAccessStatus: "allowed",
     remoteAuthoritativeUsers: [],
     scheduledTimers: new Map(),
     userDeleted: false,
@@ -191,6 +193,10 @@ function createSyncCoordinatorHarness() {
       return timerId;
     },
     validateSessionAfterMaxRetries: async () => {},
+    verifyRemoteSyncAccess: async () => {
+      state.remoteAccessChecks += 1;
+      return state.remoteAccessStatus;
+    },
   });
 
   function runNextTimer() {
@@ -323,6 +329,7 @@ await test(
       "offline"
     );
     assert.equal(offline.coordinator.getSyncState(), "offline");
+    assert.equal(offline.state.remoteAccessChecks, 0);
     assert.deepEqual(
       offline.state.remoteAuthoritativeUsers,
       ["user-2"]
@@ -341,6 +348,28 @@ await test(
         userId: "user-2",
       },
     ]);
+    assert.equal(offline.state.remoteAccessChecks, 1);
+
+    const newlyBlocked = createSyncCoordinatorHarness();
+    newlyBlocked.state.remoteAccessStatus = "blocked";
+
+    assert.equal(
+      await newlyBlocked.coordinator.syncNow("user-blocked"),
+      "update_required"
+    );
+    assert.equal(newlyBlocked.state.remoteAccessChecks, 1);
+    assert.equal(newlyBlocked.state.executedSyncs.length, 0);
+
+    const policyUnavailable = createSyncCoordinatorHarness();
+    policyUnavailable.state.remoteAccessStatus = "unavailable";
+
+    assert.equal(
+      await policyUnavailable.coordinator.syncNow("user-unavailable"),
+      "policy_unavailable"
+    );
+    assert.equal(policyUnavailable.state.remoteAccessChecks, 1);
+    assert.equal(policyUnavailable.state.executedSyncs.length, 0);
+    assert.equal(policyUnavailable.coordinator.getSyncState(), "error");
 
     const deleted = createSyncCoordinatorHarness();
     deleted.state.userDeleted = true;

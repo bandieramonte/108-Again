@@ -13,6 +13,7 @@ import * as appUpdateService from "../services/appUpdateService";
 import * as authService from "../services/authService";
 import * as lastPracticeScreenService from "../services/lastPracticeScreenService";
 import * as practiceService from "../services/practiceService";
+import * as syncService from "../services/syncService";
 
 export default function Layout() {
     const [authState, setAuthState] = useState(authService.getAuthState());
@@ -48,6 +49,12 @@ export default function Layout() {
         setUpdateRequirement(requirement);
         setCheckingForUpdate(false);
         return requirement.kind !== "required";
+    }, []);
+
+    useEffect(() => {
+        return appUpdateService.subscribeAppUpdateRequirement(
+            setUpdateRequirement
+        );
     }, []);
 
     useEffect(() => {
@@ -227,10 +234,18 @@ export default function Layout() {
     }
 
     async function retryUpdateCheck() {
+        const wasInitialized = appInitializedRef.current;
         const accessAllowed = await checkAppAccess();
-        if (accessAllowed) {
-            await initializeAppOnce();
-        }
+        if (!accessAllowed) return;
+
+        await initializeAppOnce();
+
+        if (!wasInitialized) return;
+
+        const userId = authService.getCurrentUserId();
+        if (!userId) return;
+
+        await syncService.requestSync(userId, { immediate: true });
     }
 
     if (!updateRequirement) {

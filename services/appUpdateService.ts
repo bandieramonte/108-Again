@@ -6,6 +6,7 @@ import {
     type AppUpdatePolicy,
     determineUpdateRequirement,
     type PlayUpdateAvailability,
+    type RemoteSyncAccess,
     type UpdateRequirement,
 } from "./appUpdatePolicy";
 
@@ -28,8 +29,45 @@ type AppUpdatePolicyRow = {
     message: string | null;
 };
 
+type UpdateRequirementListener = (
+    requirement: UpdateRequirement
+) => void;
+
 let checkInFlight: Promise<UpdateRequirement> | null = null;
 let appAccessBlocked = false;
+let currentRequirement: UpdateRequirement | null = null;
+const requirementListeners = new Set<UpdateRequirementListener>();
+
+function requirementsMatch(
+    current: UpdateRequirement | null,
+    next: UpdateRequirement
+) {
+    if (!current || current.kind !== next.kind) return false;
+    if (current.kind === "none" && next.kind === "none") return true;
+
+    if (current.kind === "optional" && next.kind === "optional") {
+        return current.availableVersionCode === next.availableVersionCode;
+    }
+
+    if (current.kind === "required" && next.kind === "required") {
+        return (
+            current.reason === next.reason &&
+            current.availableVersionCode === next.availableVersionCode &&
+            current.message === next.message
+        );
+    }
+
+    return false;
+}
+
+function applyUpdateRequirement(requirement: UpdateRequirement) {
+    appAccessBlocked = requirement.kind === "required";
+
+    if (requirementsMatch(currentRequirement, requirement)) return;
+
+    currentRequirement = requirement;
+    requirementListeners.forEach(listener => listener(requirement));
+}
 
 function timeout<T>(ms: number): Promise<T> {
     return new Promise((_, reject) => {
@@ -197,8 +235,9 @@ async function getCurrentAndroidVersionCode(
 
 async function runUpdateCheck(): Promise<UpdateRequirement> {
     if (Platform.OS !== "android") {
-        appAccessBlocked = false;
-        return { kind: "none" };
+        const requirement = { kind: "none" } as const;
+        applyUpdateRequirement(requirement);
+        return requirement;
     }
 
     const appUpdateModule = getAppUpdateModule();
@@ -214,7 +253,7 @@ async function runUpdateCheck(): Promise<UpdateRequirement> {
         playUpdate,
     });
 
-    appAccessBlocked = requirement.kind === "required";
+    applyUpdateRequirement(requirement);
     await maybeShowOptionalPrompt(requirement);
     return requirement;
 }
@@ -225,14 +264,53 @@ export function checkForAppUpdate(): Promise<UpdateRequirement> {
     checkInFlight = runUpdateCheck()
         .catch((error) => {
             console.warn("App update check failed", error);
-            appAccessBlocked = false;
-            return { kind: "none" } as UpdateRequirement;
+            const requirement = { kind: "none" } as UpdateRequirement;
+            applyUpdateRequirement(requirement);
+            return requirement;
         })
         .finally(() => {
             checkInFlight = null;
         });
 
     return checkInFlight;
+}
+
+export async function verifyRemoteSyncAccess(): Promise<RemoteSyncAccess> {
+    if (Platform.OS !== "android") return "allowed";
+    if (appAccessBlocked) return "blocked";
+
+    try {
+        const appUpdateModule = getAppUpdateModule();
+        const currentVersionCode =
+            await getCurrentAndroidVersionCode(appUpdateModule);
+        const policy = await fetchRemotePolicy();
+
+        if (!policy) {
+            throw new Error("Android app update policy is not configured");
+        }
+
+        const requirement = determineUpdateRequirement({
+            currentVersionCode,
+            policy,
+            playUpdate: null,
+        });
+
+        applyUpdateRequirement(requirement);
+        return requirement.kind === "required" ? "blocked" : "allowed";
+    } catch (error) {
+        console.warn("Remote sync update-policy check failed", error);
+        return "unavailable";
+    }
+}
+
+export function subscribeAppUpdateRequirement(
+    listener: UpdateRequirementListener
+) {
+    requirementListeners.add(listener);
+
+    return () => {
+        requirementListeners.delete(listener);
+    };
 }
 
 export function isAppAccessBlocked() {

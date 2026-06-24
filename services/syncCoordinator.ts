@@ -1,12 +1,15 @@
 import type { SyncState } from "../types/sync";
+import type { RemoteSyncAccess } from "./appUpdatePolicy";
 import type { SyncMode } from "./syncEngine";
 
 export type SyncNowResult =
     | "auth_invalid"
     | "offline"
+    | "policy_unavailable"
     | "retry_scheduled"
     | "success"
-    | "skipped";
+    | "skipped"
+    | "update_required";
 
 type CoordinatorSyncEngine = {
     executeSync(userId: string, mode: SyncMode): Promise<void>;
@@ -33,6 +36,7 @@ type SyncCoordinatorDeps = {
     requireRemoteAuthoritativeSync(userId: string): void;
     scheduleTimer(callback: () => void, delayMs: number): TimerHandle;
     validateSessionAfterMaxRetries(): Promise<void>;
+    verifyRemoteSyncAccess(): Promise<RemoteSyncAccess>;
 };
 
 export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
@@ -106,6 +110,15 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
 
             setSyncState("offline");
             return "offline";
+        }
+
+        const remoteAccess = await deps.verifyRemoteSyncAccess();
+
+        if (remoteAccess === "blocked") return "update_required";
+
+        if (remoteAccess === "unavailable") {
+            setSyncState("error");
+            return "policy_unavailable";
         }
 
         if (await deps.isUserDeleted()) {

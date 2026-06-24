@@ -225,6 +225,7 @@ function makeLocalDevice(name, remote) {
     },
     scheduleTimer: setTimeout,
     validateSessionAfterMaxRetries: async () => {},
+    verifyRemoteSyncAccess: async () => "allowed",
   });
 
   device.authSession = createAuthSessionEngine({

@@ -5,7 +5,10 @@ import * as practiceRepo from "@/repositories/practiceRepo";
 import * as sessionRepo from "@/repositories/sessionRepo";
 import { emitAuthInvalid, emitDataChanged, emitSyncChanged } from "@/utils/events";
 import { getIsOnline, subscribeOnline } from "./networkService";
-import { isAppAccessBlocked } from "./appUpdateService";
+import {
+    isAppAccessBlocked,
+    verifyRemoteSyncAccess,
+} from "./appUpdateService";
 import { createSupabaseSyncRemote } from "./supabaseSyncRemote";
 import { createSyncCoordinator } from "./syncCoordinator";
 import {
@@ -164,6 +167,7 @@ function getSyncCoordinator() {
             validateSessionAfterMaxRetries: async () => {
                 await getSupabase().auth.getSession();
             },
+            verifyRemoteSyncAccess,
         });
     }
 
