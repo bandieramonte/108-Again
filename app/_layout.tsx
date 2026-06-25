@@ -13,6 +13,7 @@ import * as appUpdateService from "../services/appUpdateService";
 import * as authService from "../services/authService";
 import * as lastPracticeScreenService from "../services/lastPracticeScreenService";
 import * as practiceService from "../services/practiceService";
+import * as practiceReminderService from "../services/practiceReminderService";
 import * as syncService from "../services/syncService";
 
 export default function Layout() {
@@ -27,6 +28,7 @@ export default function Layout() {
     const handledDeepLink = useRef(false);
     const initialUrlPresent = useRef(false);
     const restoringPracticeRoute = useRef(false);
+    const reminderRouteHandled = useRef(false);
     const appInitializedRef = useRef(false);
     const initializationRef = useRef<Promise<void> | null>(null);
 
@@ -52,6 +54,8 @@ export default function Layout() {
     }, []);
 
     useEffect(() => {
+        practiceReminderService.initializePracticeReminderNotifications();
+
         return appUpdateService.subscribeAppUpdateRequirement(
             setUpdateRequirement
         );
@@ -160,12 +164,43 @@ export default function Layout() {
     }, [appInitialized, updateRequirement]);
 
     useEffect(() => {
+        if (!appInitialized) return;
+
+        function openReminderPractice(practiceId: string) {
+            if (!practiceService.getPractice(practiceId)) return;
+
+            reminderRouteHandled.current = true;
+
+            router.push({
+                pathname: "/practice",
+                params: { id: practiceId },
+            });
+        }
+
+        practiceReminderService.consumeLastPracticeReminderResponse(
+            openReminderPractice
+        );
+
+        const subscription =
+            practiceReminderService.subscribePracticeReminderResponses(
+                openReminderPractice
+            );
+
+        return () => subscription.remove();
+    }, [appInitialized]);
+
+    useEffect(() => {
         if (!appInitialized || !initialUrlChecked) return;
 
         let cancelled = false;
 
         async function restorePracticeRoute() {
             if (handledDeepLink.current || initialUrlPresent.current) {
+                setStartupRouteHandled(true);
+                return;
+            }
+
+            if (reminderRouteHandled.current) {
                 setStartupRouteHandled(true);
                 return;
             }

@@ -4,16 +4,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CelebrationOverlay from "../../components/CelebrationOverlay";
+import DailyGoalProgress from "../../components/DailyGoalProgress";
 import FloatingAddAnimation, { FloatingAddAnimationRef } from "../../components/FloatingAddAnimation";
 import PracticeActionsMenu, {
     type PracticeMenuAnchor,
 } from "../../components/PracticeActionsMenu";
 import PracticeCalendar from "../../components/PracticeCalendar";
+import PracticeReminderEditor from "../../components/PracticeReminderEditor";
 import QuickAddEditor from "../../components/QuickAddEditor";
 import TargetDateEditor from "../../components/TargetDateEditor";
 import { practiceImages } from "../../constants/practiceImages";
 import { useReachedCelebration } from "../../hooks/useReachedCelebration";
 import * as appService from "../../services/appService";
+import type { PracticeReminderSettings } from "../../services/practiceReminderService";
+import * as practiceReminderService from "../../services/practiceReminderService";
 import * as practiceService from "../../services/practiceService";
 import * as sessionService from "../../services/sessionService";
 import { colors, containers } from "../../styles/theme";
@@ -33,6 +37,9 @@ export default function PracticeContent({
     const insets = useSafeAreaInsets();
     const [quickAddOpen, setQuickAddOpen] = useState(false);
     const [targetEditOpen, setTargetEditOpen] = useState(false);
+    const [reminderOpen, setReminderOpen] = useState(false);
+    const [reminderSettings, setReminderSettings] =
+        useState<PracticeReminderSettings | null>(null);
     const initialPractice = practiceService.getPractice(practiceId);
 
     const [practiceName, setPracticeName] = useState(initialPractice?.name ?? "");
@@ -70,6 +77,8 @@ export default function PracticeContent({
 
         return 1;
     }, [imageSource]);
+    const imageDisplayHeight = Math.min(width - 20, 500);
+    const imageDisplayWidth = imageDisplayHeight * imageRatio;
     const [menuOpen, setMenuOpen] = useState(false);
     const rotateAnim = useRef(new Animated.Value(0)).current;
     const titleRowRef = useRef<View | null>(null);
@@ -88,6 +97,22 @@ export default function PracticeContent({
         dailyTargetCount.trim()
             ? Number(dailyTargetCount)
             : null;
+    const hasDailyTarget =
+        effectiveDailyTargetCount != null &&
+        effectiveDailyTargetCount > 0;
+    const todayDate = formatDateKey(new Date());
+    const todayCount = useMemo(() => {
+        return calendarData.find(day => day.date === todayDate)?.count ?? 0;
+    }, [calendarData, todayDate]);
+    const reminderEnabled = reminderSettings?.enabled === true;
+    const reminderHour = reminderSettings?.hour ?? 20;
+    const reminderMinute = reminderSettings?.minute ?? 0;
+    const reminderSummary = reminderEnabled
+        ? `Reminder: ${practiceReminderService.formatReminderTime(
+            reminderHour,
+            reminderMinute
+        )} if unfinished`
+        : "Reminder: Off";
     const calendarEndDate = useMemo(() => {
         return (
             practiceService.getExpectedTargetDate(
@@ -140,6 +165,44 @@ export default function PracticeContent({
     useEffect(() => {
         schedulePracticeRefresh();
     }, [practiceId]);
+
+    useEffect(() => {
+        let active = true;
+
+        void practiceReminderService
+            .getPracticeReminderSettings(practiceId)
+            .then(settings => {
+                if (active) {
+                    setReminderSettings(settings);
+                }
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [practiceId]);
+
+    useEffect(() => {
+        if (!reminderSettings?.enabled) return;
+
+        void practiceReminderService
+            .refreshPracticeReminderSchedule({
+                practiceId,
+                practiceName,
+                todayCount,
+                dailyTargetCount: effectiveDailyTargetCount,
+            })
+            .then(setReminderSettings)
+            .catch(error => {
+                console.warn("Failed to refresh practice reminder", error);
+            });
+    }, [
+        practiceId,
+        practiceName,
+        todayCount,
+        effectiveDailyTargetCount,
+        reminderSettings?.enabled,
+    ]);
 
     useEffect(() => {
         const unsubscribe = subscribeData(() => {
@@ -216,6 +279,7 @@ export default function PracticeContent({
                 date,
                 newValue
             );
+            schedulePracticeRefresh();
         } catch (error: any) {
             alert(error.message);
         }
@@ -260,6 +324,7 @@ export default function PracticeContent({
             customAnimRef.current?.trigger(
                 `+${formatNumber(value)}\nadded!`
             );
+            schedulePracticeRefresh();
             closeCustomAmountModal();
         } catch (error: any) {
             alert(error.message);
@@ -316,6 +381,59 @@ export default function PracticeContent({
         setTimeout(() => {
             setDateAdjustedInfo(null);
         }, 4000);
+    }
+
+    function formatDateKey(date: Date) {
+        return (
+            date.getUTCFullYear() +
+            "-" +
+            String(date.getUTCMonth() + 1).padStart(2, "0") +
+            "-" +
+            String(date.getUTCDate()).padStart(2, "0")
+        );
+    }
+
+    function openReminderEditor() {
+        if (!hasDailyTarget) {
+            alert("Set a daily target before enabling reminders.");
+            setTargetEditOpen(true);
+            return;
+        }
+
+        setReminderOpen(true);
+    }
+
+    async function saveReminder(hour: number, minute: number) {
+        try {
+            const settings =
+                await practiceReminderService.savePracticeReminderSettings({
+                    practiceId,
+                    practiceName,
+                    todayCount,
+                    dailyTargetCount: effectiveDailyTargetCount,
+                    hour,
+                    minute,
+                });
+
+            setReminderSettings(settings);
+            setReminderOpen(false);
+        } catch (error: any) {
+            alert(error.message);
+        }
+    }
+
+    async function disableReminder() {
+        try {
+            const settings =
+                await practiceReminderService.disablePracticeReminder(
+                    practiceId
+                );
+
+            setReminderSettings(settings);
+            setReminderOpen(false);
+        } catch (error: any) {
+            alert(error.message);
+        }
     }
 
     return (
@@ -388,7 +506,7 @@ export default function PracticeContent({
                                     <Image
                                         source={imageSource}
                                         style={{
-                                            height: Math.min(width - 20, 500),
+                                            height: imageDisplayHeight,
                                             aspectRatio: imageRatio,
                                             alignSelf: "center"
                                         }}
@@ -398,7 +516,7 @@ export default function PracticeContent({
                             )}
 
 
-                            <View style={{ flexDirection: "row", justifyContent: "space-around" }}>
+                            <View style={{ flexDirection: "row", justifyContent: "space-around", paddingTop: 18, paddingBottom: 10 }}>
                                 <View style={styles.indicatorRow}>
                                     <Text style={{ fontWeight: "bold" }}>
                                         Total Progress
@@ -453,6 +571,77 @@ export default function PracticeContent({
                                 </Pressable>
                             </View>
 
+                            <View
+                                style={[
+                                    styles.todayGoalCard,
+                                    { width: imageDisplayWidth }
+                                ]}
+                            >
+                                {hasDailyTarget ? (
+                                    <DailyGoalProgress
+                                        todayCount={todayCount}
+                                        dailyTargetCount={effectiveDailyTargetCount}
+                                        height={22}
+                                        style={styles.todayGoalProgressRow}
+                                        labelStyle={styles.todayGoalLabel}
+                                        barStyle={styles.todayGoalProgressBar}
+                                        textStyle={styles.todayGoalProgressText}
+                                    />
+                                ) : (
+                                    <Pressable
+                                        style={({ pressed }) => [
+                                            styles.enableDailyTargetButton,
+                                            pressed && styles.enableDailyTargetButtonPressed
+                                        ]}
+                                        onPress={() => setTargetEditOpen(true)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Enable daily target"
+                                    >
+                                        <MaterialIcons
+                                            name="check-circle-outline"
+                                            size={17}
+                                            color={colors.primary}
+                                        />
+                                        <Text style={styles.enableDailyTargetText}>
+                                            Enable daily target
+                                        </Text>
+                                    </Pressable>
+                                )}
+
+                                <Pressable
+                                    style={({ pressed }) => [
+                                        styles.reminderButton,
+                                        pressed && styles.reminderButtonPressed
+                                    ]}
+                                    onPress={openReminderEditor}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Edit practice reminder"
+                                >
+                                    <MaterialIcons
+                                        name={reminderEnabled ? "notifications-active" : "notifications-none"}
+                                        size={18}
+                                        color={reminderEnabled ? colors.primary : "#666"}
+                                    />
+
+                                    <View style={styles.reminderTextGroup}>
+                                        <Text style={styles.reminderTitle}>
+                                            {reminderSummary}
+                                        </Text>
+                                        <Text style={styles.reminderSubtitle}>
+                                            {hasDailyTarget
+                                                ? "Tap to edit reminder time"
+                                                : "Set a daily target before reminders"}
+                                        </Text>
+                                    </View>
+
+                                    <MaterialIcons
+                                        name="chevron-right"
+                                        size={20}
+                                        color="#999"
+                                    />
+                                </Pressable>
+                            </View>
+
                             <View style={styles.addRow}>
                                 <View style={styles.addColumn}>
                                     <View style={styles.headerArea}>
@@ -491,6 +680,7 @@ export default function PracticeContent({
                                                     dailyAnimRef.current?.trigger(
                                                         `+${formatNumber(defaultSessionCount)}\nadded!`
                                                     );
+                                                    schedulePracticeRefresh();
                                                 } catch (error: any) {
                                                     alert(error.message);
                                                 }
@@ -705,6 +895,17 @@ export default function PracticeContent({
                         practiceName={practiceName}
                         defaultValue={Number(defaultSessionCount)}
                         onClose={() => setQuickAddOpen(false)}
+                    />
+
+                    <PracticeReminderEditor
+                        visible={reminderOpen}
+                        enabled={reminderEnabled}
+                        practiceName={practiceName}
+                        initialHour={reminderHour}
+                        initialMinute={reminderMinute}
+                        onClose={() => setReminderOpen(false)}
+                        onDisable={disableReminder}
+                        onSave={saveReminder}
                     />
 
                     <TargetDateEditor
@@ -963,6 +1164,89 @@ const styles = StyleSheet.create({
         gap: 8,
         position: "relative",
         flexWrap: "wrap"
+    },
+
+    todayGoalCard: {
+        marginTop: 18,
+        marginBottom: 8,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: "#DBE4FF",
+        backgroundColor: "#F8FAFF",
+        gap: 10,
+    },
+
+    todayGoalProgressRow: {
+        width: "100%",
+    },
+
+    todayGoalLabel: {
+        fontSize: 14,
+        fontWeight: "700",
+        minWidth: 92,
+    },
+
+    todayGoalProgressBar: {
+        flex: 1,
+        minWidth: 150,
+    },
+
+    todayGoalProgressText: {
+        fontSize: 14,
+    },
+
+    enableDailyTargetButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        alignSelf: "flex-start",
+        gap: 7,
+        paddingVertical: 5,
+        paddingHorizontal: 10,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: "#BFDBFE",
+        backgroundColor: "transparent",
+    },
+
+    enableDailyTargetButtonPressed: {
+        opacity: 0.72,
+    },
+
+    enableDailyTargetText: {
+        fontSize: 14,
+        fontWeight: "400",
+        color: "#111",
+    },
+
+    reminderButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 9,
+        paddingTop: 9,
+        borderTopWidth: 1,
+        borderTopColor: "#E5E7EB",
+    },
+
+    reminderButtonPressed: {
+        opacity: 0.72,
+    },
+
+    reminderTextGroup: {
+        flex: 1,
+        gap: 2,
+    },
+
+    reminderTitle: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#111",
+    },
+
+    reminderSubtitle: {
+        fontSize: 12,
+        color: "#666",
     },
 
     infoIcon: {

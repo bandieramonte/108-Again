@@ -54,6 +54,12 @@ export default {
         plugins: [
             "expo-router",
             "expo-dev-client",
+            [
+                "expo-notifications",
+                {
+                    color: "#1A5FCC",
+                },
+            ],
             "./plugins/withPlayInAppUpdates",
             [
                 "expo-splash-screen",

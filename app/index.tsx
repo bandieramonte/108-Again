@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import * as Progress from "react-native-progress";
 import CelebrationOverlay from "../components/CelebrationOverlay";
+import DailyGoalProgress from "../components/DailyGoalProgress";
 import PracticeActionsMenu, {
   type PracticeMenuAnchor,
 } from "../components/PracticeActionsMenu";
@@ -17,6 +18,7 @@ import { usePracticeActions } from "../hooks/usePracticeActions";
 import { useReachedCelebration } from "../hooks/useReachedCelebration";
 import * as dashboardService from "../services/dashboardService";
 import * as practiceService from "../services/practiceService";
+import * as practiceReminderService from "../services/practiceReminderService";
 import * as sessionService from "../services/sessionService";
 import { colors, containers } from "../styles/theme";
 import { digitsOnly, formatCountProgress, formatNumber, MAX_REPETITIONS_PER_DAY, validateRepetitionCount } from "../utils/numberUtils";
@@ -157,13 +159,32 @@ export default function Dashboard() {
     setStreak(dashboardService.getCurrentStreak());
   }
 
-  async function quickAdd(practiceId: string, count: number) {
+  async function quickAdd(practice: Practice) {
+    const count = practice.defaultSessionCount ?? 108;
+
     try {
-      sessionService.addSession(practiceId, count);
+      sessionService.addSession(practice.id, count);
+
+      if (
+        practice.dailyTargetCount != null &&
+        practice.dailyTargetCount > 0
+      ) {
+        void practiceReminderService
+          .refreshPracticeReminderSchedule({
+            practiceId: practice.id,
+            practiceName: practice.name,
+            todayCount: practice.today + count,
+            dailyTargetCount: practice.dailyTargetCount,
+          })
+          .catch(error => {
+            console.warn("Failed to refresh practice reminder", error);
+          });
+      }
     } catch (error: any) {
       alert(error.message);
     }
-    await maybeShowQuickAddHint(practiceId);
+
+    await maybeShowQuickAddHint(practice.id);
   }
 
   function openEditDefaultModal(practiceId: string, practiceName: string, currentDefaultSession: number) {
@@ -281,13 +302,6 @@ export default function Dashboard() {
           const hasDailyTarget =
             dailyTargetCount != null &&
             dailyTargetCount > 0;
-          const todayTargetProgress =
-            hasDailyTarget
-              ? Math.min(practice.today / dailyTargetCount, 1)
-              : 0;
-          const isTodayTargetFinished =
-            hasDailyTarget &&
-            practice.today >= dailyTargetCount;
           const targetDate =
             hasDailyTarget
               ? practiceService.getExpectedTargetDate(
@@ -477,44 +491,12 @@ export default function Dashboard() {
                       </View>
 
                       {hasDailyTarget ? (
-                        <View style={styles.todayMetricRow}>
-                          <Text style={styles.countText}>
-                            Today&apos;s goal:
-                          </Text>
-
-                          <View
-                            style={[
-                              styles.todayTargetBar,
-                              isTodayTargetFinished &&
-                              styles.todayTargetBarFinished
-                            ]}
-                          >
-                            <View
-                              style={[
-                                styles.todayTargetBarFill,
-                                {
-                                  width: `${todayTargetProgress * 100}%`,
-                                }
-                              ]}
-                            />
-                            <View style={styles.todayTargetBarTextOverlay}>
-                              <Text
-                                style={[
-                                  styles.todayTargetBarText,
-                                  isTodayTargetFinished &&
-                                  styles.todayTargetBarTextFinished
-                                ]}
-                              >
-                                {isTodayTargetFinished
-                                  ? "Finished!"
-                                  : formatCountProgress(
-                                    practice.today,
-                                    dailyTargetCount
-                                  )}
-                              </Text>
-                            </View>
-                          </View>
-                        </View>
+                        <DailyGoalProgress
+                          todayCount={practice.today}
+                          dailyTargetCount={dailyTargetCount}
+                          barWidth={todayTargetBarWidth}
+                          labelStyle={styles.countText}
+                        />
                       ) : (
                         <Pressable
                           style={({ pressed }) => [
@@ -552,7 +534,7 @@ export default function Dashboard() {
                     styles.quickAddButton,
                     pressed && styles.quickAddButtonPressed
                   ]}
-                  onPress={() => quickAdd(practice.id, practice.defaultSessionCount ?? 108)}
+                  onPress={() => quickAdd(practice)}
                   onLongPress={() =>
                     openEditDefaultModal(
                       practice.id,
@@ -862,58 +844,6 @@ const styles = StyleSheet.create({
 
   practiceMetricGroupNoImage: {
     marginBottom: 10,
-  },
-
-  todayMetricRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-
-  todayTargetBar: {
-    width: todayTargetBarWidth,
-    height: 15,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    backgroundColor: "#F9FAFB",
-    overflow: "hidden",
-  },
-
-  todayTargetBarFinished: {
-    borderColor: colors.primary,
-  },
-
-  todayTargetBarFill: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: "rgba(107, 114, 128, 0.28)",
-  },
-
-  todayTargetBarTextOverlay: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  todayTargetBarText: {
-    color: "#111",
-    fontSize: 14,
-    fontWeight: "400",
-    lineHeight: 14,
-    textAlign: "center",
-    includeFontPadding: false,
-    transform: [{ translateY: -0.5 }],
-  },
-
-  todayTargetBarTextFinished: {
-    color: colors.primary,
   },
 
   enableDailyTargetButton: {
