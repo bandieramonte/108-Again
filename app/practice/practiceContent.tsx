@@ -511,57 +511,70 @@ export default function PracticeContent({
                             )}
 
 
-                            <View style={{ flexDirection: "row", justifyContent: "space-around", paddingTop: 18, paddingBottom: 10 }}>
-                                <View style={styles.indicatorRow}>
-                                    <Text style={{ fontWeight: "bold" }}>
-                                        Total Progress
-                                    </Text>
-                                    <View style={styles.totalWrapper}>
-                                        <Text style={styles.total}>
-                                            {formatCountProgress(
-                                                total,
-                                                targetCount || null
-                                            )}
+                            <View
+                                style={[
+                                    styles.statsCardsRow,
+                                    { width: imageDisplayWidth }
+                                ]}
+                            >
+                                <View style={styles.statsCard}>
+                                    <View style={styles.statsCardLabelRow}>
+                                        <MaterialIcons
+                                            name="trending-up"
+                                            size={16}
+                                            color={colors.primary}
+                                        />
+                                        <Text style={styles.statsCardLabel}>
+                                            Total Progress
                                         </Text>
                                     </View>
-
+                                    <Text style={styles.statsCardValue}>
+                                        {formatCountProgress(
+                                            total,
+                                            targetCount || null
+                                        )}
+                                    </Text>
                                 </View>
 
                                 <Pressable
-                                    style={styles.indicatorRow}
+                                    style={({ pressed }) => [
+                                        styles.statsCard,
+                                        styles.statsCardPressable,
+                                        pressed && styles.statsCardPressed
+                                    ]}
                                     onPress={() => setTargetEditOpen(true)}
                                     accessibilityRole="button"
                                     accessibilityLabel="Edit target date"
                                 >
-                                    <View style={styles.targetDateLabelRow}>
-                                        <Text style={{ fontWeight: "bold" }}>
+                                    <View style={styles.statsCardLabelRow}>
+                                        <MaterialIcons
+                                            name="event"
+                                            size={16}
+                                            color={colors.primary}
+                                        />
+                                        <Text style={styles.statsCardLabel}>
                                             Target Date
                                         </Text>
                                         <MaterialIcons
                                             name="edit"
-                                            size={16}
+                                            size={14}
                                             color={colors.primary}
                                         />
                                     </View>
-                                    <View style={styles.targetDateRow}>
 
-                                        <View style={styles.targetDateEditable}>
-                                            <Text style={styles.targetDateText}>
-                                                {formattedTargetDate}
-                                            </Text>
-                                        </View>
+                                    <View style={styles.targetDateRow}>
+                                        <Text style={styles.statsCardValue}>
+                                            {formattedTargetDate}
+                                        </Text>
 
                                         {isCelebrating(practiceId) && (
-                                            <>
-                                                <CelebrationOverlay
-                                                    fade={celebrationFade}
-                                                    sparkle1={sparkle1}
-                                                    sparkle2={sparkle2}
-                                                    sparkle3={sparkle3}
-                                                />
-                                            </>
+                                            <CelebrationOverlay
+                                                fade={celebrationFade}
+                                                sparkle1={sparkle1}
+                                                sparkle2={sparkle2}
+                                                sparkle3={sparkle3}
+                                            />
                                         )}
-
                                     </View>
                                 </Pressable>
                             </View>
@@ -1097,27 +1110,60 @@ const styles = StyleSheet.create({
 
     },
 
-    indicatorRow: {
-        alignItems: "center",
-        gap: 3,
-        flexWrap: "wrap",
-        justifyContent: "space-between"
+    statsCardsRow: {
+        flexDirection: "row",
+        alignSelf: "center",
+        gap: 10,
+        paddingTop: 18,
+        paddingBottom: 2,
     },
 
-    totalWrapper: {
-        position: "relative",
-        alignSelf: "flex-start",
+    statsCard: {
+        flex: 1,
+        minHeight: 72,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: "#E1E7F5",
+        backgroundColor: "#FAFBFF",
+        paddingVertical: 11,
+        paddingHorizontal: 12,
+        justifyContent: "center",
+        shadowColor: "#000",
+        shadowOpacity: 0.04,
+        shadowRadius: 5,
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        elevation: 1,
+        alignItems: "center"
     },
 
-    targetDateText: {
-        fontSize: 14,
-        color: "#666"
+    statsCardPressable: {
+        borderColor: "#DBE4FF",
     },
 
-    targetDateLabelRow: {
+    statsCardPressed: {
+        opacity: 0.74,
+    },
+
+    statsCardLabelRow: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 4,
+        gap: 5,
+        marginBottom: 6,
+    },
+
+    statsCardLabel: {
+        fontSize: 13,
+        fontWeight: "700",
+        color: "#111",
+    },
+
+    statsCardValue: {
+        fontSize: 14,
+        color: "#555",
+        lineHeight: 19,
     },
 
     quickAddRow: {
@@ -1144,13 +1190,6 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: "600",
         color: "#111"
-    },
-
-    targetDateEditable: {
-        borderBottomWidth: 1,
-        borderBottomColor: "#cbd5e1",
-        paddingBottom: 2,
-        alignSelf: "flex-start"
     },
 
     targetDateRow: {
