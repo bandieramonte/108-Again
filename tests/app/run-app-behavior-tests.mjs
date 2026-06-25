@@ -53,6 +53,8 @@ const { createLastPracticeScreenService } =
   require("../.build/services/lastPracticeScreenService.js");
 const { createSyncCoordinator } =
   require("../.build/services/syncCoordinator.js");
+const { formatMonthDayYear } =
+  require("../.build/utils/dateUtils.js");
 const { formatCountProgress } =
   require("../.build/utils/numberUtils.js");
 
@@ -567,6 +569,28 @@ await test(
       formatCountProgress(1234, 108000),
       `${numberFormatter.format(1234)} / ${numberFormatter.format(108000)}`,
       "Both values use the shared localized number formatting"
+    );
+  }
+);
+
+await test(
+  "target dates use fixed month day year order",
+  () => {
+    const date = new Date(2027, 0, 13);
+
+    assert.equal(
+      formatMonthDayYear(date, "en-US"),
+      "January 13, 2027"
+    );
+
+    assert.equal(
+      formatMonthDayYear(date, "en-GB"),
+      "January 13, 2027"
+    );
+
+    assert.equal(
+      formatMonthDayYear(date, "es-ES"),
+      "enero 13, 2027"
     );
   }
 );

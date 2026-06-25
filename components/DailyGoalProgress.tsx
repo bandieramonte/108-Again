@@ -21,6 +21,7 @@ type Props = {
     labelStyle?: StyleProp<TextStyle>;
     barStyle?: StyleProp<ViewStyle>;
     textStyle?: StyleProp<TextStyle>;
+    labelNumberOfLines?: number;
 };
 
 export default function DailyGoalProgress({
@@ -33,6 +34,7 @@ export default function DailyGoalProgress({
     labelStyle,
     barStyle,
     textStyle,
+    labelNumberOfLines,
 }: Props) {
     const { t } = useI18n();
     const safeTodayCount = Number.isFinite(todayCount)
@@ -52,7 +54,11 @@ export default function DailyGoalProgress({
 
     return (
         <View style={[styles.row, style]}>
-            <Text style={[styles.label, labelStyle]}>
+            <Text
+                style={[styles.label, labelStyle]}
+                numberOfLines={labelNumberOfLines}
+                ellipsizeMode="tail"
+            >
                 {label ?? t("dailyGoal.label")}
             </Text>
 
@@ -111,6 +117,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: "400",
         color: "#111",
+
     },
 
     bar: {

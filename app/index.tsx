@@ -23,6 +23,7 @@ import * as practiceReminderService from "../services/practiceReminderService";
 import * as practiceService from "../services/practiceService";
 import * as sessionService from "../services/sessionService";
 import { colors, containers } from "../styles/theme";
+import { formatMonthDayYear } from "../utils/dateUtils";
 import { digitsOnly, formatCountProgress, formatNumber, MAX_REPETITIONS_PER_DAY, validateRepetitionCount } from "../utils/numberUtils";
 
 type Practice = {
@@ -337,11 +338,7 @@ export default function Dashboard() {
               : !hasDailyTarget
                 ? t("practice.setDailyTargetFirst")
                 : targetDate
-                  ? targetDate.toLocaleDateString(locale, {
-                    month: "long",
-                    day: "2-digit",
-                    year: "numeric"
-                  })
+                  ? formatMonthDayYear(targetDate, locale)
                   : t("practice.noEstimate");
 
           return (
@@ -365,128 +362,123 @@ export default function Dashboard() {
                   ref={(node) => {
                     practiceRowRefs.current[practice.id] = node;
                   }}
-                  style={styles.row}
+                  style={styles.cardContent}
                 >
-                  <Image
-                    source={practice.imageKey && practiceImages[practice.imageKey] ? practiceImages[practice.imageKey] : practiceImages["generic"]}
-                    style={styles.icon}
-                    resizeMode="contain"
+                  <View style={styles.practiceNameRow}>
+                    <Text numberOfLines={1} ellipsizeMode="tail" style={styles.practiceName}>
+                      {practiceDisplayName}
+                    </Text>
+
+                    <View style={styles.practiceActionButtons}>
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.practiceActionButton,
+                          pressed && styles.practiceActionButtonPressed
+                        ]}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          practiceActions.editPractice({
+                            ...practice,
+                            name: practiceDisplayName,
+                          });
+                        }}
+                        hitSlop={6}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${t("practiceMenu.edit")}: ${practiceDisplayName}`}
+                      >
+                        <MaterialIcons
+                          name="edit"
+                          size={18}
+                          color={colors.primary}
+                        />
+                      </Pressable>
+
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.practiceActionButton,
+                          pressed && styles.practiceActionButtonPressed
+                        ]}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          practiceActions.openPracticeHistory({
+                            ...practice,
+                            name: practiceDisplayName,
+                          });
+                        }}
+                        hitSlop={6}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${t("practiceMenu.history")}: ${practiceDisplayName}`}
+                      >
+                        <MaterialIcons
+                          name="bar-chart"
+                          size={18}
+                          color={colors.primary}
+                        />
+                      </Pressable>
+
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.practiceActionButton,
+                          pressed && styles.practiceActionButtonPressed
+                        ]}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          openPracticeCalendar(practice.id);
+                        }}
+                        hitSlop={6}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${t("practiceMenu.calendar")}: ${practiceDisplayName}`}
+                      >
+                        <MaterialIcons
+                          name="calendar-today"
+                          size={17}
+                          color={colors.primary}
+                        />
+                      </Pressable>
+
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.practiceActionButton,
+                          pressed && styles.practiceDeleteButtonPressed
+                        ]}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          practiceActions.confirmDeletePractice({
+                            ...practice,
+                            name: practiceDisplayName,
+                          });
+                        }}
+                        hitSlop={6}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${t("practiceMenu.delete")}: ${practiceDisplayName}`}
+                      >
+                        <MaterialIcons
+                          name="delete-outline"
+                          size={18}
+                          color="#c62828"
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  <Progress.Bar
+                    progress={currentCycleProgress}
+                    width={null}
+                    height={10}
+                    color={colors.primary}
+                    unfilledColor="#E5E5E5"
+                    borderWidth={0}
+                    borderRadius={5}
                   />
 
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.practiceNameRow}>
-                      <Text numberOfLines={2} ellipsizeMode="tail" style={styles.practiceName}>
-                        {practiceDisplayName}
-                      </Text>
-
-                      <View style={styles.practiceActionButtons}>
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.practiceActionButton,
-                            pressed && styles.practiceActionButtonPressed
-                          ]}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            practiceActions.editPractice({
-                              ...practice,
-                              name: practiceDisplayName,
-                            });
-                          }}
-                          hitSlop={6}
-                          accessibilityRole="button"
-                          accessibilityLabel={`${t("practiceMenu.edit")}: ${practiceDisplayName}`}
-                        >
-                          <MaterialIcons
-                            name="edit"
-                            size={18}
-                            color={colors.primary}
-                          />
-                        </Pressable>
-
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.practiceActionButton,
-                            pressed && styles.practiceActionButtonPressed
-                          ]}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            practiceActions.openPracticeHistory({
-                              ...practice,
-                              name: practiceDisplayName,
-                            });
-                          }}
-                          hitSlop={6}
-                          accessibilityRole="button"
-                          accessibilityLabel={`${t("practiceMenu.history")}: ${practiceDisplayName}`}
-                        >
-                          <MaterialIcons
-                            name="bar-chart"
-                            size={18}
-                            color={colors.primary}
-                          />
-                        </Pressable>
-
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.practiceActionButton,
-                            pressed && styles.practiceActionButtonPressed
-                          ]}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            openPracticeCalendar(practice.id);
-                          }}
-                          hitSlop={6}
-                          accessibilityRole="button"
-                          accessibilityLabel={`${t("practiceMenu.calendar")}: ${practiceDisplayName}`}
-                        >
-                          <MaterialIcons
-                            name="calendar-today"
-                            size={17}
-                            color={colors.primary}
-                          />
-                        </Pressable>
-
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.practiceActionButton,
-                            pressed && styles.practiceDeleteButtonPressed
-                          ]}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            practiceActions.confirmDeletePractice({
-                              ...practice,
-                              name: practiceDisplayName,
-                            });
-                          }}
-                          hitSlop={6}
-                          accessibilityRole="button"
-                          accessibilityLabel={`${t("practiceMenu.delete")}: ${practiceDisplayName}`}
-                        >
-                          <MaterialIcons
-                            name="delete-outline"
-                            size={18}
-                            color="#c62828"
-                          />
-                        </Pressable>
-                      </View>
-                    </View>
-
-                    <Progress.Bar
-                      progress={currentCycleProgress}
-                      width={null}
-                      height={10}
-                      color={colors.primary}
-                      unfilledColor="#E5E5E5"
-                      borderWidth={0}
-                      borderRadius={5}
+                  <View style={styles.practiceBodyRow}>
+                    <Image
+                      source={practice.imageKey && practiceImages[practice.imageKey] ? practiceImages[practice.imageKey] : practiceImages["generic"]}
+                      style={styles.icon}
+                      resizeMode="contain"
                     />
 
-                    <View
-                      style={[
-                        styles.practiceMetricGroup,
-                        !practice.imageKey && styles.practiceMetricGroupNoImage
-                      ]}
-                    >
+                    <View style={styles.practiceMetricGroup}>
                       <Text style={styles.countText}>
                         {t("practice.totalProgress")}: {formatCountProgress(
                           practice.total,
@@ -526,8 +518,11 @@ export default function Dashboard() {
                         <DailyGoalProgress
                           todayCount={practice.today}
                           dailyTargetCount={dailyTargetCount}
-                          barWidth={todayTargetBarWidth}
-                          labelStyle={styles.countText}
+                          style={styles.dailyGoalInline}
+                          labelStyle={[styles.countText, styles.dailyGoalLabel]}
+                          barStyle={styles.dailyGoalBar}
+                          textStyle={styles.dailyGoalBarText}
+                          labelNumberOfLines={1}
                         />
                       ) : (
                         <Pressable
@@ -550,7 +545,6 @@ export default function Dashboard() {
                         </Pressable>
                       )}
                     </View>
-
                   </View>
                 </View>
 
@@ -813,9 +807,8 @@ export default function Dashboard() {
 }
 
 const screenWidth = Dimensions.get("window").width;
-const iconSize = screenWidth < 360 ? 60 : 70;
+const iconSize = screenWidth < 360 ? 56 : 66;
 const addPracticeCardHeight = Math.round(iconSize);
-const todayTargetBarWidth = screenWidth < 360 ? 105 : 128;
 const styles = StyleSheet.create({
 
   title: {
@@ -894,7 +887,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginBottom: 8,
   },
 
   practiceActionButtons: {
@@ -925,8 +917,9 @@ const styles = StyleSheet.create({
   },
 
   practiceMetricGroup: {
-    marginTop: 10,
+    flex: 1,
     gap: 6,
+    minWidth: 0,
   },
 
   practiceMetricGroupNoImage: {
@@ -961,7 +954,11 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
   },
 
-  row: {
+  cardContent: {
+    gap: 10,
+  },
+
+  practiceBodyRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
@@ -971,6 +968,27 @@ const styles = StyleSheet.create({
     width: iconSize,
     height: iconSize,
     borderRadius: 12,
+  },
+
+  dailyGoalInline: {
+    alignSelf: "stretch",
+    alignItems: "center",
+    width: "100%",
+  },
+
+  dailyGoalLabel: {
+    flexShrink: 1,
+    maxWidth: "48%",
+  },
+
+  dailyGoalBar: {
+    flex: 1,
+    minWidth: 94,
+    maxWidth: "100%",
+  },
+
+  dailyGoalBarText: {
+    fontSize: 14,
   },
 
   quickAddButton: {

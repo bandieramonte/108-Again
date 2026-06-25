@@ -33,6 +33,7 @@
     "../../services/syncCoordinator.ts",
     "../../services/syncEngine.ts",
     "../../types/sync.ts",
+    "../../utils/dateUtils.ts",
     "../../utils/numberUtils.ts"
   ]
 }
