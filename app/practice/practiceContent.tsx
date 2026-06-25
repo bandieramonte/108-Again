@@ -15,6 +15,8 @@ import QuickAddEditor from "../../components/QuickAddEditor";
 import TargetDateEditor from "../../components/TargetDateEditor";
 import { practiceImages } from "../../constants/practiceImages";
 import { useReachedCelebration } from "../../hooks/useReachedCelebration";
+import { useI18n } from "../../i18n";
+import { getPracticeDisplayName } from "../../i18n/practiceNames";
 import * as appService from "../../services/appService";
 import type { PracticeReminderSettings } from "../../services/practiceReminderService";
 import * as practiceReminderService from "../../services/practiceReminderService";
@@ -33,6 +35,7 @@ export default function PracticeContent({
 }) {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { locale, t } = useI18n();
     const [quickAddOpen, setQuickAddOpen] = useState(false);
     const [targetEditOpen, setTargetEditOpen] = useState(false);
     const [reminderOpen, setReminderOpen] = useState(false);
@@ -41,6 +44,8 @@ export default function PracticeContent({
     const initialPractice = practiceService.getPractice(practiceId);
 
     const [practiceName, setPracticeName] = useState(initialPractice?.name ?? "");
+    const displayPracticeName =
+        getPracticeDisplayName(practiceId, practiceName, t);
     const [total, setTotal] = useState(() =>
         sessionService.getPracticeTotal(practiceId).total
     );
@@ -106,11 +111,13 @@ export default function PracticeContent({
     const reminderHour = reminderSettings?.hour ?? 20;
     const reminderMinute = reminderSettings?.minute ?? 0;
     const reminderSummary = reminderEnabled
-        ? `Reminder: ${practiceReminderService.formatReminderTime(
-            reminderHour,
-            reminderMinute
-        )} if unfinished`
-        : "Reminder: Off";
+        ? t("practice.reminderAt", {
+            time: practiceReminderService.formatReminderTime(
+                reminderHour,
+                reminderMinute
+            ),
+        })
+        : t("practice.reminderOff");
     const calendarEndDate = useMemo(() => {
         return (
             practiceService.getExpectedTargetDate(
@@ -131,18 +138,18 @@ export default function PracticeContent({
 
     const formattedTargetDate = useMemo(() => {
         if (targetCount > 0 && total >= targetCount) {
-            return "Reached!";
+            return t("practice.reached");
         }
 
-        if (!effectiveDailyTargetCount) return "Set daily target 1st";
-        if (!targetDate) return "No estimate";
+        if (!effectiveDailyTargetCount) return t("practice.setDailyTargetFirst");
+        if (!targetDate) return t("practice.noEstimate");
 
-        return targetDate.toLocaleDateString("en-US", {
+        return targetDate.toLocaleDateString(locale, {
             month: "long",
             day: "2-digit",
             year: "numeric"
         });
-    }, [effectiveDailyTargetCount, targetDate, total, targetCount]);
+    }, [effectiveDailyTargetCount, locale, targetDate, total, targetCount, t]);
     const [customAmount, setCustomAmount] = useState("");
     const [customAmountOpen, setCustomAmountOpen] = useState(false);
     const dailyAnimRef = useRef<FloatingAddAnimationRef>(null);
@@ -157,7 +164,7 @@ export default function PracticeContent({
 
     useEffect(() => {
         schedulePracticeRefresh();
-    }, [practiceId]);
+    }, [practiceId, t]);
 
     useEffect(() => {
         let active = true;
@@ -173,7 +180,7 @@ export default function PracticeContent({
         return () => {
             active = false;
         };
-    }, [practiceId]);
+    }, [practiceId, t]);
 
     useEffect(() => {
         if (!reminderSettings?.enabled) return;
@@ -181,7 +188,7 @@ export default function PracticeContent({
         void practiceReminderService
             .refreshPracticeReminderSchedule({
                 practiceId,
-                practiceName,
+                practiceName: displayPracticeName,
                 todayCount,
                 dailyTargetCount: effectiveDailyTargetCount,
             })
@@ -191,7 +198,7 @@ export default function PracticeContent({
             });
     }, [
         practiceId,
-        practiceName,
+        displayPracticeName,
         todayCount,
         effectiveDailyTargetCount,
         reminderSettings?.enabled,
@@ -203,7 +210,7 @@ export default function PracticeContent({
         });
 
         return unsubscribe;
-    }, [practiceId]);
+    }, [practiceId, t]);
 
     useFocusEffect(
         useCallback(() => {
@@ -257,12 +264,12 @@ export default function PracticeContent({
         if (!Number.isFinite(newValue)) return;
 
         if (newValue < 0) {
-            alert("Value cannot be negative");
+            alert(t("practice.valueCannotBeNegative"));
             return;
         }
 
         if (!Number.isInteger(newValue)) {
-            alert("Please enter a whole number");
+            alert(t("practice.enterWholeNumber"));
             return;
         }
 
@@ -276,7 +283,7 @@ export default function PracticeContent({
         } catch (error: any) {
             alert(error.message);
         }
-    }, [practiceId]);
+    }, [practiceId, t]);
 
     function openCustomAmountModal() {
         setCustomAmount("");
@@ -292,7 +299,7 @@ export default function PracticeContent({
         const error =
             validateNonNegativeInteger(
                 customAmount,
-                "Custom amount"
+                t("practice.customAmount")
             );
 
         if (error) {
@@ -304,7 +311,9 @@ export default function PracticeContent({
 
         if (value > MAX_REPETITIONS_PER_DAY) {
             alert(
-                `Custom amount cannot exceed ${MAX_REPETITIONS_PER_DAY.toLocaleString()}`
+                t("practice.customAmountTooHigh", {
+                    count: formatNumber(MAX_REPETITIONS_PER_DAY),
+                })
             );
             return;
         }
@@ -315,7 +324,7 @@ export default function PracticeContent({
                 value
             );
             customAnimRef.current?.trigger(
-                `+${formatNumber(value)}\nadded!`
+                `+${formatNumber(value)}\n${t("common.added")}`
             );
             schedulePracticeRefresh();
             closeCustomAmountModal();
@@ -388,7 +397,7 @@ export default function PracticeContent({
 
     function openReminderEditor() {
         if (!hasDailyTarget) {
-            alert("Set a daily target before enabling reminders.");
+            alert(t("practice.setDailyTargetBeforeReminders"));
             setTargetEditOpen(true);
             return;
         }
@@ -401,7 +410,7 @@ export default function PracticeContent({
             const settings =
                 await practiceReminderService.savePracticeReminderSettings({
                     practiceId,
-                    practiceName,
+                    practiceName: displayPracticeName,
                     todayCount,
                     dailyTargetCount: effectiveDailyTargetCount,
                     hour,
@@ -450,10 +459,10 @@ export default function PracticeContent({
                                         ]}
                                         onPress={toggleMenu}
                                         accessibilityRole="button"
-                                        accessibilityLabel={`Open actions for ${practiceName}`}
+                                        accessibilityLabel={`Open actions for ${displayPracticeName}`}
                                     >
                                         <Text style={styles.title}>
-                                            {practiceName}
+                                            {displayPracticeName}
                                         </Text>
 
                                         <Animated.View
@@ -523,7 +532,7 @@ export default function PracticeContent({
                                             color={colors.primary}
                                         />
                                         <Text style={styles.statsCardLabel}>
-                                            Total Progress
+                                            {t("practice.totalProgress")}
                                         </Text>
                                     </View>
                                     <Text style={styles.statsCardValue}>
@@ -542,7 +551,7 @@ export default function PracticeContent({
                                     ]}
                                     onPress={() => setTargetEditOpen(true)}
                                     accessibilityRole="button"
-                                    accessibilityLabel="Edit target date"
+                                    accessibilityLabel={t("practice.editTargetDate")}
                                 >
                                     <View style={styles.statsCardLabelRow}>
                                         <MaterialIcons
@@ -551,7 +560,7 @@ export default function PracticeContent({
                                             color={colors.primary}
                                         />
                                         <Text style={styles.statsCardLabel}>
-                                            Target Date
+                                            {t("practice.targetDate")}
                                         </Text>
                                         <MaterialIcons
                                             name="edit"
@@ -601,7 +610,7 @@ export default function PracticeContent({
                                         ]}
                                         onPress={() => setTargetEditOpen(true)}
                                         accessibilityRole="button"
-                                        accessibilityLabel="Enable daily target"
+                                        accessibilityLabel={t("practice.enableDailyTarget")}
                                     >
                                         <MaterialIcons
                                             name="check-circle-outline"
@@ -609,7 +618,7 @@ export default function PracticeContent({
                                             color={colors.primary}
                                         />
                                         <Text style={styles.enableDailyTargetText}>
-                                            Enable daily target
+                                            {t("practice.enableDailyTarget")}
                                         </Text>
                                     </Pressable>
                                 )}
@@ -621,7 +630,7 @@ export default function PracticeContent({
                                     ]}
                                     onPress={openReminderEditor}
                                     accessibilityRole="button"
-                                    accessibilityLabel="Edit practice reminder"
+                                    accessibilityLabel={t("practice.editPracticeReminder")}
                                 >
                                     <MaterialIcons
                                         name={reminderEnabled ? "notifications-active" : "notifications-none"}
@@ -635,8 +644,8 @@ export default function PracticeContent({
                                         </Text>
                                         <Text style={styles.reminderSubtitle}>
                                             {hasDailyTarget
-                                                ? "Tap to edit reminder time"
-                                                : "Set a daily target before reminders"}
+                                                ? t("practice.editReminderTime")
+                                                : t("practice.reminderNeedsTarget")}
                                         </Text>
                                     </View>
 
@@ -656,7 +665,7 @@ export default function PracticeContent({
                             >
                                 <View style={styles.addSessionHeader}>
                                     <Text style={styles.addSessionTitle}>
-                                        Add Session
+                                        {t("practice.addSession")}
                                     </Text>
 
                                     <Pressable
@@ -666,7 +675,7 @@ export default function PracticeContent({
                                         ]}
                                         onPress={() => setQuickAddOpen(true)}
                                         accessibilityRole="button"
-                                        accessibilityLabel="Edit default session count"
+                                        accessibilityLabel={t("practice.editDefaultSessionCount")}
                                     >
                                         <MaterialIcons
                                             name="edit"
@@ -693,7 +702,7 @@ export default function PracticeContent({
                                                     Number(defaultSessionCount)
                                                 );
                                                 dailyAnimRef.current?.trigger(
-                                                    `+${formatNumber(defaultSessionCount)}\nadded!`
+                                                    `+${formatNumber(defaultSessionCount)}\n${t("common.added")}`
                                                 );
                                                 schedulePracticeRefresh();
                                             } catch (error: any) {
@@ -702,13 +711,15 @@ export default function PracticeContent({
                                         }}
                                         onLongPress={() => setQuickAddOpen(true)}
                                         accessibilityRole="button"
-                                        accessibilityLabel={`Add default session of ${formatNumber(defaultSessionCount)}`}
+                                        accessibilityLabel={t("practice.addDefaultSessionA11y", {
+                                            count: formatNumber(defaultSessionCount),
+                                        })}
                                     >
                                         <Text style={styles.addSessionActionValue}>
                                             +{formatNumber(defaultSessionCount)}
                                         </Text>
                                         <Text style={styles.addSessionActionLabel}>
-                                            Default session
+                                            {t("practice.defaultSession")}
                                         </Text>
                                         <FloatingAddAnimation ref={dailyAnimRef} />
                                     </Pressable>
@@ -720,13 +731,13 @@ export default function PracticeContent({
                                         ]}
                                         onPress={openCustomAmountModal}
                                         accessibilityRole="button"
-                                        accessibilityLabel="Add a custom amount"
+                                        accessibilityLabel={t("practice.addCustomAmount")}
                                     >
                                         <Text style={styles.addSessionActionValue}>
                                             +
                                         </Text>
                                         <Text style={styles.addSessionActionLabel}>
-                                            Custom amount
+                                            {t("practice.customAmount")}
                                         </Text>
                                         <FloatingAddAnimation ref={customAnimRef} />
                                     </Pressable>
@@ -738,7 +749,7 @@ export default function PracticeContent({
                                 onPress={() => setCalendarOpen(true)}
                             >
                                 <Text style={styles.calendarButtonText}>
-                                    Practice Calendar
+                                    {t("practice.practiceCalendar")}
                                 </Text>
                             </Pressable>
 
@@ -759,7 +770,7 @@ export default function PracticeContent({
                                     onPress={() => { }}
                                 >
                                     <Text style={styles.customAmountTitle}>
-                                        Add custom amount
+                                        {t("practice.addCustomAmount")}
                                     </Text>
 
                                     <TextInput
@@ -770,7 +781,7 @@ export default function PracticeContent({
                                         keyboardType="numeric"
                                         returnKeyType="done"
                                         onSubmitEditing={addCustomAmount}
-                                        placeholder="Enter amount"
+                                        placeholder={t("practice.enterAmount")}
                                         placeholderTextColor="#999"
                                         style={styles.customAmountInput}
                                         maxLength={String(MAX_REPETITIONS_PER_DAY).length}
@@ -783,7 +794,7 @@ export default function PracticeContent({
                                             onPress={closeCustomAmountModal}
                                         >
                                             <Text style={styles.customAmountCancelText}>
-                                                Cancel
+                                                {t("common.cancel")}
                                             </Text>
                                         </Pressable>
 
@@ -792,7 +803,7 @@ export default function PracticeContent({
                                             onPress={addCustomAmount}
                                         >
                                             <Text style={styles.customAmountAddText}>
-                                                Add
+                                                {t("common.add")}
                                             </Text>
                                         </Pressable>
                                     </View>
@@ -816,7 +827,7 @@ export default function PracticeContent({
                                     <View style={styles.calendarHeader}>
                                         <Pressable onPress={() => setCalendarOpen(false)}>
                                             <Text style={styles.calendarClose}>
-                                                Close
+                                                {t("common.close")}
                                             </Text>
                                         </Pressable>
 
@@ -825,7 +836,7 @@ export default function PracticeContent({
                                             style={styles.calendarInfoIcon}
                                             hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
                                             accessibilityRole="button"
-                                            accessibilityLabel="Practice calendar information"
+                                            accessibilityLabel={t("practice.calendarInfoA11y")}
                                         >
                                             <MaterialIcons
                                                 name="info-outline"
@@ -862,15 +873,15 @@ export default function PracticeContent({
                                     onPress={() => { }}
                                 >
                                     <Text style={styles.infoTitle}>
-                                        Editing the Calendar
+                                        {t("practice.calendarInfoTitle")}
                                     </Text>
 
                                     <Text style={styles.infoText}>
-                                        You can edit today or any earlier day in the practice calendar if you forgot to record a practice.
+                                        {t("practice.calendarInfoText1")}
                                     </Text>
 
                                     <Text style={styles.infoText}>
-                                        Tap a day, enter the correct total for that date, and the app will update your progress.
+                                        {t("practice.calendarInfoText2")}
                                     </Text>
 
                                     <Pressable
@@ -878,7 +889,7 @@ export default function PracticeContent({
                                         onPress={() => setCalendarInfoOpen(false)}
                                     >
                                         <Text style={styles.infoButtonText}>
-                                            OK
+                                            {t("common.ok")}
                                         </Text>
                                     </Pressable>
                                 </Pressable>
@@ -890,7 +901,7 @@ export default function PracticeContent({
                             anchor={menuAnchor}
                             practice={{
                                 id: practiceId,
-                                name: practiceName,
+                                name: displayPracticeName,
                                 total,
                             }}
                             onClose={closeMenu}
@@ -903,7 +914,7 @@ export default function PracticeContent({
                     <QuickAddEditor
                         visible={quickAddOpen}
                         practiceId={practiceId}
-                        practiceName={practiceName}
+                        practiceName={displayPracticeName}
                         defaultValue={Number(defaultSessionCount)}
                         onClose={() => setQuickAddOpen(false)}
                     />
@@ -911,7 +922,7 @@ export default function PracticeContent({
                     <PracticeReminderEditor
                         visible={reminderOpen}
                         enabled={reminderEnabled}
-                        practiceName={practiceName}
+                        practiceName={displayPracticeName}
                         initialHour={reminderHour}
                         initialMinute={reminderMinute}
                         onClose={() => setReminderOpen(false)}
@@ -965,16 +976,15 @@ export default function PracticeContent({
                                 onPress={() => { }}
                             >
                                 <Text style={styles.infoTitle}>
-                                    Adjusting Practice Data
+                                    {t("practice.adjustingInfoTitle")}
                                 </Text>
 
                                 <Text style={styles.infoText}>
-                                    Long press the default session button to change how much it adds. Tap the target date to adjust the daily target used for estimates.
+                                    {t("practice.adjustingInfoText1")}
                                 </Text>
 
                                 <Text style={styles.infoText}>
-                                    Changing the target date recalculates the daily target,
-                                    and the calendar below updates accordingly.
+                                    {t("practice.adjustingInfoText2")}
                                 </Text>
 
                                 <Pressable
@@ -982,7 +992,7 @@ export default function PracticeContent({
                                     onPress={() => setInfoOpen(false)}
                                 >
                                     <Text style={styles.infoButtonText}>
-                                        OK
+                                        {t("common.ok")}
                                     </Text>
                                 </Pressable>
 
@@ -1001,11 +1011,11 @@ export default function PracticeContent({
                 <View style={styles.infoOverlay}>
                     <View style={styles.infoModal}>
                         <Text style={styles.infoText}>
-                            You&apos;ll finish sooner than that.
+                            {t("practice.dateAdjustedSooner")}
                         </Text>
 
                         <Text style={styles.infoText}>
-                            We adjusted the date to match your pace.
+                            {t("practice.dateAdjustedPace")}
                         </Text>
                     </View>
                 </View>

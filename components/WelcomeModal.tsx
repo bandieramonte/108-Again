@@ -1,3 +1,4 @@
+import { useI18n } from "@/i18n";
 import { colors } from "@/styles/theme";
 import { Modal, Pressable, StyleSheet, Text } from "react-native";
 
@@ -10,6 +11,8 @@ export default function WelcomeModal({
     visible,
     onClose,
 }: Props) {
+    const { t } = useI18n();
+
     return (
         <Modal
             visible={visible}
@@ -26,27 +29,27 @@ export default function WelcomeModal({
                     onPress={() => { }}
                 >
                     <Text style={styles.title}>
-                        Welcome to 108 Again
+                        {t("welcome.title")}
                     </Text>
 
                     <Text style={styles.text}>
-                        This app helps you track your Ngöndro practice over time.
+                        {t("welcome.text1")}
                     </Text>
 
                     <Text style={styles.text}>
-                        It is built offline first, so your daily practice remains available without internet access.
+                        {t("welcome.text2")}
                     </Text>
 
                     <Text style={styles.text}>
-                        To safely preserve your progress throughout the years and across devices, you can create an account for cloud sync and backup.
+                        {t("welcome.text3")}
                     </Text>
 
                     <Text style={styles.text}>
-                        You can also export and import backup files manually at any time.
+                        {t("welcome.text4")}
                     </Text>
 
                     <Text style={styles.text}>
-                        Enjoy!
+                        {t("welcome.enjoy")}
                     </Text>
 
                     <Pressable
@@ -54,7 +57,7 @@ export default function WelcomeModal({
                         onPress={onClose}
                     >
                         <Text style={styles.buttonText}>
-                            Begin Practice
+                            {t("welcome.begin")}
                         </Text>
                     </Pressable>
                 </Pressable>

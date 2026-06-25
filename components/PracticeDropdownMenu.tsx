@@ -8,6 +8,7 @@ import {
     useWindowDimensions,
     View,
 } from "react-native";
+import { useI18n } from "../i18n";
 
 export type PracticeMenuAnchor = {
     x: number;
@@ -35,6 +36,7 @@ export default function PracticeDropdownMenu({
     onCalendar,
     onDelete,
 }: Props) {
+    const { t } = useI18n();
     const { width: screenWidth, height: screenHeight } =
         useWindowDimensions();
     const menuWidth = 220;
@@ -96,7 +98,7 @@ export default function PracticeDropdownMenu({
                                 color="#333"
                             />
                             <Text style={styles.text}>
-                                Edit practice
+                                {t("practiceMenu.edit")}
                             </Text>
                         </Pressable>
 
@@ -110,7 +112,7 @@ export default function PracticeDropdownMenu({
                                 color="#333"
                             />
                             <Text style={styles.text}>
-                                Practice history
+                                {t("practiceMenu.history")}
                             </Text>
                         </Pressable>
 
@@ -125,7 +127,7 @@ export default function PracticeDropdownMenu({
                                     color="#333"
                                 />
                                 <Text style={styles.text}>
-                                    Practice calendar
+                                    {t("practiceMenu.calendar")}
                                 </Text>
                             </Pressable>
                         )}
@@ -142,7 +144,7 @@ export default function PracticeDropdownMenu({
                             <Text
                                 style={styles.deleteText}
                             >
-                                Delete practice
+                                {t("practiceMenu.delete")}
                             </Text>
                         </Pressable>
                     </View>

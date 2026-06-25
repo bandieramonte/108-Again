@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput } from "react-native";
+import { useI18n } from "../i18n";
 import * as practiceService from "../services/practiceService";
 import { colors } from "../styles/theme";
 import { digitsOnly, MAX_PRACTICE_NAME, MAX_REPETITIONS_PER_DAY, MAX_TARGET_COUNT, validateNonNegativeInteger, validateRepetitionCount, validateTargetCount } from "../utils/numberUtils";
@@ -9,6 +10,7 @@ export default function EditPractice() {
 
     const { id } = useLocalSearchParams();
     const router = useRouter();
+    const { t } = useI18n();
 
     const [name, setName] = useState("");
     const [target, setTarget] = useState("");
@@ -32,7 +34,7 @@ export default function EditPractice() {
     function save() {
 
         if (!name.trim()) {
-            alert("Please enter a practice name");
+            alert(t("form.practiceNameRequired"));
             return;
         }
 
@@ -45,7 +47,7 @@ export default function EditPractice() {
         }
 
         const totalError =
-            validateNonNegativeInteger(total, "Total count");
+            validateNonNegativeInteger(total, t("form.totalCount"));
 
         if (totalError) {
             alert(totalError);
@@ -56,7 +58,7 @@ export default function EditPractice() {
             dailyTarget.trim()
                 ? validateRepetitionCount(
                     dailyTarget,
-                    "Daily target"
+                    t("dashboard.dailyTarget")
                 )
                 : null;
 
@@ -66,14 +68,14 @@ export default function EditPractice() {
         }
 
         if (dailyTarget.trim() && Number(dailyTarget) <= 0) {
-            alert("Daily target must be greater than 0");
+            alert(t("dashboard.dailyTargetPositive"));
             return;
         }
 
         const defaultSessionError =
             validateRepetitionCount(
                 defaultSession,
-                "Default session count"
+                t("form.defaultSessionCount")
             );
 
         if (defaultSessionError) {
@@ -116,9 +118,9 @@ export default function EditPractice() {
                 contentContainerStyle={styles.container}
                 keyboardShouldPersistTaps="handled"
             >
-                <Text style={styles.title}>Edit Practice</Text>
+                <Text style={styles.title}>{t("form.editPracticeTitle")}</Text>
 
-                <Text>Name</Text>
+                <Text>{t("form.name")}</Text>
                 <TextInput
                     value={name}
                     onChangeText={(text) => setName(text.slice(0, MAX_PRACTICE_NAME))}
@@ -126,7 +128,7 @@ export default function EditPractice() {
                     style={styles.input}
                 />
 
-                <Text>Target count</Text>
+                <Text>{t("form.targetCount")}</Text>
                 <TextInput
                     value={target}
                     onChangeText={(v) => {
@@ -138,7 +140,7 @@ export default function EditPractice() {
                     style={styles.input}
                 />
 
-                <Text>Total count so far</Text>
+                <Text>{t("form.totalCountSoFar")}</Text>
                 <TextInput
                     value={total}
                     onChangeText={(v) => {
@@ -150,7 +152,7 @@ export default function EditPractice() {
                     style={styles.input}
                 />
 
-                <Text>Daily target (optional)</Text>
+                <Text>{t("form.dailyTargetOptional")}</Text>
                 <TextInput
                     value={dailyTarget}
                     onChangeText={(v) => {
@@ -159,12 +161,12 @@ export default function EditPractice() {
                         setDailyTarget(clean);
                     }}
                     keyboardType="numeric"
-                    placeholder="Disabled"
+                    placeholder={t("form.disabled")}
                     placeholderTextColor="#999"
                     style={styles.input}
                 />
 
-                <Text>Default session count</Text>
+                <Text>{t("form.defaultSessionCount")}</Text>
                 <TextInput
                     value={defaultSession}
                     onChangeText={(v) => {
@@ -181,7 +183,7 @@ export default function EditPractice() {
                     onPress={save}
                 >
                     <Text style={styles.saveButtonText}>
-                        Save
+                        {t("common.save")}
                     </Text>
                 </Pressable>
 

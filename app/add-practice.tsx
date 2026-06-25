@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput } from "react-native";
+import { useI18n } from "../i18n";
 import * as practiceService from "../services/practiceService";
 import { colors } from "../styles/theme";
 import { digitsOnly, MAX_PRACTICE_NAME, MAX_REPETITIONS_PER_DAY, MAX_TARGET_COUNT, validateRepetitionCount, validateTargetCount } from "../utils/numberUtils";
@@ -8,6 +9,7 @@ import { digitsOnly, MAX_PRACTICE_NAME, MAX_REPETITIONS_PER_DAY, MAX_TARGET_COUN
 export default function AddPractice() {
 
     const router = useRouter();
+    const { t } = useI18n();
 
     const [name, setName] = useState("");
     const [target, setTarget] = useState("");
@@ -16,12 +18,12 @@ export default function AddPractice() {
     function savePractice() {
 
         if (!name.trim()) {
-            alert("Please enter a practice name");
+            alert(t("form.practiceNameRequired"));
             return;
         }
 
         if (!target.trim()) {
-            alert("Please enter a target count");
+            alert(t("form.targetCountRequired"));
             return;
         }
 
@@ -36,7 +38,7 @@ export default function AddPractice() {
         const defaultSessionError =
             validateRepetitionCount(
                 defaultSession,
-                "Default session count"
+                t("form.defaultSessionCount")
             );
 
         if (defaultSessionError) {
@@ -70,10 +72,10 @@ export default function AddPractice() {
                 keyboardShouldPersistTaps="handled"
             >
 
-                <Text style={styles.title}>Add Practice</Text>
+                <Text style={styles.title}>{t("form.addPracticeTitle")}</Text>
 
                 <TextInput
-                    placeholder="Practice name"
+                    placeholder={t("form.practiceName")}
                     placeholderTextColor="#999"
                     value={name}
                     onChangeText={(text) => setName(text.slice(0, MAX_PRACTICE_NAME))}
@@ -82,7 +84,7 @@ export default function AddPractice() {
                 />
 
                 <TextInput
-                    placeholder="Target count"
+                    placeholder={t("form.targetCount")}
                     placeholderTextColor="#999"
                     value={target}
                     onChangeText={(v) => {
@@ -95,7 +97,7 @@ export default function AddPractice() {
                 />
 
                 <TextInput
-                    placeholder="Default session count"
+                    placeholder={t("form.defaultSessionCount")}
                     placeholderTextColor="#999"
                     value={defaultSession}
                     onChangeText={(v) => {
@@ -112,7 +114,7 @@ export default function AddPractice() {
                     onPress={savePractice}
                 >
                     <Text style={styles.saveButtonText}>
-                        Save
+                        {t("common.save")}
                     </Text>
                 </Pressable>
 

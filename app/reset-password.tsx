@@ -15,9 +15,11 @@ import {
     TextInput,
     View,
 } from "react-native";
+import { useI18n } from "../i18n";
 import * as authService from "../services/authService";
 
 export default function ResetPasswordScreen() {
+    const { t } = useI18n();
     const [password, setPassword] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -25,28 +27,32 @@ export default function ResetPasswordScreen() {
 
     async function handleReset() {
         if (!password || !confirmPassword) {
-            Alert.alert("Missing fields", "Please fill all fields.");
+            Alert.alert(t("auth.missingFieldsTitle"), t("auth.missingFieldsMessage"));
             return;
         }
 
         if (password.length > AUTH_FIELD_LIMITS.password) {
             Alert.alert(
-                "Password too long",
-                `Password must be ${AUTH_FIELD_LIMITS.password} characters or fewer.`
+                t("auth.passwordTooLongTitle"),
+                t("auth.passwordTooLongMessage", {
+                    count: AUTH_FIELD_LIMITS.password,
+                })
             );
             return;
         }
 
         if (confirmPassword.length > AUTH_FIELD_LIMITS.password) {
             Alert.alert(
-                "Password too long",
-                `Confirm password must be ${AUTH_FIELD_LIMITS.password} characters or fewer.`
+                t("auth.passwordTooLongTitle"),
+                t("auth.confirmPasswordTooLongMessage", {
+                    count: AUTH_FIELD_LIMITS.password,
+                })
             );
             return;
         }
 
         if (password !== confirmPassword) {
-            Alert.alert("Mismatch", "Passwords do not match.");
+            Alert.alert(t("auth.passwordMismatchTitle"), t("auth.passwordMismatchMessage"));
             return;
         }
 
@@ -61,8 +67,8 @@ export default function ResetPasswordScreen() {
             }
 
             Alert.alert(
-                "Success",
-                "Your password has been updated. Please log in again."
+                t("auth.passwordUpdatedTitle"),
+                t("auth.passwordUpdatedMessage")
             );
             authService.setPasswordRecoveryFlow(false);
             await authService.signOut();
@@ -71,10 +77,10 @@ export default function ResetPasswordScreen() {
 
             const message =
                 error?.message?.toLowerCase().includes("session")
-                    ? "Your reset link has expired. Please request a new one."
-                    : error?.message ?? "Unknown error";
+                    ? t("auth.resetLinkExpired")
+                    : error?.message ?? t("common.unknownError");
 
-            Alert.alert("Reset failed", message);
+            Alert.alert(t("auth.resetFailed"), message);
         } finally {
             setSubmitting(false);
         }
@@ -89,9 +95,9 @@ export default function ResetPasswordScreen() {
                 contentContainerStyle={styles.container}
                 keyboardShouldPersistTaps="handled"
             >
-                <Text style={styles.title}>Set new password</Text>
+                <Text style={styles.title}>{t("auth.setNewPassword")}</Text>
 
-                <Text style={styles.label}>New password</Text>
+                <Text style={styles.label}>{t("auth.newPassword")}</Text>
                 <View style={styles.passwordContainer}>
                     <TextInput
                         value={password}
@@ -99,7 +105,7 @@ export default function ResetPasswordScreen() {
                         maxLength={AUTH_FIELD_LIMITS.password}
                         secureTextEntry={!showPassword}
                         style={styles.passwordInput}
-                        placeholder="Enter new password"
+                        placeholder={t("auth.newPasswordPlaceholder")}
                     />
 
                     <Pressable onPress={() => setShowPassword((v) => !v)} style={styles.icon}>
@@ -111,7 +117,7 @@ export default function ResetPasswordScreen() {
                     </Pressable>
                 </View>
 
-                <Text style={styles.label}>Confirm password</Text>
+                <Text style={styles.label}>{t("auth.confirmPassword")}</Text>
 
                 <TextInput
                     value={confirmPassword}
@@ -119,7 +125,7 @@ export default function ResetPasswordScreen() {
                     maxLength={AUTH_FIELD_LIMITS.password}
                     secureTextEntry={!showPassword}
                     style={styles.input}
-                    placeholder="Confirm password"
+                    placeholder={t("auth.confirmPassword")}
                 />
 
                 <Pressable
@@ -135,7 +141,7 @@ export default function ResetPasswordScreen() {
                         <ActivityIndicator />
                     ) : (
                         <Text style={styles.buttonText}>
-                            Update Password
+                            {t("auth.updatePassword")}
                         </Text>
                     )}
                 </Pressable>

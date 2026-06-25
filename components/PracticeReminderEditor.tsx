@@ -7,6 +7,7 @@ import {
     TextInput,
     View,
 } from "react-native";
+import { useI18n } from "../i18n";
 import { colors } from "../styles/theme";
 
 type Props = {
@@ -45,6 +46,7 @@ export default function PracticeReminderEditor({
     onDisable,
     onSave,
 }: Props) {
+    const { t } = useI18n();
     const [time, setTime] = useState(formatTime(initialHour, initialMinute));
 
     useEffect(() => {
@@ -57,7 +59,7 @@ export default function PracticeReminderEditor({
         const parsed = parseTime(time);
 
         if (!parsed) {
-            alert("Enter a time in 24-hour format, for example 20:00.");
+            alert(t("reminderEditor.invalidTime"));
             return;
         }
 
@@ -80,7 +82,7 @@ export default function PracticeReminderEditor({
                     onPress={() => { }}
                 >
                     <Text style={styles.title}>
-                        Practice reminder
+                        {t("reminderEditor.title")}
                     </Text>
 
                     <Text style={styles.subtitle}>
@@ -88,12 +90,11 @@ export default function PracticeReminderEditor({
                     </Text>
 
                     <Text style={styles.description}>
-                        The app will remind you at this time if today&apos;s
-                        goal has not been completed yet.
+                        {t("reminderEditor.description")}
                     </Text>
 
                     <Text style={styles.label}>
-                        Reminder time
+                        {t("reminderEditor.reminderTime")}
                     </Text>
 
                     <TextInput
@@ -116,7 +117,7 @@ export default function PracticeReminderEditor({
                                 onPress={onDisable}
                             >
                                 <Text style={styles.secondaryText}>
-                                    Turn off
+                                    {t("reminderEditor.turnOff")}
                                 </Text>
                             </Pressable>
                         )}
@@ -128,7 +129,7 @@ export default function PracticeReminderEditor({
                             onPress={onClose}
                         >
                             <Text style={styles.secondaryText}>
-                                Cancel
+                                {t("common.cancel")}
                             </Text>
                         </Pressable>
 
@@ -137,7 +138,7 @@ export default function PracticeReminderEditor({
                             onPress={save}
                         >
                             <Text style={styles.primaryText}>
-                                Save
+                                {t("common.save")}
                             </Text>
                         </Pressable>
                     </View>

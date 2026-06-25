@@ -10,15 +10,17 @@ import DailyGoalProgress from "../components/DailyGoalProgress";
 import PracticeActionsMenu, {
   type PracticeMenuAnchor,
 } from "../components/PracticeActionsMenu";
+import PracticeHistoryModal from "../components/PracticeHistoryModal";
 import QuickAddEditor from "../components/QuickAddEditor";
 import WelcomeModal from "../components/WelcomeModal";
-import PracticeHistoryModal from "../components/PracticeHistoryModal";
 import { practiceImages } from "../constants/practiceImages";
 import { usePracticeActions } from "../hooks/usePracticeActions";
 import { useReachedCelebration } from "../hooks/useReachedCelebration";
+import { useI18n } from "../i18n";
+import { getPracticeDisplayName } from "../i18n/practiceNames";
 import * as dashboardService from "../services/dashboardService";
-import * as practiceService from "../services/practiceService";
 import * as practiceReminderService from "../services/practiceReminderService";
+import * as practiceService from "../services/practiceService";
 import * as sessionService from "../services/sessionService";
 import { colors, containers } from "../styles/theme";
 import { digitsOnly, formatCountProgress, formatNumber, MAX_REPETITIONS_PER_DAY, validateRepetitionCount } from "../utils/numberUtils";
@@ -37,6 +39,7 @@ type Practice = {
 export default function Dashboard() {
 
   const router = useRouter();
+  const { locale, t } = useI18n();
   const [practices, setPractices] = useState<Practice[]>([]);
   const [streak, setStreak] = useState(0);
 
@@ -161,6 +164,8 @@ export default function Dashboard() {
 
   async function quickAdd(practice: Practice) {
     const count = practice.defaultSessionCount ?? 108;
+    const practiceDisplayName =
+      getPracticeDisplayName(practice.id, practice.name, t);
 
     try {
       sessionService.addSession(practice.id, count);
@@ -172,7 +177,7 @@ export default function Dashboard() {
         void practiceReminderService
           .refreshPracticeReminderSchedule({
             practiceId: practice.id,
-            practiceName: practice.name,
+            practiceName: practiceDisplayName,
             todayCount: practice.today + count,
             dailyTargetCount: practice.dailyTargetCount,
           })
@@ -197,10 +202,15 @@ export default function Dashboard() {
   function openPracticeMenu(practice: Practice) {
     const target = practiceRowRefs.current[practice.id];
     if (!target) return;
+    const practiceDisplayName =
+      getPracticeDisplayName(practice.id, practice.name, t);
 
     (target as any).measureInWindow(
       (x: number, y: number, width: number, height: number) => {
-        setMenuPractice(practice);
+        setMenuPractice({
+          ...practice,
+          name: practiceDisplayName,
+        });
         setMenuAnchor({ x, y, width, height });
       }
     );
@@ -214,7 +224,7 @@ export default function Dashboard() {
   function openDailyTargetPrompt(practice: Practice) {
     setDailyTargetPromptPractice({
       id: practice.id,
-      name: practice.name,
+      name: getPracticeDisplayName(practice.id, practice.name, t),
     });
     setDailyTargetInput("");
   }
@@ -230,7 +240,7 @@ export default function Dashboard() {
     const error =
       validateRepetitionCount(
         dailyTargetInput,
-        "Daily target"
+        t("dashboard.dailyTarget")
       );
 
     if (error) {
@@ -241,7 +251,7 @@ export default function Dashboard() {
     const value = Number(dailyTargetInput);
 
     if (value <= 0) {
-      alert("Daily target must be greater than 0");
+      alert(t("dashboard.dailyTargetPositive"));
       return;
     }
 
@@ -280,7 +290,12 @@ export default function Dashboard() {
         <View style={styles.streakContainer}>
           <View style={styles.streakBadge}>
             <Text style={styles.streakText}>
-              Streak: {streak} {streak === 1 ? "day" : "days"}
+              {t("dashboard.streak", {
+                count: streak,
+                unit: streak === 1
+                  ? t("dashboard.streakDay")
+                  : t("dashboard.streakDays"),
+              })}
             </Text>
 
             <Pressable
@@ -297,6 +312,8 @@ export default function Dashboard() {
         </View>
         {practices.map((practice) => {
 
+          const practiceDisplayName =
+            getPracticeDisplayName(practice.id, practice.name, t);
           const currentCycleProgress = practice.total >= practice.targetCount ? 1 : (practice.total % practice.targetCount) / practice.targetCount;
           const dailyTargetCount = practice.dailyTargetCount ?? null;
           const hasDailyTarget =
@@ -311,18 +328,21 @@ export default function Dashboard() {
               )
               : null;
 
+          const targetReached =
+            practice.targetCount > 0 &&
+            practice.total >= practice.targetCount;
           const expectedTargetDate =
-            practice.targetCount > 0 && practice.total >= practice.targetCount
-              ? <Text style={{ color: colors.primary }}>Reached!</Text>
+            targetReached
+              ? t("practice.reached")
               : !hasDailyTarget
-                ? "Set daily target 1st"
+                ? t("practice.setDailyTargetFirst")
                 : targetDate
-                  ? targetDate.toLocaleDateString("en-US", {
+                  ? targetDate.toLocaleDateString(locale, {
                     month: "long",
                     day: "2-digit",
                     year: "numeric"
                   })
-                  : "No estimate";
+                  : t("practice.noEstimate");
 
           return (
 
@@ -338,7 +358,7 @@ export default function Dashboard() {
                 }
                 onLongPress={() => openPracticeMenu(practice)}
                 delayLongPress={350}
-                accessibilityHint="Long press for practice actions"
+                accessibilityHint={t("dashboard.infoLongPressPractice")}
               >
 
                 <View
@@ -356,7 +376,7 @@ export default function Dashboard() {
                   <View style={{ flex: 1 }}>
                     <View style={styles.practiceNameRow}>
                       <Text numberOfLines={2} ellipsizeMode="tail" style={styles.practiceName}>
-                        {practice.name}
+                        {practiceDisplayName}
                       </Text>
 
                       <View style={styles.practiceActionButtons}>
@@ -367,11 +387,14 @@ export default function Dashboard() {
                           ]}
                           onPress={(event) => {
                             event.stopPropagation();
-                            practiceActions.editPractice(practice);
+                            practiceActions.editPractice({
+                              ...practice,
+                              name: practiceDisplayName,
+                            });
                           }}
                           hitSlop={6}
                           accessibilityRole="button"
-                          accessibilityLabel={`Edit ${practice.name}`}
+                          accessibilityLabel={`${t("practiceMenu.edit")}: ${practiceDisplayName}`}
                         >
                           <MaterialIcons
                             name="edit"
@@ -387,11 +410,14 @@ export default function Dashboard() {
                           ]}
                           onPress={(event) => {
                             event.stopPropagation();
-                            practiceActions.openPracticeHistory(practice);
+                            practiceActions.openPracticeHistory({
+                              ...practice,
+                              name: practiceDisplayName,
+                            });
                           }}
                           hitSlop={6}
                           accessibilityRole="button"
-                          accessibilityLabel={`View statistics for ${practice.name}`}
+                          accessibilityLabel={`${t("practiceMenu.history")}: ${practiceDisplayName}`}
                         >
                           <MaterialIcons
                             name="bar-chart"
@@ -411,7 +437,7 @@ export default function Dashboard() {
                           }}
                           hitSlop={6}
                           accessibilityRole="button"
-                          accessibilityLabel={`View calendar for ${practice.name}`}
+                          accessibilityLabel={`${t("practiceMenu.calendar")}: ${practiceDisplayName}`}
                         >
                           <MaterialIcons
                             name="calendar-today"
@@ -427,11 +453,14 @@ export default function Dashboard() {
                           ]}
                           onPress={(event) => {
                             event.stopPropagation();
-                            practiceActions.confirmDeletePractice(practice);
+                            practiceActions.confirmDeletePractice({
+                              ...practice,
+                              name: practiceDisplayName,
+                            });
                           }}
                           hitSlop={6}
                           accessibilityRole="button"
-                          accessibilityLabel={`Delete ${practice.name}`}
+                          accessibilityLabel={`${t("practiceMenu.delete")}: ${practiceDisplayName}`}
                         >
                           <MaterialIcons
                             name="delete-outline"
@@ -459,7 +488,7 @@ export default function Dashboard() {
                       ]}
                     >
                       <Text style={styles.countText}>
-                        Total Progress: {formatCountProgress(
+                        {t("practice.totalProgress")}: {formatCountProgress(
                           practice.total,
                           practice.targetCount || null
                         )}
@@ -475,10 +504,13 @@ export default function Dashboard() {
                           />
                         )}
                         <Text style={styles.countText}>
-                          Target date: {expectedTargetDate ?? "No estimate"}
+                          {t("practice.targetDate")}:{" "}
+                          <Text style={targetReached ? { color: colors.primary } : undefined}>
+                            {expectedTargetDate}
+                          </Text>
                         </Text>
 
-                        {expectedTargetDate === "Reached!" && isCelebrating(practice.id) && (
+                        {targetReached && isCelebrating(practice.id) && (
                           <Animated.Text
                             style={[
                               styles.congratsText,
@@ -505,7 +537,7 @@ export default function Dashboard() {
                           ]}
                           onPress={() => openDailyTargetPrompt(practice)}
                           accessibilityRole="button"
-                          accessibilityLabel={`Enable daily target for ${practice.name}`}
+                          accessibilityLabel={`${t("practice.enableDailyTarget")}: ${practiceDisplayName}`}
                         >
                           <MaterialIcons
                             name="check-circle-outline"
@@ -513,7 +545,7 @@ export default function Dashboard() {
                             color={colors.primary}
                           />
                           <Text style={styles.enableDailyTargetText}>
-                            Enable daily target
+                            {t("practice.enableDailyTarget")}
                           </Text>
                         </Pressable>
                       )}
@@ -544,13 +576,15 @@ export default function Dashboard() {
                       event.stopPropagation();
                       openEditDefaultModal(
                         practice.id,
-                        practice.name,
+                        practiceDisplayName,
                         practice.defaultSessionCount ?? 108
                       );
                     }}
                     delayLongPress={350}
                     accessibilityRole="button"
-                    accessibilityLabel={`Add default session of ${formatNumber(practice.defaultSessionCount ?? 108)} for ${practice.name}`}
+                    accessibilityLabel={`${t("practice.addDefaultSessionA11y", {
+                      count: formatNumber(practice.defaultSessionCount ?? 108),
+                    })}: ${practiceDisplayName}`}
                   >
                     <Text style={styles.quickAddAmountText}>
                       +{formatNumber(practice.defaultSessionCount ?? 108)}
@@ -560,7 +594,7 @@ export default function Dashboard() {
                       style={styles.quickAddLabelText}
                       numberOfLines={1}
                     >
-                      Add default session
+                      {t("practice.addDefaultSession")}
                     </Text>
                   </Pressable>
 
@@ -573,13 +607,13 @@ export default function Dashboard() {
                       event.stopPropagation();
                       openEditDefaultModal(
                         practice.id,
-                        practice.name,
+                        practiceDisplayName,
                         practice.defaultSessionCount ?? 108
                       );
                     }}
                     hitSlop={8}
                     accessibilityRole="button"
-                    accessibilityLabel={`Edit default session count for ${practice.name}`}
+                    accessibilityLabel={`${t("practice.editDefaultSessionCount")}: ${practiceDisplayName}`}
                   >
                     <MaterialIcons
                       name="edit"
@@ -602,7 +636,7 @@ export default function Dashboard() {
           ]}
           onPress={() => router.push("/add-practice")}
           accessibilityRole="button"
-          accessibilityLabel="Add Practice"
+          accessibilityLabel={t("dashboard.addPractice")}
         >
           <View style={styles.addPracticeCircle}>
             <MaterialIcons
@@ -614,7 +648,7 @@ export default function Dashboard() {
 
           <View style={styles.addPracticeTextWrapper}>
             <Text style={styles.addPracticeText}>
-              Add Practice
+              {t("dashboard.addPractice")}
             </Text>
           </View>
         </Pressable>
@@ -659,7 +693,7 @@ export default function Dashboard() {
               onPress={() => { }}
             >
               <Text style={styles.modalTitle}>
-                Set daily target
+                {t("dashboard.setDailyTarget")}
               </Text>
 
               <Text style={styles.modalSubtitle}>
@@ -676,7 +710,7 @@ export default function Dashboard() {
                 keyboardType="numeric"
                 returnKeyType="done"
                 onSubmitEditing={saveDailyTarget}
-                placeholder="Daily target"
+                placeholder={t("dashboard.dailyTarget")}
                 placeholderTextColor="#999"
                 style={styles.modalInput}
                 maxLength={String(MAX_REPETITIONS_PER_DAY).length}
@@ -688,14 +722,14 @@ export default function Dashboard() {
                   style={styles.modalButton}
                   onPress={closeDailyTargetPrompt}
                 >
-                  <Text>Cancel</Text>
+                  <Text>{t("common.cancel")}</Text>
                 </Pressable>
 
                 <Pressable
                   style={styles.modalButton}
                   onPress={saveDailyTarget}
                 >
-                  <Text>Save</Text>
+                  <Text>{t("common.save")}</Text>
                 </Pressable>
               </View>
             </Pressable>
@@ -720,7 +754,7 @@ export default function Dashboard() {
               ]}
             >
               <Text style={styles.anchoredTooltipText}>
-                Tip: Long press this button to change the default session count.
+                {t("dashboard.quickAddTip")}
               </Text>
             </View>
           </Pressable>
@@ -741,22 +775,19 @@ export default function Dashboard() {
               onPress={() => { }}
             >
               <Text style={styles.infoTitle}>
-                Dashboard Info
+                {t("dashboard.infoTitle")}
               </Text>
 
               <Text style={styles.infoText}>
-                Your streak shows how many consecutive days
-                you did any practice at least once.
+                {t("dashboard.infoStreak")}
               </Text>
 
               <Text style={styles.infoText}>
-                Tip: Long press the quick add button to change
-                the default session count.
+                {t("dashboard.infoQuickAdd")}
               </Text>
 
               <Text style={styles.infoText}>
-                Long press a practice to edit it, view its history,
-                or delete it.
+                {t("dashboard.infoLongPressPractice")}
               </Text>
 
               <Pressable
@@ -764,7 +795,7 @@ export default function Dashboard() {
                 onPress={() => setInfoOpen(false)}
               >
                 <Text style={styles.infoButtonText}>
-                  OK
+                  {t("common.ok")}
                 </Text>
               </Pressable>
 

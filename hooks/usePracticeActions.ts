@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Alert } from "react-native";
+import { useI18n } from "../i18n";
 import * as practiceService from "../services/practiceService";
 
 export type PracticeActionTarget = {
@@ -15,6 +16,7 @@ type Options = {
 
 export function usePracticeActions({ onDeleted }: Options = {}) {
     const router = useRouter();
+    const { t } = useI18n();
     const [historyPractice, setHistoryPractice] =
         useState<PracticeActionTarget | null>(null);
 
@@ -38,12 +40,12 @@ export function usePracticeActions({ onDeleted }: Options = {}) {
 
     function confirmDeletePractice(practice: PracticeActionTarget) {
         Alert.alert(
-            "Delete practice?",
-            "All sessions for this practice will also be deleted.",
+            t("practiceMenu.deleteTitle"),
+            t("practiceMenu.deleteMessage"),
             [
-                { text: "Cancel", style: "cancel" },
+                { text: t("common.cancel"), style: "cancel" },
                 {
-                    text: "Delete",
+                    text: t("common.delete"),
                     style: "destructive",
                     onPress: async () => {
                         await practiceService.deletePractice(practice.id);

@@ -7,6 +7,7 @@ import {
     type TextStyle,
     type ViewStyle,
 } from "react-native";
+import { useI18n } from "../i18n";
 import { colors } from "../styles/theme";
 import { formatCountProgress } from "../utils/numberUtils";
 
@@ -25,7 +26,7 @@ type Props = {
 export default function DailyGoalProgress({
     todayCount,
     dailyTargetCount,
-    label = "Today's goal:",
+    label,
     barWidth,
     height = 15,
     style,
@@ -33,6 +34,7 @@ export default function DailyGoalProgress({
     barStyle,
     textStyle,
 }: Props) {
+    const { t } = useI18n();
     const safeTodayCount = Number.isFinite(todayCount)
         ? todayCount
         : 0;
@@ -51,7 +53,7 @@ export default function DailyGoalProgress({
     return (
         <View style={[styles.row, style]}>
             <Text style={[styles.label, labelStyle]}>
-                {label}
+                {label ?? t("dailyGoal.label")}
             </Text>
 
             <View
@@ -86,7 +88,7 @@ export default function DailyGoalProgress({
                         ]}
                     >
                         {isFinished
-                            ? "Finished!"
+                            ? t("dailyGoal.finished")
                             : formatCountProgress(
                                 safeTodayCount,
                                 safeTargetCount

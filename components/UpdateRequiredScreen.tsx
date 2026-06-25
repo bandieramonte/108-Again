@@ -9,6 +9,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useI18n } from "../i18n";
 import type { UpdateRequirement } from "../services/appUpdatePolicy";
 import { colors } from "../styles/theme";
 
@@ -30,6 +31,7 @@ export default function UpdateRequiredScreen({
     onRetry,
     onUpdate,
 }: Props) {
+    const { t } = useI18n();
     const isMaintenance = requirement.reason === "maintenance";
 
     useEffect(() => {
@@ -52,8 +54,8 @@ export default function UpdateRequiredScreen({
 
                 <Text style={styles.title}>
                     {isMaintenance
-                        ? "Temporarily unavailable"
-                        : "Update required"}
+                        ? t("update.maintenanceTitle")
+                        : t("update.requiredTitle")}
                 </Text>
 
                 <Text style={styles.message}>
@@ -68,10 +70,10 @@ export default function UpdateRequiredScreen({
                         ]}
                         onPress={onUpdate}
                         accessibilityRole="button"
-                        accessibilityLabel="Update 108 Again"
+                        accessibilityLabel={t("update.updateA11y")}
                     >
                         <Text style={styles.primaryButtonText}>
-                            Update now
+                            {t("update.updateNow")}
                         </Text>
                     </Pressable>
                 )}
@@ -84,13 +86,13 @@ export default function UpdateRequiredScreen({
                     onPress={onRetry}
                     disabled={checking}
                     accessibilityRole="button"
-                    accessibilityLabel="Check again"
+                    accessibilityLabel={t("update.checkAgain")}
                 >
                     {checking ? (
                         <ActivityIndicator color={colors.primary} />
                     ) : (
                         <Text style={styles.retryButtonText}>
-                            Check again
+                            {t("update.checkAgain")}
                         </Text>
                     )}
                 </Pressable>

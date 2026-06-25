@@ -1,4 +1,5 @@
 import PrivacyModal from "@/components/PrivacyModal";
+import { languageOptions, useI18n } from "@/i18n";
 import * as appService from "@/services/appService";
 import { exportBackup, importBackup } from "@/utils/backup";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -31,8 +32,10 @@ export default function HeaderMenu({
     hideAccountIcon,
 }: Props) {
     const router = useRouter();
+    const { language, setLanguage, t } = useI18n();
     const [moreOpen, setMoreOpen] = useState(false);
     const [accountOpen, setAccountOpen] = useState(false);
+    const [languageOpen, setLanguageOpen] = useState(false);
     const moreButtonRef = useRef<View | null>(null);
     const [menuAnchor, setMenuAnchor] = useState<{
         x: number;
@@ -41,15 +44,18 @@ export default function HeaderMenu({
         height: number;
     } | null>(null);
     const [privacyVisible, setPrivacyVisible] = useState(false);
+    const selectedLanguage =
+        languageOptions.find(option => option.code === language) ??
+        languageOptions[0];
 
     function handleRestoreDefaults() {
         Alert.alert(
-            "Restore Defaults?",
-            "This will remove all your practices, sessions, and local data.",
+            t("menu.restoreDefaultsTitle"),
+            t("menu.restoreDefaultsMessage"),
             [
-                { text: "Cancel", style: "cancel" },
+                { text: t("common.cancel"), style: "cancel" },
                 {
-                    text: "Restore",
+                    text: t("common.restore"),
                     style: "destructive",
                     onPress: () => {
                         appService.restoreDefaults();
@@ -63,13 +69,13 @@ export default function HeaderMenu({
         try {
             await Share.share({
                 title: "108 Again",
-                message: `Try 108 Again on Google Play: ${PLAY_STORE_URL}`,
+                message: t("menu.shareMessage", { url: PLAY_STORE_URL }),
                 url: PLAY_STORE_URL,
             });
         } catch (error: any) {
             Alert.alert(
-                "Share failed",
-                error?.message ?? "Unable to open sharing options."
+                t("menu.shareFailed"),
+                error?.message ?? t("menu.shareUnavailable")
             );
         }
     }
@@ -96,6 +102,22 @@ export default function HeaderMenu({
             ) : (
                 <View style={{ width: 32 }} />
             )}
+
+            <Pressable
+                onPress={() => setLanguageOpen(true)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t("language.switch")}
+                style={({ pressed }) => [
+                    styles.languageButton,
+                    pressed && { opacity: 0.5 }
+                ]}
+            >
+                <Text style={styles.flagText}>
+                    {selectedLanguage.flag}
+                </Text>
+            </Pressable>
+
             <Pressable
                 ref={moreButtonRef}
                 onPress={() => {
@@ -153,7 +175,7 @@ export default function HeaderMenu({
                                         router.push("/account");
                                     }}
                                 >
-                                    <Text>Account</Text>
+                                    <Text>{t("menu.account")}</Text>
                                 </Pressable>
 
                                 <Pressable
@@ -163,7 +185,7 @@ export default function HeaderMenu({
                                         onSignOut();
                                     }}
                                 >
-                                    <Text>Log Out</Text>
+                                    <Text>{t("menu.logOut")}</Text>
                                 </Pressable>
                             </>
                         ) : (
@@ -175,7 +197,7 @@ export default function HeaderMenu({
                                         router.push("/sign-in");
                                     }}
                                 >
-                                    <Text>Log In</Text>
+                                    <Text>{t("menu.logIn")}</Text>
                                 </Pressable>
 
                                 <Pressable
@@ -185,10 +207,57 @@ export default function HeaderMenu({
                                         router.push("/sign-up");
                                     }}
                                 >
-                                    <Text>Create Account</Text>
+                                    <Text>{t("menu.createAccount")}</Text>
                                 </Pressable>
                             </>
                         )}
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+
+            <Modal
+                visible={languageOpen}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setLanguageOpen(false)}
+            >
+                <TouchableOpacity
+                    style={styles.overlay}
+                    activeOpacity={1}
+                    onPress={() => setLanguageOpen(false)}
+                >
+                    <View style={styles.languageMenu}>
+                        {languageOptions.map(option => {
+                            const selected = option.code === language;
+
+                            return (
+                                <Pressable
+                                    key={option.code}
+                                    style={[
+                                        styles.languageItem,
+                                        selected && styles.languageItemSelected
+                                    ]}
+                                    onPress={() => {
+                                        setLanguageOpen(false);
+                                        void setLanguage(option.code);
+                                    }}
+                                >
+                                    <Text style={styles.languageFlag}>
+                                        {option.flag}
+                                    </Text>
+                                    <Text style={styles.languageText}>
+                                        {t(option.labelKey)}
+                                    </Text>
+                                    {selected && (
+                                        <MaterialIcons
+                                            name="check"
+                                            size={18}
+                                            color="#1A5FCC"
+                                        />
+                                    )}
+                                </Pressable>
+                            );
+                        })}
                     </View>
                 </TouchableOpacity>
             </Modal>
@@ -221,7 +290,7 @@ export default function HeaderMenu({
                                 exportBackup();
                             }}
                         >
-                            <Text>Export Backup</Text>
+                            <Text>{t("menu.exportBackup")}</Text>
                         </Pressable>
 
                         <Pressable
@@ -231,7 +300,7 @@ export default function HeaderMenu({
                                 importBackup();
                             }}
                         >
-                            <Text>Import Backup</Text>
+                            <Text>{t("menu.importBackup")}</Text>
                         </Pressable>
 
                         <Pressable
@@ -241,7 +310,9 @@ export default function HeaderMenu({
                                 handleRestoreDefaults();
                             }}
                         >
-                            <Text style={styles.destructiveText}>Restore Defaults</Text>
+                            <Text style={styles.destructiveText}>
+                                {t("menu.restoreDefaults")}
+                            </Text>
                         </Pressable>
 
                         <Pressable
@@ -251,7 +322,7 @@ export default function HeaderMenu({
                                 handleShareApp();
                             }}
                         >
-                            <Text>Share App</Text>
+                            <Text>{t("menu.shareApp")}</Text>
                         </Pressable>
 
                         <Pressable
@@ -261,7 +332,7 @@ export default function HeaderMenu({
                                 router.navigate("/about");
                             }}
                         >
-                            <Text>About</Text>
+                            <Text>{t("menu.about")}</Text>
                         </Pressable>
 
                         <Pressable
@@ -271,7 +342,7 @@ export default function HeaderMenu({
                                 setPrivacyVisible(true);
                             }}
                         >
-                            <Text>Privacy & Data</Text>
+                            <Text>{t("menu.privacyData")}</Text>
                         </Pressable>
 
                     </View>
@@ -296,6 +367,18 @@ const styles = StyleSheet.create({
         marginLeft: 8,
     },
 
+    languageButton: {
+        marginLeft: 8,
+        minWidth: 28,
+        minHeight: 28,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
+    flagText: {
+        fontSize: 20,
+    },
+
     overlay: {
         flex: 1,
         justifyContent: "flex-start",
@@ -317,6 +400,37 @@ const styles = StyleSheet.create({
     item: {
         paddingVertical: 10,
         paddingHorizontal: 15,
+    },
+
+    languageMenu: {
+        backgroundColor: "white",
+        borderRadius: 10,
+        paddingVertical: 6,
+        width: 190,
+        elevation: 5,
+        marginTop: 4,
+    },
+
+    languageItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+    },
+
+    languageItemSelected: {
+        backgroundColor: "#EEF2FF",
+    },
+
+    languageFlag: {
+        fontSize: 20,
+    },
+
+    languageText: {
+        flex: 1,
+        fontSize: 15,
+        color: "#111",
     },
 
     destructiveText: {

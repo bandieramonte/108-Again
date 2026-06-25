@@ -1,3 +1,4 @@
+import { useI18n } from "@/i18n";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text } from "react-native";
 
@@ -7,6 +8,8 @@ type Props = {
 };
 
 export default function HeaderTitle({ firstName, isAuthenticated }: Props) {
+    const { t } = useI18n();
+
     return (
         <Pressable
             onPress={() => {
@@ -22,8 +25,8 @@ export default function HeaderTitle({ firstName, isAuthenticated }: Props) {
             <Text style={styles.subtitle}>
                 {isAuthenticated
                     ? firstName
-                        ? `Hi, ${firstName}`
-                        : "Hi"
+                        ? t("header.greetingWithName", { name: firstName })
+                        : t("header.greeting")
                     : " "}
             </Text>
         </Pressable>

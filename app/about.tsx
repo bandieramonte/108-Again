@@ -1,48 +1,51 @@
 import Constants from "expo-constants";
 import { Stack } from "expo-router";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useI18n } from "../i18n";
 
 export default function AboutScreen() {
+    const { t } = useI18n();
     const version = Constants.expoConfig?.version ?? "1.0.0";
 
     return (
         <>
-            <Stack.Screen options={{ title: "About" }} />
+            <Stack.Screen options={{ title: t("menu.about") }} />
 
             <ScrollView contentContainerStyle={styles.container}>
                 <Text style={styles.title}>108 Again</Text>
 
-                <Text style={styles.version}>Version {version}</Text>
-
-                <Text style={styles.section}>
-                    108 Again is an offline-first app designed to help practitioners track and preserve their Ngöndro practice progress over time.
+                <Text style={styles.version}>
+                    {t("about.version", { version })}
                 </Text>
 
                 <Text style={styles.section}>
-                    Your practice data is stored locally on your device first, allowing the app to work reliably even without an internet connection.
+                    {t("about.text1")}
                 </Text>
 
                 <Text style={styles.section}>
-                    To help protect years of accumulated practice history, the app also supports backup import/export as well as optional cloud syncing, so you can restore your data on a new device or recover it if your previous device is lost or replaced.
+                    {t("about.text2")}
                 </Text>
 
                 <Text style={styles.section}>
-                    This app is not affiliated with any official organization.
+                    {t("about.text3")}
+                </Text>
+
+                <Text style={styles.section}>
+                    {t("about.text4")}
                 </Text>
 
                 <Text style={styles.value}>
-                    If you have any feedback, comments, or would like to report a bug, feel free to contact the developer using the information below:
+                    {t("about.feedback")}
                 </Text>
 
                 <View style={styles.separator} />
 
-
-                <Text style={styles.label}>Developer</Text>
+                <Text style={styles.label}>{t("about.developer")}</Text>
                 <Text style={styles.value}>
                     Gian Piero Bandieramonte
                 </Text>
 
-                <Text style={styles.label}>Contact</Text>
+                <Text style={styles.label}>{t("about.contact")}</Text>
                 <Text style={styles.value}>
                     gian@bandieramonte.com
                 </Text>

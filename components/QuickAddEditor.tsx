@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useI18n } from "../i18n";
 import * as practiceService from "../services/practiceService";
 import { digitsOnly, validateRepetitionCount } from "../utils/numberUtils";
 
@@ -19,6 +20,7 @@ export default function QuickAddEditor({
     onClose
 }: Props) {
 
+    const { t } = useI18n();
     const [value, setValue] = useState(String(defaultValue));
 
     useEffect(() => {
@@ -34,7 +36,7 @@ export default function QuickAddEditor({
         const error =
             validateRepetitionCount(
                 value,
-                "Default session count"
+                t("quickAddEditor.defaultSessionCount")
             );
 
         if (error) {
@@ -63,7 +65,7 @@ export default function QuickAddEditor({
                 <View style={styles.card}>
 
                     <Text style={styles.title}>
-                        Edit default session count
+                        {t("quickAddEditor.title")}
                     </Text>
 
                     <Text style={styles.subtitle}>
@@ -79,11 +81,11 @@ export default function QuickAddEditor({
 
                     <View style={styles.buttons}>
                         <Pressable onPress={onClose}>
-                            <Text>Cancel</Text>
+                            <Text>{t("common.cancel")}</Text>
                         </Pressable>
 
                         <Pressable onPress={save}>
-                            <Text>Save</Text>
+                            <Text>{t("common.save")}</Text>
                         </Pressable>
                     </View>
 

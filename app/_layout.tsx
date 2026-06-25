@@ -1,6 +1,7 @@
 import HeaderMenu from "@/components/HeaderMenu";
 import HeaderTitle from "@/components/HeaderTitle";
 import UpdateRequiredScreen from "@/components/UpdateRequiredScreen";
+import { I18nProvider, useI18n } from "@/i18n";
 import { getSupabase } from "@/lib/supabase";
 import { subscribeAuth } from "@/utils/events";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -17,6 +18,15 @@ import * as practiceReminderService from "../services/practiceReminderService";
 import * as syncService from "../services/syncService";
 
 export default function Layout() {
+    return (
+        <I18nProvider>
+            <LayoutContent />
+        </I18nProvider>
+    );
+}
+
+function LayoutContent() {
+    const { t } = useI18n();
     const [authState, setAuthState] = useState(authService.getAuthState());
     const [appInitialized, setAppInitialized] = useState(false);
     const [initialUrlChecked, setInitialUrlChecked] = useState(false);
@@ -264,7 +274,10 @@ export default function Layout() {
             await authService.signOut();
             router.replace("/");
         } catch (error: any) {
-            Alert.alert("Log out failed", error?.message ?? "Unknown error");
+            Alert.alert(
+                t("menu.logOut"),
+                error?.message ?? t("common.unknownError")
+            );
         }
     }
 
