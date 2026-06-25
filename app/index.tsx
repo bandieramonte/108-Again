@@ -518,6 +518,7 @@ export default function Dashboard() {
                         </Pressable>
                       )}
                     </View>
+
                   </View>
                 </View>
 
@@ -529,25 +530,64 @@ export default function Dashboard() {
                 }}
                 style={styles.quickAddContainer}
               >
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.quickAddButton,
-                    pressed && styles.quickAddButtonPressed
-                  ]}
-                  onPress={() => quickAdd(practice)}
-                  onLongPress={() =>
-                    openEditDefaultModal(
-                      practice.id,
-                      practice.name,
-                      practice.defaultSessionCount ?? 108
-                    )
-                  }
-                  delayLongPress={350}
-                >
-                  <Text style={styles.quickAddButtonText}>
-                    +{formatNumber(practice.defaultSessionCount ?? 108)}
-                  </Text>
-                </Pressable>
+                <View style={styles.quickAddButton}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.quickAddMainButton,
+                      pressed && styles.quickAddButtonPressed
+                    ]}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      void quickAdd(practice);
+                    }}
+                    onLongPress={(event) => {
+                      event.stopPropagation();
+                      openEditDefaultModal(
+                        practice.id,
+                        practice.name,
+                        practice.defaultSessionCount ?? 108
+                      );
+                    }}
+                    delayLongPress={350}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add default session of ${formatNumber(practice.defaultSessionCount ?? 108)} for ${practice.name}`}
+                  >
+                    <Text style={styles.quickAddAmountText}>
+                      +{formatNumber(practice.defaultSessionCount ?? 108)}
+                    </Text>
+
+                    <Text
+                      style={styles.quickAddLabelText}
+                      numberOfLines={1}
+                    >
+                      Add default session
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.quickAddEditButton,
+                      pressed && styles.quickAddEditButtonPressed
+                    ]}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      openEditDefaultModal(
+                        practice.id,
+                        practice.name,
+                        practice.defaultSessionCount ?? 108
+                      );
+                    }}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Edit default session count for ${practice.name}`}
+                  >
+                    <MaterialIcons
+                      name="edit"
+                      size={15}
+                      color={colors.primary}
+                    />
+                  </Pressable>
+                </View>
               </View>
 
             </View>
@@ -754,9 +794,22 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    marginBottom: 25,
+    marginBottom: 18,
     position: "relative",
-    marginHorizontal: 8,
+    marginHorizontal: 6,
+    padding: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E1E7F5",
+    backgroundColor: "#FAFBFF",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 7,
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    elevation: 2,
   },
 
   addPracticeCard: {
@@ -801,6 +854,8 @@ const styles = StyleSheet.create({
 
   practiceName: {
     fontSize: 18,
+    fontWeight: "600",
+    color: "#111",
     flex: 1,
   },
 
@@ -808,7 +863,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginBottom: 6,
+    marginBottom: 8,
   },
 
   practiceActionButtons: {
@@ -835,11 +890,12 @@ const styles = StyleSheet.create({
   countText: {
     fontSize: 14,
     fontWeight: "400",
+    color: "#222",
   },
 
   practiceMetricGroup: {
-    marginTop: 8,
-    gap: 5,
+    marginTop: 10,
+    gap: 6,
   },
 
   practiceMetricGroupNoImage: {
@@ -870,38 +926,71 @@ const styles = StyleSheet.create({
   },
 
   quickAddContainer: {
-    marginTop: -8,
-    alignItems: "flex-start",
+    marginTop: 12,
+    alignSelf: "stretch",
   },
 
   row: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    alignItems: "flex-start",
+    gap: 12,
   },
 
   icon: {
     width: iconSize,
     height: iconSize,
-    borderRadius: 8,
-  },
-
-  quickAddButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
+    borderRadius: 12,
   },
 
   quickAddButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EEF2FF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#DBE4FF",
+    overflow: "hidden",
+  },
+
+  quickAddMainButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
     paddingVertical: 10,
-    paddingHorizontal: 14,
-    backgroundColor: "#e5e7eb",
-    borderRadius: 8,
-    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+  },
+
+  quickAddAmountText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#111",
+  },
+
+  quickAddLabelText: {
+    flexShrink: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#333",
+  },
+
+  quickAddEditButton: {
+    width: 40,
+    minHeight: 40,
+    alignSelf: "stretch",
+    alignItems: "center",
+    justifyContent: "center",
+    borderLeftWidth: 1,
+    borderLeftColor: "#DBE4FF",
   },
 
   quickAddButtonPressed: {
     opacity: 0.65,
-    transform: [{ scale: 1.15 }],
+  },
+
+  quickAddEditButtonPressed: {
+    backgroundColor: "#DBE4FF",
   },
 
   modalOverlay: {
