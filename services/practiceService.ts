@@ -82,7 +82,11 @@ export function getExpectedTargetDate(
 
   const dailyAmount = dailyTargetCount;
 
-  if (!Number.isFinite(dailyAmount) || dailyAmount <= 0) {
+  if (
+    dailyAmount == null ||
+    !Number.isFinite(dailyAmount) ||
+    dailyAmount <= 0
+  ) {
     return null;
   }
 

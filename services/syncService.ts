@@ -4,28 +4,22 @@ import * as deletedRecordRepo from "@/repositories/deletedRecordRepo";
 import * as practiceRepo from "@/repositories/practiceRepo";
 import * as sessionRepo from "@/repositories/sessionRepo";
 import { emitAuthInvalid, emitDataChanged, emitSyncChanged } from "@/utils/events";
-import { SyncState } from "../types/sync";
 import { getIsOnline, subscribeOnline } from "./networkService";
+import {
+    isAppAccessBlocked,
+    verifyRemoteSyncAccess,
+} from "./appUpdateService";
+import { createSupabaseSyncRemote } from "./supabaseSyncRemote";
+import { createSyncCoordinator } from "./syncCoordinator";
 import {
     createSyncEngine,
     REMOTE_AUTHORITATIVE_SYNC_USER_ID_META,
 } from "./syncEngine";
-import type {
-    RemotePracticeRow,
-    RemoteSessionRow,
-    SyncMode,
-    SyncRemote,
-} from "./syncEngine";
+import type { SyncMode } from "./syncEngine";
 
 export type { SyncMode } from "./syncEngine";
-
-let syncState: SyncState = "idle";
-let syncInFlight: Promise<void> | null = null;
-let scheduledSyncTimeout: ReturnType<typeof setTimeout> | null = null;
-let pendingSyncUserId: string | null = null;
-let pendingSyncMode: SyncMode | null = null;
-let lastUserId: string | null = null;
-let retryCount = 0;
+export { getSyncLabel } from "./syncCoordinator";
+export type { SyncNowResult } from "./syncCoordinator";
 
 const NETWORK_TIMEOUT_MESSAGE = "Network timeout during sync";
 
@@ -33,30 +27,6 @@ type UserDeletionCheckResult =
   | "deleted"
   | "active"
   | "inconclusive";
-
-export type SyncNowResult =
-  | "auth_invalid"
-  | "offline"
-  | "retry_scheduled"
-  | "success"
-  | "skipped";
-
-export function resetStaleSyncStateAfterResume() {
-    if (scheduledSyncTimeout) {
-        clearTimeout(scheduledSyncTimeout);
-        scheduledSyncTimeout = null;
-    }
-
-    syncInFlight = null;
-    pendingSyncUserId = null;
-    pendingSyncMode = null;
-    retryCount = 0;
-}
-
-function setSyncState(next: SyncState) {
-    syncState = next;
-    emitSyncChanged();
-}
 
 async function markLocalDataOwnerIfSessionIsCurrent(userId: string) {
     try {
@@ -79,8 +49,13 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function isNetworkTimeout(error: any): boolean {
-  return error?.message === NETWORK_TIMEOUT_MESSAGE;
+function isNetworkTimeout(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    error.message === NETWORK_TIMEOUT_MESSAGE
+  );
 }
 
 function isDeletedUserAuthError(error: any): boolean {
@@ -150,185 +125,14 @@ export async function withTimeout<T>(
   }
 }
 
-function createSupabaseRemote(): SyncRemote {
-    return {
-        async pullPractices(userId: string) {
-            const { data, error } = await withTimeout(async () => getSupabase()
-                .from("practices")
-                .select(`
-                    id,
-                    user_id,
-                    name,
-                    target_count,
-                    order_index,
-                    image_key,
-                    daily_target_count,
-                    default_session_count,
-                    total_offset,
-                    updated_at,
-                    deleted_at
-                `)
-                .eq("user_id", userId)
-                .order("order_index", { ascending: true }));
-
-            if (error) throw error;
-
-            return (data ?? []) as RemotePracticeRow[];
-        },
-
-        async pullSessions(userId: string) {
-            const { data, error } = await withTimeout(async () => getSupabase()
-                .from("sessions")
-                .select(`
-                    id,
-                    user_id,
-                    practice_id,
-                    count,
-                    created_at,
-                    updated_at,
-                    deleted_at
-                `)
-                .eq("user_id", userId)
-                .order("created_at", { ascending: true }));
-
-            if (error) throw error;
-
-            return (data ?? []) as RemoteSessionRow[];
-        },
-
-        async getPracticesById(userId: string, ids: string[]) {
-            if (ids.length === 0) return new Map<string, RemotePracticeRow>();
-
-            const { data, error } = await withTimeout(async () => getSupabase()
-                .from("practices")
-                .select(`
-                    id,
-                    user_id,
-                    name,
-                    target_count,
-                    order_index,
-                    image_key,
-                    daily_target_count,
-                    default_session_count,
-                    total_offset,
-                    updated_at,
-                    deleted_at
-                `)
-                .eq("user_id", userId)
-                .in("id", ids));
-
-            if (error) throw error;
-
-            return new Map(
-                (data ?? []).map((row) => [
-                    row.id as string,
-                    row as RemotePracticeRow,
-                ])
-            );
-        },
-
-        async getSessionsById(userId: string, ids: string[]) {
-            if (ids.length === 0) return new Map<string, RemoteSessionRow>();
-
-            const { data, error } = await withTimeout(async () => getSupabase()
-                .from("sessions")
-                .select(`
-                    id,
-                    user_id,
-                    practice_id,
-                    count,
-                    created_at,
-                    updated_at,
-                    deleted_at
-                `)
-                .eq("user_id", userId)
-                .in("id", ids));
-
-            if (error) throw error;
-
-            return new Map(
-                (data ?? []).map((row) => [
-                    row.id as string,
-                    row as RemoteSessionRow,
-                ])
-            );
-        },
-
-        async upsertPractices(rows: RemotePracticeRow[]) {
-            if (rows.length === 0) return;
-
-            const { error } = await withTimeout(async () => getSupabase()
-                .from("practices")
-                .upsert(rows, { onConflict: "id,user_id" }));
-
-            if (error) throw error;
-        },
-
-        async upsertSessions(rows: RemoteSessionRow[]) {
-            if (rows.length === 0) return;
-
-            const { error } = await withTimeout(async () => getSupabase()
-                .from("sessions")
-                .upsert(rows, { onConflict: "id" }));
-
-            if (error) throw error;
-        },
-
-        async softDeleteUserData(userId: string, deletedAt: number) {
-            const deletedAtIso = new Date(deletedAt).toISOString();
-
-            const { error: sessionError } = await withTimeout(async () =>
-                getSupabase()
-                    .from("sessions")
-                    .update({
-                        updated_at: deletedAtIso,
-                        deleted_at: deletedAtIso,
-                    })
-                    .eq("user_id", userId)
-                    .select()
-            );
-
-            if (sessionError) throw sessionError;
-
-            const { error: practiceError } = await withTimeout(async () =>
-                getSupabase()
-                    .from("practices")
-                    .update({
-                        updated_at: deletedAtIso,
-                        deleted_at: deletedAtIso,
-                    })
-                    .eq("user_id", userId)
-                    .select()
-            );
-
-            if (practiceError) throw practiceError;
-        },
-    };
-}
-
 function createAppSyncEngine() {
     return createSyncEngine({
         appMetaRepo,
         deletedRecordRepo,
         practiceRepo,
-        remote: createSupabaseRemote(),
+        remote: createSupabaseSyncRemote(getSupabase, withTimeout),
         sessionRepo,
     });
-}
-
-export function getSyncState(): SyncState {
-    return syncState;
-}
-
-function chooseSyncMode(
-    current: SyncMode | null,
-    next: SyncMode | undefined
-): SyncMode | null {
-    if (current === "remote_overwrite_local") {
-        return current;
-    }
-
-    return next ?? current;
 }
 
 export function requireRemoteAuthoritativeSync(userId: string) {
@@ -342,95 +146,49 @@ export async function claimAnonymousLocalDataIfNeeded(userId: string | null) {
     await createAppSyncEngine().claimAnonymousLocalDataIfNeeded(userId);
 }
 
+let syncCoordinator: ReturnType<typeof createSyncCoordinator> | null = null;
+
+function getSyncCoordinator() {
+    if (!syncCoordinator) {
+        syncCoordinator = createSyncCoordinator({
+            cancelTimer: clearTimeout,
+            createSyncEngine: createAppSyncEngine,
+            emitAuthInvalid,
+            emitDataChanged,
+            emitSyncChanged,
+            getIsOnline,
+            isAppAccessBlocked,
+            isNetworkTimeout,
+            isUserDeleted,
+            logger: console,
+            markLocalDataOwnerIfSessionIsCurrent,
+            requireRemoteAuthoritativeSync,
+            scheduleTimer: setTimeout,
+            validateSessionAfterMaxRetries: async () => {
+                await getSupabase().auth.getSession();
+            },
+            verifyRemoteSyncAccess,
+        });
+    }
+
+    return syncCoordinator;
+}
+
+export function resetStaleSyncStateAfterResume() {
+    getSyncCoordinator().resetStaleSyncStateAfterResume();
+}
+
+export function getSyncState() {
+    return getSyncCoordinator().getSyncState();
+}
+
 export async function syncNow(
     userId: string | null,
     options?: {
         mode?: SyncMode;
     }
-): Promise<SyncNowResult> {
-    if (!userId) return "skipped";
-
-    lastUserId = userId;
-    const syncEngine = createAppSyncEngine();
-    const mode = syncEngine.resolveSyncMode(
-        userId,
-        options?.mode
-    );
-
-    if (mode === "remote_overwrite_local") {
-        requireRemoteAuthoritativeSync(userId);
-    }
-
-    if (!getIsOnline()) {
-        if (mode === "remote_overwrite_local") {
-            pendingSyncUserId = userId;
-            pendingSyncMode = mode;
-        }
-
-        setSyncState("offline");
-        return "offline";
-    }
-
-    if (await isUserDeleted()) {
-        console.log("Auth invalid before sync - signing out");
-        emitAuthInvalid();
-        return "auth_invalid";
-    }
-
-    try {
-        setSyncState("syncing");
-
-        await syncEngine.executeSync(userId, mode);
-        await markLocalDataOwnerIfSessionIsCurrent(userId);
-
-        emitDataChanged();
-        setSyncState("success");
-        retryCount = 0;
-        return "success";
-    } catch (error: any) {
-        console.error("syncNow error", error);
-
-        if (await isUserDeleted()) {
-            console.log("Auth invalid - signing out");
-            emitAuthInvalid();
-            return "auth_invalid";
-        }
-
-        if (!isNetworkTimeout(error)) {
-            setSyncState("error");
-            throw error;
-        }
-
-        if (retryCount >= 3) {
-            console.warn("Max sync retries reached");
-            retryCount = 0;
-
-            try {
-                await getSupabase().auth.getSession();
-            } catch (e) {
-                console.warn("Session validation failed after max retries", e);
-            }
-
-            setSyncState("error");
-            return "retry_scheduled";
-        }
-
-        setSyncState("syncing");
-
-        pendingSyncUserId = userId;
-        pendingSyncMode = mode;
-
-        const retryDelay = getRetryDelay();
-        retryCount++;
-
-        setTimeout(() => {
-            runQueuedSync();
-        }, retryDelay);
-
-        return "retry_scheduled";
-    } finally {
-        emitSyncChanged();
-    }
+) {
+    return getSyncCoordinator().syncNow(userId, options);
 }
 
 export async function requestSync(
@@ -440,82 +198,13 @@ export async function requestSync(
         mode?: SyncMode;
     }
 ) {
-    if (!userId) return;
-
-    pendingSyncUserId = userId;
-    pendingSyncMode = chooseSyncMode(
-        pendingSyncMode,
-        options?.mode
-    );
-
-    if (scheduledSyncTimeout) {
-        clearTimeout(scheduledSyncTimeout);
-        scheduledSyncTimeout = null;
-    }
-
-    if (options?.immediate) {
-        runQueuedSync();
-        return;
-    }
-
-    scheduledSyncTimeout = setTimeout(() => {
-        scheduledSyncTimeout = null;
-        runQueuedSync();
-    }, 2000);
-}
-
-async function runQueuedSync() {
-    if (syncInFlight) return;
-    if (!pendingSyncUserId) return;
-
-    const userId = pendingSyncUserId;
-    const mode = pendingSyncMode ?? "merge_local";
-    pendingSyncUserId = null;
-    pendingSyncMode = null;
-
-    syncInFlight = (async () => {
-        try {
-            await syncNow(userId, { mode });
-        } catch (error) {
-            console.warn("Queued sync error:", error);
-        } finally {
-            syncInFlight = null;
-
-            if (pendingSyncUserId) {
-                runQueuedSync();
-            }
-        }
-    })();
+    return getSyncCoordinator().requestSync(userId, options);
 }
 
 export function initializeSyncRetry() {
     subscribeOnline(() => {
-        if (!getIsOnline()) {
-            setSyncState("offline");
-            return;
-        }
-
-        if (lastUserId) {
-            void requestSync(lastUserId);
-        }
+        getSyncCoordinator().handleConnectivityChanged();
     });
-}
-
-export function getSyncLabel(state: SyncState): string {
-    switch (state) {
-        case "syncing":
-            return "Syncing...";
-        case "success":
-            return "Up to date";
-        case "error":
-            return "Sync failed";
-        case "offline":
-            return "Offline";
-        case "timeout":
-            return "Timeout (try reopening app)";
-        default:
-            return "Idle";
-    }
 }
 
 export async function resetLocalSyncState() {
@@ -524,10 +213,6 @@ export async function resetLocalSyncState() {
 
 export async function wipeRemoteUserData(userId: string): Promise<number | null> {
     return createAppSyncEngine().wipeRemoteUserData(userId);
-}
-
-function getRetryDelay() {
-    return Math.min(30000, 2000 * Math.pow(2, retryCount));
 }
 
 async function checkCurrentSessionUser(): Promise<UserDeletionCheckResult> {

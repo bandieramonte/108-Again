@@ -10,14 +10,17 @@ const path = require("path");
 const PLAY_APP_UPDATE_DEPENDENCY =
     'implementation("com.google.android.play:app-update:2.1.0")';
 
-const APP_UPDATE_MODULE = `package com.bandieramonte.app108again
+function createAppUpdateModule(packageName) {
+    return `package ${packageName}
 
+import android.os.Build
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.appupdate.AppUpdateOptions
 import com.google.android.play.core.install.model.AppUpdateType
 import com.google.android.play.core.install.model.UpdateAvailability
 
@@ -25,7 +28,29 @@ class AppUpdateModule(
     reactContext: ReactApplicationContext
 ) : ReactContextBaseJavaModule(reactContext) {
 
+    companion object {
+        private const val UPDATE_REQUEST_CODE = 1081
+    }
+
     override fun getName(): String = "AppUpdateModule"
+
+    @Suppress("DEPRECATION")
+    @ReactMethod
+    fun getCurrentVersionCode(promise: Promise) {
+        try {
+            val packageInfo = reactApplicationContext.packageManager
+                .getPackageInfo(reactApplicationContext.packageName, 0)
+            val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                packageInfo.longVersionCode
+            } else {
+                packageInfo.versionCode.toLong()
+            }
+
+            promise.resolve(versionCode.toDouble())
+        } catch (error: Exception) {
+            promise.reject("APP_VERSION_CHECK_FAILED", error)
+        }
+    }
 
     @ReactMethod
     fun getUpdateAvailability(promise: Promise) {
@@ -62,16 +87,59 @@ class AppUpdateModule(
                 promise.resolve(result)
             }
             .addOnFailureListener { error ->
-                promise.reject(
-                    "APP_UPDATE_CHECK_FAILED",
-                    error
-                )
+                promise.reject("APP_UPDATE_CHECK_FAILED", error)
+            }
+    }
+
+    @ReactMethod
+    fun startImmediateUpdate(promise: Promise) {
+        val activity = reactApplicationContext.currentActivity
+        if (activity == null) {
+            promise.reject(
+                "APP_UPDATE_ACTIVITY_UNAVAILABLE",
+                "No Android activity is available to start the update."
+            )
+            return
+        }
+
+        val appUpdateManager =
+            AppUpdateManagerFactory.create(reactApplicationContext)
+
+        appUpdateManager.appUpdateInfo
+            .addOnSuccessListener { info ->
+                val canStart =
+                    info.updateAvailability() ==
+                        UpdateAvailability.UPDATE_AVAILABLE &&
+                    info.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)
+
+                if (!canStart) {
+                    promise.resolve(false)
+                    return@addOnSuccessListener
+                }
+
+                try {
+                    val started = appUpdateManager.startUpdateFlowForResult(
+                        info,
+                        activity,
+                        AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE)
+                            .build(),
+                        UPDATE_REQUEST_CODE
+                    )
+                    promise.resolve(started)
+                } catch (error: Exception) {
+                    promise.reject("APP_UPDATE_START_FAILED", error)
+                }
+            }
+            .addOnFailureListener { error ->
+                promise.reject("APP_UPDATE_CHECK_FAILED", error)
             }
     }
 }
 `;
+}
 
-const APP_UPDATE_PACKAGE = `package com.bandieramonte.app108again
+function createAppUpdatePackage(packageName) {
+    return `package ${packageName}
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
@@ -90,6 +158,7 @@ class AppUpdatePackage : ReactPackage {
         emptyList()
 }
 `;
+}
 
 function withPlayAppUpdateDependency(config) {
     return withAppBuildGradle(config, (config) => {
@@ -124,11 +193,11 @@ function withPlayAppUpdateNativeFiles(config) {
             fs.mkdirSync(javaDir, { recursive: true });
             fs.writeFileSync(
                 path.join(javaDir, "AppUpdateModule.kt"),
-                APP_UPDATE_MODULE
+                createAppUpdateModule(packageName)
             );
             fs.writeFileSync(
                 path.join(javaDir, "AppUpdatePackage.kt"),
-                APP_UPDATE_PACKAGE
+                createAppUpdatePackage(packageName)
             );
 
             return config;

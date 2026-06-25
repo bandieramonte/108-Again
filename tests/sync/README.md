@@ -14,6 +14,9 @@ through GitHub Actions secrets in CI:
 
 Current covered flows:
 
+- Legacy clients can insert and update `default_add_count`, new clients can
+  update `default_session_count`, and both columns remain synchronized while
+  `daily_target_count` stays independent and optional.
 - Device A creates `testPractice1`, adds sessions for today, yesterday, and
   before yesterday, syncs through Supabase, and Device B fetches the same data.
 - Device A adds a session while logged in, logs out, adds another session
@@ -40,15 +43,19 @@ Current covered flows:
   Device B remove the practice and its sessions.
 - Device A exports backup data, restores defaults, imports the backup again,
   and Supabase plus Device B match each state transition.
+- Restoring defaults after importing a partial seeded backup restores every
+  seed locally and remotely.
+- A pending restore-defaults operation remains authoritative even if a stale
+  remote-overwrite sync is requested.
 
-The test uses two separate `better-sqlite3` in-memory databases, each wired
-through the real repository factory methods. It does not use fake app action
-methods, fake repository methods, or a fake remote store.
+Each simulated device uses its own `better-sqlite3` in-memory database and real
+Supabase client. The suite executes the same repository factories,
+`appOperationEngine`, `authSessionEngine`, `syncCoordinator`, `syncEngine`, and
+`supabaseSyncRemote` adapter used by the app.
 
-The harness-level simulations are per-device auth state and the injected
-password-reset sender. The production auth service is a singleton and cannot
-represent two devices inside one Node process; real Supabase recovery emails
-also depend on external deliverability rules that are outside the app's core
-logic. Each login still uses real Supabase auth, checks the same core
-account-ownership guard used by `authService.ts`, and triggers the real sync
-engine.
+Harness substitutions are limited to runtime boundaries that cannot be shared
+by multiple devices in one Node process: device-local state containers,
+scheduled-timer capture, and React Native storage. The password-reset unit
+scenario injects its remote sender so it can verify the real core action
+without sending email. No harness function reproduces account ownership,
+sync-mode selection, synchronization, or Supabase query logic.

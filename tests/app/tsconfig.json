@@ -27,7 +27,11 @@
     "../../services/appOperationEngine.ts",
     "../../services/appOperationRuntime.ts",
     "../../services/backupService.ts",
+    "../../services/authSessionPolicy.ts",
+    "../../services/appUpdatePolicy.ts",
     "../../services/lastPracticeScreenService.ts",
+    "../../services/syncCoordinator.ts",
+    "../../services/syncEngine.ts",
     "../../types/sync.ts",
     "../../utils/numberUtils.ts"
   ]

@@ -33,7 +33,6 @@ export async function initializeApp() {
     const authService = require("../services/authService");
     const appMetaRepo = require("../repositories/appMetaRepo");
     const seed = require("../database/seed");
-    const appUpdateService = require("../services/appUpdateService");
 
     database.initializeDatabase();
     networkService.initializeNetworkListener();
@@ -56,7 +55,6 @@ export async function initializeApp() {
         seed.seedPractices();
     }
 
-    appUpdateService.checkForAppUpdate();
 }
 
 export async function restoreDefaults() {
@@ -112,11 +110,8 @@ export async function handleAppResume() {
     const supabase = require("../lib/supabase");
     const syncService = require("./syncService");
     const authService = require("../services/authService");
-    const appUpdateService = require("../services/appUpdateService");
 
     console.log("entering handle app resume");
-
-    appUpdateService.checkForAppUpdate();
 
     const inactiveMs =
         backgroundedAt == null

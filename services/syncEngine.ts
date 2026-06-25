@@ -17,8 +17,9 @@ export type RemotePracticeRow = {
     target_count: number;
     order_index: number;
     image_key: string | null;
+    default_add_count: number;
     daily_target_count: number | null;
-    default_session_count: number;
+    default_session_count: number | null;
     total_offset: number;
     updated_at: string;
     deleted_at: string | null;
@@ -457,19 +458,24 @@ export function createSyncEngine(deps: SyncEngineDeps) {
 
         if (rowsToPush.length === 0) return;
 
-        const payload = rowsToPush.map((row) => ({
-            id: row.id,
-            user_id: userId,
-            name: row.name,
-            target_count: row.targetCount,
-            order_index: row.orderIndex,
-            image_key: row.imageKey ?? null,
-            daily_target_count: row.dailyTargetCount ?? null,
-            default_session_count: row.defaultSessionCount ?? 108,
-            total_offset: row.totalOffset ?? 0,
-            updated_at: new Date(row.updatedAt ?? now()).toISOString(),
-            deleted_at: null,
-        }));
+        const payload = rowsToPush.map((row) => {
+            const defaultSessionCount = row.defaultSessionCount ?? 108;
+
+            return {
+                id: row.id,
+                user_id: userId,
+                name: row.name,
+                target_count: row.targetCount,
+                order_index: row.orderIndex,
+                image_key: row.imageKey ?? null,
+                default_add_count: defaultSessionCount,
+                daily_target_count: row.dailyTargetCount ?? null,
+                default_session_count: defaultSessionCount,
+                total_offset: row.totalOffset ?? 0,
+                updated_at: new Date(row.updatedAt ?? now()).toISOString(),
+                deleted_at: null,
+            };
+        });
 
         await deps.remote.upsertPractices(payload);
 
@@ -629,6 +635,10 @@ export function createSyncEngine(deps: SyncEngineDeps) {
         }
 
         const deletedAt = new Date(row.deletedAt).toISOString();
+        const defaultSessionCount =
+            parsed.defaultSessionCount ??
+            parsed.defaultAddCount ??
+            108;
 
         return {
             id: row.recordId,
@@ -637,11 +647,9 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             target_count: parsed.targetCount,
             order_index: parsed.orderIndex,
             image_key: parsed.imageKey ?? null,
+            default_add_count: defaultSessionCount,
             daily_target_count: parsed.dailyTargetCount ?? null,
-            default_session_count:
-                parsed.defaultSessionCount ??
-                parsed.defaultAddCount ??
-                108,
+            default_session_count: defaultSessionCount,
             total_offset: parsed.totalOffset ?? 0,
             updated_at: deletedAt,
             deleted_at: deletedAt,
@@ -767,22 +775,6 @@ export function createSyncEngine(deps: SyncEngineDeps) {
         await syncMergeLocal(userId);
     }
 
-    async function syncUserData(
-        userId: string,
-        requestedMode?: SyncMode
-    ) {
-        const mode = resolveSyncMode(userId, requestedMode);
-
-        if (mode === "remote_overwrite_local") {
-            deps.appMetaRepo.setMeta(
-                REMOTE_AUTHORITATIVE_SYNC_USER_ID_META,
-                userId
-            );
-        }
-
-        await executeSync(userId, mode);
-    }
-
     async function resetLocalSyncState() {
         deps.appMetaRepo.deleteMeta(REMOTE_AUTHORITATIVE_SYNC_USER_ID_META);
         deps.practiceRepo.resetAllSyncState();
@@ -794,9 +786,6 @@ export function createSyncEngine(deps: SyncEngineDeps) {
         executeSync,
         resetLocalSyncState,
         resolveSyncMode,
-        syncMergeLocal,
-        syncRemoteAuthoritative,
-        syncUserData,
         wipeRemoteUserData,
     };
 }

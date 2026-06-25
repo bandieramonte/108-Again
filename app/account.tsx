@@ -75,6 +75,18 @@ export default function AccountScreen() {
                 return;
             }
 
+            if (result === "policy_unavailable") {
+                Alert.alert(
+                    "Sync postponed",
+                    "The app could not verify whether cloud synchronization is currently supported. Your local changes are safe; please try syncing again shortly."
+                );
+                return;
+            }
+
+            if (result === "update_required") {
+                return;
+            }
+
             console.log("SYNC: finished");
             const state = syncService.getSyncState();
 

@@ -29,8 +29,10 @@
     "../../repositories/sessionRepoFactory.ts",
     "../../services/authAccountActions.ts",
     "../../services/authAccountGuard.ts",
+    "../../services/authSessionEngine.ts",
     "../../services/appOperationEngine.ts",
     "../../services/supabaseSyncRemote.ts",
+    "../../services/syncCoordinator.ts",
     "../../services/syncEngine.ts"
   ]
 }

@@ -7,13 +7,14 @@ import { emitAuthChanged, subscribeAuthInvalid } from "@/utils/events";
 import Constants from "expo-constants";
 import { Alert } from "react-native";
 import {
-    assertCanCreateAccountOnDevice,
-    assertCanSignInOnDevice,
-} from "./authAccountGuard";
-import {
     deleteAccountCore,
     resetPasswordCore,
 } from "./authAccountActions";
+import {
+    createAuthSessionEngine,
+    type AuthState,
+} from "./authSessionEngine";
+import { isUnrecoverableRefreshTokenError } from "./authSessionPolicy";
 
 let isPasswordRecoveryFlow = false;
 let blockAuthStateHandler = false;
@@ -31,117 +32,53 @@ function validateAuthFieldLength(
 export function setPasswordRecoveryFlow(value: boolean) {
     isPasswordRecoveryFlow = value;
 }
-export type AuthState = {
-    isAuthenticated: boolean;
-    userId: string | null;
-    email: string | null;
-    firstName: string | null;
-};
-
-let authState: AuthState = {
-    isAuthenticated: false,
-    userId: null,
-    email: null,
-    firstName: null,
-};
+export type { AuthState } from "./authSessionEngine";
 
 let authInitialized = false;
 let authSubscriptionInitialized = false;
 
-function setAuthState(next: AuthState) {
-    authState = next;
-    emitAuthChanged();
-}
+const authSessionEngine = createAuthSessionEngine({
+    appMetaRepo,
+    claimAnonymousLocalDataIfNeeded:
+        syncService.claimAnonymousLocalDataIfNeeded,
+    emitAuthChanged,
+    fetchRemoteProfile: async (userId) => {
+        const { data, error } = await getSupabase()
+            .from("profiles")
+            .select("first_name")
+            .eq("user_id", userId)
+            .maybeSingle();
+
+        if (error) throw error;
+
+        return data
+            ? { firstName: data.first_name ?? null }
+            : null;
+    },
+    logger: console,
+    now: Date.now,
+    profileRepo,
+    requestSync: (userId, options) => {
+        void syncService.requestSync(userId, options);
+    },
+    requireRemoteAuthoritativeSync:
+        syncService.requireRemoteAuthoritativeSync,
+});
 
 export function getAuthState(): AuthState {
-    return authState;
+    return authSessionEngine.getAuthState();
 }
 
 export function getCurrentUserId(): string | null {
-    return authState.userId;
+    return getAuthState().userId;
 }
 
 export function getCurrentFirstName(): string | null {
-    return authState.firstName;
+    return getAuthState().firstName;
 }
 
 export function isAuthenticated(): boolean {
-    return authState.isAuthenticated;
-}
-
-function getLoginSyncMode(userId: string): syncService.SyncMode {
-    const ownerId = appMetaRepo.getLocalDataOwnerUserId();
-
-    if (!ownerId) {
-        return "remote_overwrite_local";
-    }
-
-    return ownerId === userId
-        ? "merge_local"
-        : "remote_overwrite_local";
-}
-
-async function loadProfileIntoState(
-    userId: string,
-    email: string | null,
-    options?: {
-        syncMode?: syncService.SyncMode;
-    }
-) {
-    const syncMode = options?.syncMode ?? getLoginSyncMode(userId);
-
-    if (syncMode === "remote_overwrite_local") {
-        syncService.requireRemoteAuthoritativeSync(userId);
-    }
-
-    const localProfile = profileRepo.getUserProfileById(userId);
-
-    if (localProfile) {
-        setAuthState({
-            isAuthenticated: true,
-            userId,
-            email,
-            firstName: localProfile.firstName,
-        });
-    } else {
-        setAuthState({
-            isAuthenticated: true,
-            userId,
-            email,
-            firstName: null,
-        });
-    }
-    
-    const { data, error } = await getSupabase()
-        .from("profiles")
-        .select("first_name, updated_at")
-        .eq("user_id", userId)
-        .maybeSingle();
-
-    if (error) {
-        throw error;
-    }
-
-    const firstName = data?.first_name ?? localProfile?.firstName ?? null;
-
-    profileRepo.upsertUserProfile(
-        userId,
-        email,
-        firstName,
-        Date.now()
-    );
-
-    setAuthState({
-        isAuthenticated: true,
-        userId,
-        email,
-        firstName,
-    });
-
-    void syncService.requestSync(userId, {
-        immediate: true,
-        mode: syncMode,
-    });
+    return getAuthState().isAuthenticated;
 }
 
 export async function initializeAuth() {
@@ -161,22 +98,11 @@ export async function initializeAuth() {
                     return;
                 }
                 if (!session?.user) {
-                    setAuthState({
-                        isAuthenticated: false,
-                        userId: null,
-                        email: null,
-                        firstName: null,
-                    });
+                    authSessionEngine.clearSession();
                     return;
                 }
 
-                await loadProfileIntoState(
-                    session.user.id,
-                    session.user.email ?? null,
-                    {
-                        syncMode: getLoginSyncMode(session.user.id),
-                    }
-                );
+                await authSessionEngine.restoreSession(session.user);
             } catch (error) {
                 console.error("onAuthStateChange error", error);
             }
@@ -195,34 +121,42 @@ export async function initializeAuth() {
     }
 
     if (authInitialized) return;
-    authInitialized = true;
-
     const {
         data: { session },
         error,
     } = await getSupabase().auth.getSession();
 
     if (error) {
+        if (isUnrecoverableRefreshTokenError(error)) {
+            const { error: signOutError } =
+                await getSupabase().auth.signOut({ scope: "local" });
+
+            if (
+                signOutError &&
+                !isUnrecoverableRefreshTokenError(signOutError)
+            ) {
+                console.warn(
+                    "Failed to clear invalid local session",
+                    signOutError
+                );
+            }
+
+            authSessionEngine.clearSession();
+            authInitialized = true;
+            return;
+        }
+
         throw error;
     }
 
     if (!session?.user) {
-        setAuthState({
-            isAuthenticated: false,
-            userId: null,
-            email: null,
-            firstName: null,
-        });
+        authSessionEngine.clearSession();
+        authInitialized = true;
         return;
     }
 
-    await loadProfileIntoState(
-        session.user.id,
-        session.user.email ?? null,
-        {
-            syncMode: getLoginSyncMode(session.user.id),
-        }
-    );
+    await authSessionEngine.restoreSession(session.user);
+    authInitialized = true;
 }
 
 export async function signUp(
@@ -263,10 +197,7 @@ export async function signUp(
         AUTH_FIELD_LIMITS.password
     );
 
-    assertCanCreateAccountOnDevice(
-        { appMetaRepo, profileRepo },
-        trimmedEmail
-    );
+    authSessionEngine.assertCanCreateAccount(trimmedEmail);
 
     blockAuthStateHandler = true;
     try {
@@ -291,30 +222,18 @@ export async function signUp(
             throw new Error("Account creation succeeded but no user was returned.");
         }
 
-        profileRepo.upsertUserProfile(
-            user.id,
-            user.email ?? trimmedEmail,
+        await authSessionEngine.completeSignUp(
+            {
+                id: user.id,
+                email: user.email ?? trimmedEmail,
+            },
             trimmedFirstName,
-            Date.now()
+            !!data.session
         );
-
-        appMetaRepo.setLocalDataOwnerUserId(user.id);
-
-        setAuthState({
-            isAuthenticated: !!data.session,
-            userId: data.session?.user.id ?? user.id,
-            email: user.email ?? trimmedEmail,
-            firstName: trimmedFirstName,
-        });
 
         if (!data.session) {
             // Email confirmation required
             return { needsEmailConfirmation: true };
-        }
-
-        if (data.session?.user.id) {
-            await syncService.claimAnonymousLocalDataIfNeeded(data.session.user.id);
-            await syncService.requestSync(data.session.user.id);
         }
 
         return { needsEmailConfirmation: false };
@@ -363,37 +282,12 @@ export async function signIn(email: string, password: string) {
             throw new Error("Log in succeeded but no user was returned.");
         }
 
-        try {
-            assertCanSignInOnDevice(
-                { appMetaRepo, profileRepo },
-                user.id,
-                user.email ?? trimmedEmail
-            );
-        } catch (error) {
-            try {
-                await signOut();
-            } catch (signOutError) {
-                console.warn(
-                    "Failed to sign out blocked account:",
-                    signOutError
-                );
-            }
-
-            throw error;
-        }
-
-        const firstLoginOnThisDevice =
-            !appMetaRepo.getLocalDataOwnerUserId();
-
-        appMetaRepo.setLocalDataOwnerUserId(user.id);
-        await loadProfileIntoState(
-            user.id,
-            user.email ?? trimmedEmail,
+        await authSessionEngine.completeSignIn(
             {
-                syncMode: firstLoginOnThisDevice
-                    ? "remote_overwrite_local"
-                    : "merge_local",
-            }
+                id: user.id,
+                email: user.email ?? trimmedEmail,
+            },
+            signOut
         );
     } finally {
         blockAuthStateHandler = false;
@@ -412,12 +306,7 @@ export async function signOut() {
         throw error;
     }
 
-    setAuthState({
-        isAuthenticated: false,
-        userId: null,
-        email: null,
-        firstName: null,
-    });
+    authSessionEngine.clearSession();
 }
 
 async function releaseLocalDataFromDeletedAccount() {
