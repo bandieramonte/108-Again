@@ -24,8 +24,6 @@ import { colors, containers } from "../../styles/theme";
 import { subscribeData } from "../../utils/events";
 import { digitsOnly, formatCountProgress, formatNumber, MAX_REPETITIONS_PER_DAY, validateNonNegativeInteger } from "../../utils/numberUtils";
 
-const isSmallScreen = Dimensions.get("window").width < 360;
-
 export default function PracticeContent({
     practiceId,
     openCalendarInitially = false,
@@ -650,94 +648,89 @@ export default function PracticeContent({
                                 </Pressable>
                             </View>
 
-                            <View style={styles.addRow}>
-                                <View style={styles.addColumn}>
-                                    <View style={styles.headerArea}>
-                                        <Pressable
-                                            style={styles.defaultSessionTitleButton}
-                                            onPress={() => setQuickAddOpen(true)}
-                                            accessibilityRole="button"
-                                            accessibilityLabel="Edit default session count"
-                                        >
-                                            <Text
-                                                style={[
-                                                    styles.sectionTitle,
-                                                    styles.defaultSessionTitleText,
-                                                ]}
-                                            >
-                                                Add default session
-                                            </Text>
-                                            <MaterialIcons
-                                                name="edit"
-                                                size={15}
-                                                color={colors.primary}
-                                            />
-                                        </Pressable>
-                                    </View>
-
-                                    <View style={styles.quickAddRow}>
-
-                                        <Pressable
-                                            style={styles.quickAddButton}
-                                            onPress={() => {
-                                                try {
-                                                    sessionService.addSession(
-                                                        practiceId,
-                                                        Number(defaultSessionCount)
-                                                    );
-                                                    dailyAnimRef.current?.trigger(
-                                                        `+${formatNumber(defaultSessionCount)}\nadded!`
-                                                    );
-                                                    schedulePracticeRefresh();
-                                                } catch (error: any) {
-                                                    alert(error.message);
-                                                }
-                                            }}
-                                            onLongPress={() => setQuickAddOpen(true)}
-                                        >
-                                            <Text style={styles.quickAddButtonText}>
-                                                +{formatNumber(defaultSessionCount)}
-                                            </Text>
-                                            <FloatingAddAnimation ref={dailyAnimRef} />
-                                        </Pressable>
-
-                                    </View>
-                                </View>
-                                {!isSmallScreen &&
-                                    <Text style={styles.orText}>
-                                        OR
+                            <View
+                                style={[
+                                    styles.addSessionCard,
+                                    { width: imageDisplayWidth }
+                                ]}
+                            >
+                                <View style={styles.addSessionHeader}>
+                                    <Text style={styles.addSessionTitle}>
+                                        Add Session
                                     </Text>
-                                }
-
-                                <View style={styles.addColumn}>
-                                    <View style={styles.headerArea}>
-                                        <View style={styles.customHeader}>
-                                            <Text
-                                                style={[
-                                                    styles.sectionTitle,
-                                                    styles.customSectionTitle
-                                                ]}
-                                                numberOfLines={1}
-                                            >
-                                                Add custom amount
-                                            </Text>
-                                        </View>
-                                    </View>
 
                                     <Pressable
-                                        style={styles.quickAddButton}
+                                        style={({ pressed }) => [
+                                            styles.defaultSessionEditButton,
+                                            pressed && styles.addSessionActionPressed
+                                        ]}
+                                        onPress={() => setQuickAddOpen(true)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Edit default session count"
+                                    >
+                                        <MaterialIcons
+                                            name="edit"
+                                            size={15}
+                                            color={colors.primary}
+                                        />
+                                        <Text style={styles.defaultSessionEditText}>
+                                            {formatNumber(defaultSessionCount)}
+                                        </Text>
+                                    </Pressable>
+                                </View>
+
+                                <View style={styles.addSessionActions}>
+                                    <Pressable
+                                        style={({ pressed }) => [
+                                            styles.addSessionAction,
+                                            styles.addSessionActionPrimary,
+                                            pressed && styles.addSessionActionPressed
+                                        ]}
+                                        onPress={() => {
+                                            try {
+                                                sessionService.addSession(
+                                                    practiceId,
+                                                    Number(defaultSessionCount)
+                                                );
+                                                dailyAnimRef.current?.trigger(
+                                                    `+${formatNumber(defaultSessionCount)}\nadded!`
+                                                );
+                                                schedulePracticeRefresh();
+                                            } catch (error: any) {
+                                                alert(error.message);
+                                            }
+                                        }}
+                                        onLongPress={() => setQuickAddOpen(true)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Add default session of ${formatNumber(defaultSessionCount)}`}
+                                    >
+                                        <Text style={styles.addSessionActionValue}>
+                                            +{formatNumber(defaultSessionCount)}
+                                        </Text>
+                                        <Text style={styles.addSessionActionLabel}>
+                                            Default session
+                                        </Text>
+                                        <FloatingAddAnimation ref={dailyAnimRef} />
+                                    </Pressable>
+
+                                    <Pressable
+                                        style={({ pressed }) => [
+                                            styles.addSessionAction,
+                                            pressed && styles.addSessionActionPressed
+                                        ]}
                                         onPress={openCustomAmountModal}
                                         accessibilityRole="button"
-                                        accessibilityLabel="Tap to add a custom amount"
+                                        accessibilityLabel="Add a custom amount"
                                     >
-                                        <Text style={styles.quickAddButtonText}>
+                                        <Text style={styles.addSessionActionValue}>
                                             +
+                                        </Text>
+                                        <Text style={styles.addSessionActionLabel}>
+                                            Custom amount
                                         </Text>
                                         <FloatingAddAnimation ref={customAnimRef} />
                                     </Pressable>
-
                                 </View>
-
                             </View>
 
                             <Pressable
@@ -1039,26 +1032,6 @@ const styles = StyleSheet.create({
         color: "#666"
     },
 
-    sectionTitle: {
-        fontSize: 13,
-        color: "#666",
-        marginTop: 12,
-        marginBottom: 6
-    },
-
-    defaultSessionTitleButton: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 4,
-        marginTop: 12,
-        marginBottom: 6,
-    },
-
-    defaultSessionTitleText: {
-        marginTop: 0,
-        marginBottom: 0,
-    },
-
     titleRow: {
         flexDirection: "row",
         alignItems: "center",
@@ -1166,32 +1139,6 @@ const styles = StyleSheet.create({
         lineHeight: 19,
     },
 
-    quickAddRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginTop: 2,
-        marginBottom: 10,
-        flexWrap: "wrap"
-    },
-
-    quickAddButton: {
-        width:
-            isSmallScreen ? 76 : 90,
-        height: isSmallScreen ? 76 : 90,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "#eef2ff",
-        borderRadius: 100,
-        borderWidth: 2,
-        borderColor: colors.primary,
-    },
-
-    quickAddButtonText: {
-        fontSize: 16,
-        fontWeight: "600",
-        color: "#111"
-    },
-
     targetDateRow: {
         flexDirection: "row",
         alignItems: "center",
@@ -1230,6 +1177,98 @@ const styles = StyleSheet.create({
 
     todayGoalProgressText: {
         fontSize: 14,
+    },
+
+    addSessionCard: {
+        alignSelf: "center",
+        marginTop: 14,
+        padding: 14,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: "#DBE4FF",
+        backgroundColor: "#FAFBFF",
+        gap: 12,
+        shadowColor: "#000",
+        shadowOpacity: 0.04,
+        shadowRadius: 5,
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        elevation: 1,
+    },
+
+    addSessionHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+    },
+
+    addSessionTitle: {
+        fontSize: 15,
+        fontWeight: "700",
+        color: "#111",
+    },
+
+    defaultSessionEditButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        paddingVertical: 5,
+        paddingHorizontal: 10,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: "#DBE4FF",
+        backgroundColor: "white",
+    },
+
+    defaultSessionEditText: {
+        fontSize: 13,
+        fontWeight: "700",
+        color: colors.primary,
+    },
+
+    addSessionActions: {
+        flexDirection: "row",
+        gap: 10,
+    },
+
+    addSessionAction: {
+        flex: 1,
+        minHeight: 82,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: "#DBE4FF",
+        backgroundColor: "white",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 8,
+        position: "relative",
+        overflow: "visible",
+    },
+
+    addSessionActionPrimary: {
+        borderColor: colors.primary,
+        backgroundColor: "#EEF2FF",
+    },
+
+    addSessionActionPressed: {
+        opacity: 0.72,
+    },
+
+    addSessionActionValue: {
+        fontSize: 18,
+        fontWeight: "800",
+        color: "#111",
+        marginBottom: 5,
+    },
+
+    addSessionActionLabel: {
+        fontSize: 12,
+        fontWeight: "600",
+        color: "#666",
+        textAlign: "center",
     },
 
     enableDailyTargetButton: {
@@ -1397,38 +1436,6 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: "700",
         color: "white"
-    },
-
-    addRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginTop: 8
-    },
-
-    addColumn: {
-        alignItems: "center",
-        width: 120
-    },
-
-    orText: {
-        alignSelf: "center",
-        marginTop: 24,
-        color: "#666"
-    },
-    customHeader: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center"
-    },
-    customSectionTitle: {
-        width: 145,
-        textAlign: "center"
-    },
-    headerArea: {
-        height: 60,
-        justifyContent: "center",
-        alignItems: "center"
     },
 
     calendarButtonText: {
