@@ -16,6 +16,7 @@ type Props = {
     practice: PracticeActionTarget | null;
     onClose: () => void;
     onDeleted?: () => void | Promise<void>;
+    onCalendar?: (practice: PracticeActionTarget) => void;
 };
 
 export default function PracticeActionsMenu({
@@ -24,6 +25,7 @@ export default function PracticeActionsMenu({
     practice,
     onClose,
     onDeleted,
+    onCalendar,
 }: Props) {
     const actions = usePracticeActions({ onDeleted });
 
@@ -41,6 +43,13 @@ export default function PracticeActionsMenu({
         actions.openPracticeHistory(practice);
     }
 
+    function openPracticeCalendar() {
+        if (!practice || !onCalendar) return;
+
+        onClose();
+        onCalendar(practice);
+    }
+
     function confirmDeletePractice() {
         if (!practice) return;
 
@@ -56,6 +65,7 @@ export default function PracticeActionsMenu({
                 onClose={onClose}
                 onEdit={editPractice}
                 onHistory={openPracticeHistory}
+                onCalendar={onCalendar ? openPracticeCalendar : undefined}
                 onDelete={confirmDeletePractice}
             />
 

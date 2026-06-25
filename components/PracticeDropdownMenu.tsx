@@ -22,6 +22,7 @@ type Props = {
     onClose: () => void;
     onEdit: () => void;
     onHistory: () => void;
+    onCalendar?: () => void;
     onDelete: () => void;
 };
 
@@ -31,12 +32,13 @@ export default function PracticeDropdownMenu({
     onClose,
     onEdit,
     onHistory,
+    onCalendar,
     onDelete,
 }: Props) {
     const { width: screenWidth, height: screenHeight } =
         useWindowDimensions();
     const menuWidth = 220;
-    const estimatedMenuHeight = 138;
+    const estimatedMenuHeight = onCalendar ? 184 : 138;
     const screenMargin = 12;
 
     const menuLeft = anchor
@@ -111,6 +113,22 @@ export default function PracticeDropdownMenu({
                                 Practice history
                             </Text>
                         </Pressable>
+
+                        {onCalendar && (
+                            <Pressable
+                                style={styles.item}
+                                onPress={onCalendar}
+                            >
+                                <MaterialIcons
+                                    name="calendar-today"
+                                    size={18}
+                                    color="#333"
+                                />
+                                <Text style={styles.text}>
+                                    Practice calendar
+                                </Text>
+                            </Pressable>
+                        )}
 
                         <Pressable
                             style={styles.item}

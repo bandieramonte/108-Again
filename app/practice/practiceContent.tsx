@@ -155,12 +155,7 @@ export default function PracticeContent({
         selected: Date;
         actual: Date;
     } | null>(null);
-    const calendarButtonBottom = Math.max(
-        20,
-        insets.bottom + 12
-    );
-    const scrollBottomPadding =
-        calendarButtonBottom + 76;
+    const scrollBottomPadding = Math.max(30, insets.bottom + 24);
 
     useEffect(() => {
         schedulePracticeRefresh();
@@ -732,6 +727,15 @@ export default function PracticeContent({
 
                             </View>
 
+                            <Pressable
+                                style={styles.calendarButton}
+                                onPress={() => setCalendarOpen(true)}
+                            >
+                                <Text style={styles.calendarButtonText}>
+                                    Practice Calendar
+                                </Text>
+                            </Pressable>
+
                         </View>
 
                         <Modal
@@ -885,6 +889,7 @@ export default function PracticeContent({
                             }}
                             onClose={closeMenu}
                             onDeleted={() => router.replace("/")}
+                            onCalendar={() => setCalendarOpen(true)}
                         />
 
                     </View>
@@ -1000,18 +1005,6 @@ export default function PracticeContent({
                 </View>
             </Modal>
 
-            <Pressable
-                style={[
-                    styles.calendarButtonFixed,
-                    { bottom: calendarButtonBottom }
-                ]}
-                onPress={() => setCalendarOpen(true)}
-            >
-                <Text style={styles.calendarButtonText}>
-                    Practice Calendar
-                </Text>
-            </Pressable>
-
         </View>
     );
 }
@@ -1099,7 +1092,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         zIndex: 1,
         elevation: 1,
-        paddingBottom: 30
+        paddingBottom: 30,
+        paddingTop: 15
+
     },
 
     indicatorRow: {
@@ -1167,6 +1162,7 @@ const styles = StyleSheet.create({
     },
 
     todayGoalCard: {
+        alignSelf: "center",
         marginTop: 18,
         marginBottom: 8,
         paddingVertical: 12,
@@ -1424,11 +1420,9 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         marginRight: 2
     },
-    calendarButtonFixed: {
-        position: "absolute",
-        bottom: 20,
-        left: 20,
-        right: 20,
+    calendarButton: {
+        width: "100%",
+        marginTop: 24,
         paddingVertical: 14,
         borderRadius: 12,
         backgroundColor: colors.primary,
