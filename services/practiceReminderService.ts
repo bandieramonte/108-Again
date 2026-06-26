@@ -349,6 +349,18 @@ export async function getPracticeReminderSettings(
     return parseSettings(value);
 }
 
+export async function getPracticeIdsWithEnabledReminders(): Promise<string[]> {
+    const keys = await AsyncStorage.getAllKeys();
+    const reminderKeys =
+        keys.filter(key => key.startsWith(STORAGE_KEY_PREFIX));
+    const reminderEntries = await AsyncStorage.multiGet(reminderKeys);
+
+    return reminderEntries
+        .filter(([, value]) => parseSettings(value).enabled)
+        .map(([key]) => key.slice(STORAGE_KEY_PREFIX.length))
+        .filter(Boolean);
+}
+
 export function subscribePracticeReminderResponses(
     onPracticeReminder: PracticeReminderResponseHandler
 ) {

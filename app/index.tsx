@@ -18,9 +18,7 @@ import { usePracticeActions } from "../hooks/usePracticeActions";
 import { useReachedCelebration } from "../hooks/useReachedCelebration";
 import { useI18n } from "../i18n";
 import { getPracticeDisplayName } from "../i18n/practiceNames";
-import { createPracticeReminderText } from "../i18n/reminderText";
 import * as dashboardService from "../services/dashboardService";
-import * as practiceReminderService from "../services/practiceReminderService";
 import * as practiceService from "../services/practiceService";
 import * as sessionService from "../services/sessionService";
 import { colors, containers } from "../styles/theme";
@@ -166,28 +164,9 @@ export default function Dashboard() {
 
   async function quickAdd(practice: Practice) {
     const count = practice.defaultSessionCount ?? 108;
-    const practiceDisplayName =
-      getPracticeDisplayName(practice.id, practice.name, t);
 
     try {
       sessionService.addSession(practice.id, count);
-
-      if (
-        practice.dailyTargetCount != null &&
-        practice.dailyTargetCount > 0
-      ) {
-        void practiceReminderService
-          .refreshPracticeReminderSchedule({
-            practiceId: practice.id,
-            practiceName: practiceDisplayName,
-            todayCount: practice.today + count,
-            dailyTargetCount: practice.dailyTargetCount,
-            reminderText: createPracticeReminderText(t),
-          })
-          .catch(error => {
-            console.warn("Failed to refresh practice reminder", error);
-          });
-      }
     } catch (error: any) {
       alert(error.message);
     }

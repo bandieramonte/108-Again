@@ -139,9 +139,14 @@ export type AppOperationEngineDeps = {
     emitDataChanged?: () => void;
     enqueueWrite: (fn: () => Promise<void> | void) => Promise<void>;
     getCurrentUserId: () => string | null;
+    logger?: Pick<Console, "warn">;
     now?: () => number;
     practiceRepo: OperationPracticeRepo;
     randomUUID: () => string;
+    refreshAllReminders?: () => Promise<void> | void;
+    refreshReminderForPractice?: (
+        practiceId: string
+    ) => Promise<void> | void;
     requestSync?: (
         userId: string | null,
         options?: {
@@ -200,6 +205,42 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         };
     }
 
+    function refreshReminderForPractice(practiceId: string) {
+        try {
+            void Promise
+                .resolve(deps.refreshReminderForPractice?.(practiceId))
+                .catch(error => {
+                    deps.logger?.warn(
+                        "Failed to refresh practice reminder",
+                        error
+                    );
+                });
+        } catch (error) {
+            deps.logger?.warn(
+                "Failed to refresh practice reminder",
+                error
+            );
+        }
+    }
+
+    function refreshAllReminders() {
+        try {
+            void Promise
+                .resolve(deps.refreshAllReminders?.())
+                .catch(error => {
+                    deps.logger?.warn(
+                        "Failed to refresh practice reminders",
+                        error
+                    );
+                });
+        } catch (error) {
+            deps.logger?.warn(
+                "Failed to refresh practice reminders",
+                error
+            );
+        }
+    }
+
     function createPractice(
         name: string,
         target: number,
@@ -230,6 +271,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         );
 
         deps.emitDataChanged?.();
+        refreshReminderForPractice(id);
         void deps.requestSync?.(syncMetadata.userId);
 
         return id;
@@ -271,6 +313,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         }
 
         deps.emitDataChanged?.();
+        refreshReminderForPractice(id);
         void deps.requestSync?.(syncMetadata.userId);
     }
 
@@ -348,6 +391,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         });
 
         deps.emitDataChanged?.();
+        refreshReminderForPractice(id);
         void deps.requestSync?.(userId);
     }
 
@@ -431,6 +475,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         }
 
         deps.emitDataChanged?.();
+        refreshReminderForPractice(practiceId);
         void deps.requestSync?.(syncMetadata.userId);
     }
 
@@ -480,6 +525,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         }
 
         deps.emitDataChanged?.();
+        refreshReminderForPractice(practiceId);
         void deps.requestSync?.(syncMetadata.userId);
     }
 
@@ -496,6 +542,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         );
 
         deps.emitDataChanged?.();
+        refreshReminderForPractice(id);
         void deps.requestSync?.(syncMetadata.userId);
     }
 
@@ -512,6 +559,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         );
 
         deps.emitDataChanged?.();
+        refreshReminderForPractice(id);
         void deps.requestSync?.(syncMetadata.userId);
     }
 
@@ -695,6 +743,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         });
 
         deps.emitDataChanged?.();
+        refreshAllReminders();
 
         if (userId) {
             await deps.requestSync?.(userId);
@@ -772,6 +821,9 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                 }
             });
         });
+
+        deps.emitDataChanged?.();
+        refreshAllReminders();
     }
 
     return {

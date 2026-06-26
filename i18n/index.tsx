@@ -170,3 +170,47 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 export function useI18n() {
     return useContext(I18nContext);
 }
+
+export function getLocaleForLanguage(language: LanguageCode) {
+    return localeByLanguage[language];
+}
+
+export function translateForLanguage(
+    language: LanguageCode,
+    key: TranslationKey,
+    params?: TranslationParams
+) {
+    const messages = resources[language] ?? resources.en;
+
+    return interpolate(
+        messages[key] ?? resources.en[key] ?? key,
+        params
+    );
+}
+
+export async function getStoredOrDetectedLanguage(): Promise<LanguageCode> {
+    try {
+        const savedLanguage =
+            await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
+
+        if (isLanguageCode(savedLanguage)) {
+            return savedLanguage;
+        }
+    } catch {
+        // Fall through to device detection. The provider uses the same
+        // fallback, so background services stay aligned with visible UI.
+    }
+
+    return detectDeviceLanguage();
+}
+
+export async function getRuntimeI18n() {
+    const language = await getStoredOrDetectedLanguage();
+
+    return {
+        language,
+        locale: getLocaleForLanguage(language),
+        t: (key: TranslationKey, params?: TranslationParams) =>
+            translateForLanguage(language, key, params),
+    };
+}

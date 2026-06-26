@@ -20,6 +20,7 @@ import { getPracticeDisplayName } from "../../i18n/practiceNames";
 import { createPracticeReminderText } from "../../i18n/reminderText";
 import * as appService from "../../services/appService";
 import type { PracticeReminderSettings } from "../../services/practiceReminderService";
+import * as practiceReminderRefreshService from "../../services/practiceReminderRefreshService";
 import * as practiceReminderService from "../../services/practiceReminderService";
 import * as practiceService from "../../services/practiceService";
 import * as sessionService from "../../services/sessionService";
@@ -190,14 +191,14 @@ export default function PracticeContent({
     useEffect(() => {
         if (!reminderSettings?.enabled) return;
 
-        void practiceReminderService
-            .refreshPracticeReminderSchedule({
+        void practiceReminderRefreshService
+            .refreshReminderForPractice(
                 practiceId,
-                practiceName: displayPracticeName,
-                todayCount,
-                dailyTargetCount: effectiveDailyTargetCount,
-                reminderText,
-            })
+                {
+                    reminderText,
+                    t,
+                }
+            )
             .then(setReminderSettings)
             .catch(error => {
                 console.warn("Failed to refresh practice reminder", error);
@@ -206,6 +207,7 @@ export default function PracticeContent({
         practiceId,
         displayPracticeName,
         reminderText,
+        t,
         todayCount,
         effectiveDailyTargetCount,
         reminderSettings?.enabled,
