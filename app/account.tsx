@@ -19,32 +19,56 @@ import { subscribeAuth, subscribeSync } from "../utils/events";
 
 export default function AccountScreen() {
     const { t } = useI18n();
-    const [authState, setAuthState] = useState(authService.getAuthState());
+    const initialAuthState = authService.getAuthState();
+    const [authState, setAuthState] = useState(initialAuthState);
+    const [authChecked, setAuthChecked] =
+        useState(initialAuthState.isAuthenticated);
     const [syncState, setSyncState] = useState(syncService.getSyncState());
     const [syncing, setSyncing] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [privacyVisible, setPrivacyVisible] = useState(false);
 
     useEffect(() => {
+        let active = true;
+
         const unsubscribeAuth = subscribeAuth(() => {
-            setAuthState(authService.getAuthState());
+            const nextAuthState = authService.getAuthState();
+
+            setAuthState(nextAuthState);
+
+            if (nextAuthState.isAuthenticated) {
+                setAuthChecked(true);
+            }
         });
 
         const unsubscribeSync = subscribeSync(() => {
             setSyncState(syncService.getSyncState());
         });
 
+        void authService
+            .initializeAuth()
+            .catch(error => {
+                console.warn("Account auth verification failed", error);
+            })
+            .finally(() => {
+                if (!active) return;
+
+                setAuthState(authService.getAuthState());
+                setAuthChecked(true);
+            });
+
         return () => {
+            active = false;
             unsubscribeAuth();
             unsubscribeSync();
         };
     }, []);
 
     useEffect(() => {
-        if (!authState.isAuthenticated) {
+        if (authChecked && !authState.isAuthenticated) {
             router.replace("/");
         }
-    }, [authState.isAuthenticated]);
+    }, [authChecked, authState.isAuthenticated]);
 
     async function handleSignOut() {
         try {
@@ -172,6 +196,14 @@ export default function AccountScreen() {
         );
     }
 
+    if (!authChecked && !authState.isAuthenticated) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#1A5FCC" />
+            </View>
+        );
+    }
+
     return (
         <>
             <Stack.Screen
@@ -294,6 +326,13 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         padding: 20,
+        backgroundColor: "white",
+    },
+
+    loadingContainer: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
         backgroundColor: "white",
     },
 
