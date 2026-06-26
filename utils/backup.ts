@@ -13,7 +13,7 @@ import * as appMetaRepo from "../repositories/appMetaRepo";
 
 export async function exportBackup() {
 
-    const data = getBackupData();
+    const data = await getBackupData();
 
     const json = JSON.stringify(data, null, 2);
 

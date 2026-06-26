@@ -3,6 +3,10 @@ import { getAppOperationEngine } from "./appOperationRuntime";
 
 const BACKUP_APP_ID = "app108again";
 
+declare const require: {
+    (path: string): any;
+};
+
 function validateOptionalCount(
     value: unknown,
     label: string,
@@ -20,12 +24,63 @@ function validateOptionalCount(
     }
 }
 
-export function getBackupData() {
-    return getAppOperationEngine().getBackupData();
+function isValidReminderTime(hour: unknown, minute: unknown) {
+    return (
+        Number.isInteger(hour) &&
+        Number.isInteger(minute) &&
+        typeof hour === "number" &&
+        typeof minute === "number" &&
+        hour >= 0 &&
+        hour <= 23 &&
+        minute >= 0 &&
+        minute <= 59
+    );
+}
+
+function getPracticeReminderService() {
+    return require("./practiceReminderService");
+}
+
+function getPracticeReminderRefreshService() {
+    return require("./practiceReminderRefreshService");
+}
+
+export async function getBackupData() {
+    const data = getAppOperationEngine().getBackupData();
+    const practiceReminderService = getPracticeReminderService();
+
+    return {
+        ...data,
+        practiceReminders:
+            await practiceReminderService.getPracticeReminderBackupData(),
+    };
 }
 
 export async function restoreBackupData(data: any) {
+    const practiceReminderService = getPracticeReminderService();
+
+    await practiceReminderService.restorePracticeReminderBackupData(
+        [],
+        new Set<string>()
+    );
+
     await getAppOperationEngine().restoreBackupData(data);
+
+    const practiceIds = new Set<string>(
+        Array.isArray(data?.practices)
+            ? data.practices.map((practice: any) => practice.id)
+            : []
+    );
+
+    await practiceReminderService.restorePracticeReminderBackupData(
+        Array.isArray(data?.practiceReminders)
+            ? data.practiceReminders
+            : [],
+        practiceIds
+    );
+
+    getPracticeReminderRefreshService()
+        .queueRefreshAllPracticeReminders();
 }
 
 export function validateBackup(data: any) {
@@ -46,6 +101,13 @@ export function validateBackup(data: any) {
         throw new Error("Invalid sessions data");
     }
 
+    if (
+        data.practiceReminders != null &&
+        !Array.isArray(data.practiceReminders)
+    ) {
+        throw new Error("Invalid practice reminders data");
+    }
+
     if (data.practices.length > MAX_PRACTICE_COUNT) {
         throw new Error("Too many practices in backup");
     }
@@ -58,6 +120,15 @@ export function validateBackup(data: any) {
         throw new Error("Backup contains no practices");
     }
 
+    if (
+        Array.isArray(data.practiceReminders) &&
+        data.practiceReminders.length > MAX_PRACTICE_COUNT
+    ) {
+        throw new Error("Too many practice reminders in backup");
+    }
+
+    const practiceIds = new Set<string>();
+
     for (const p of data.practices) {
 
         if (!p.id || typeof p.id !== "string") {
@@ -67,6 +138,12 @@ export function validateBackup(data: any) {
         if (!p.name || typeof p.name !== "string") {
             throw new Error("Invalid practice name");
         }
+
+        if (practiceIds.has(p.id)) {
+            throw new Error("Duplicate practice id");
+        }
+
+        practiceIds.add(p.id);
 
         if (
             typeof p.targetCount !== "number" ||
@@ -97,6 +174,35 @@ export function validateBackup(data: any) {
             p.defaultAddCount,
             "default add count"
         );
+    }
+
+    if (Array.isArray(data.practiceReminders)) {
+        const reminderPracticeIds = new Set<string>();
+
+        for (const reminder of data.practiceReminders) {
+            if (
+                !reminder ||
+                typeof reminder !== "object" ||
+                typeof reminder.practiceId !== "string" ||
+                !practiceIds.has(reminder.practiceId)
+            ) {
+                throw new Error("Invalid practice reminder practice id");
+            }
+
+            if (reminderPracticeIds.has(reminder.practiceId)) {
+                throw new Error("Duplicate practice reminder");
+            }
+
+            reminderPracticeIds.add(reminder.practiceId);
+
+            if (typeof reminder.enabled !== "boolean") {
+                throw new Error("Invalid practice reminder enabled flag");
+            }
+
+            if (!isValidReminderTime(reminder.hour, reminder.minute)) {
+                throw new Error("Invalid practice reminder time");
+            }
+        }
     }
 
     for (const s of data.sessions) {

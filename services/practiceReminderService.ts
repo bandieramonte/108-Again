@@ -22,6 +22,13 @@ export type PracticeReminderSettings = {
     scheduledNotifications: ScheduledPracticeReminder[];
 };
 
+export type PracticeReminderBackupRow = {
+    practiceId: string;
+    enabled: boolean;
+    hour: number;
+    minute: number;
+};
+
 type ReminderScheduleContext = {
     practiceId: string;
     practiceName: string;
@@ -190,6 +197,16 @@ async function saveSettings(
     );
 }
 
+async function getReminderStorageEntries() {
+    const keys = await AsyncStorage.getAllKeys();
+    const reminderKeys =
+        keys.filter(key => key.startsWith(STORAGE_KEY_PREFIX));
+
+    if (reminderKeys.length === 0) return [];
+
+    return AsyncStorage.multiGet(reminderKeys);
+}
+
 async function cancelScheduledNotifications(
     settings: PracticeReminderSettings
 ) {
@@ -350,15 +367,76 @@ export async function getPracticeReminderSettings(
 }
 
 export async function getPracticeIdsWithEnabledReminders(): Promise<string[]> {
-    const keys = await AsyncStorage.getAllKeys();
-    const reminderKeys =
-        keys.filter(key => key.startsWith(STORAGE_KEY_PREFIX));
-    const reminderEntries = await AsyncStorage.multiGet(reminderKeys);
+    const reminderEntries = await getReminderStorageEntries();
 
     return reminderEntries
         .filter(([, value]) => parseSettings(value).enabled)
         .map(([key]) => key.slice(STORAGE_KEY_PREFIX.length))
         .filter(Boolean);
+}
+
+export async function getPracticeReminderBackupData(): Promise<
+    PracticeReminderBackupRow[]
+> {
+    const reminderEntries = await getReminderStorageEntries();
+
+    return reminderEntries
+        .map(([key, value]) => {
+            const settings = parseSettings(value);
+
+            if (
+                !settings.enabled &&
+                settings.hour === DEFAULT_HOUR &&
+                settings.minute === DEFAULT_MINUTE
+            ) {
+                return null;
+            }
+
+            return {
+                practiceId: key.slice(STORAGE_KEY_PREFIX.length),
+                enabled: settings.enabled,
+                hour: settings.hour,
+                minute: settings.minute,
+            };
+        })
+        .filter((row): row is PracticeReminderBackupRow =>
+            row !== null && row.practiceId.length > 0
+        );
+}
+
+export async function clearPracticeReminderSettings(practiceId: string) {
+    const current = await getPracticeReminderSettings(practiceId);
+
+    await cancelScheduledNotifications(current);
+    await AsyncStorage.removeItem(getStorageKey(practiceId));
+}
+
+export async function restorePracticeReminderBackupData(
+    rows: PracticeReminderBackupRow[],
+    practiceIds: Set<string>
+) {
+    const existingEntries = await getReminderStorageEntries();
+
+    await Promise.all(
+        existingEntries.map(([key]) =>
+            clearPracticeReminderSettings(
+                key.slice(STORAGE_KEY_PREFIX.length)
+            )
+        )
+    );
+
+    await Promise.all(
+        rows
+            .filter(row => practiceIds.has(row.practiceId))
+            .map(row =>
+                saveSettings(row.practiceId, {
+                    enabled: row.enabled,
+                    hour: row.hour,
+                    minute: row.minute,
+                    scheduledNotifications: [],
+                })
+            )
+    );
 }
 
 export function subscribePracticeReminderResponses(

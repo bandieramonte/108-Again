@@ -490,6 +490,67 @@ await test(
 );
 
 await test(
+  "backup validation accepts reminder schedules only for imported practices",
+  () => {
+    const practiceId = randomUUID();
+    const validBackup = {
+      app: "app108again",
+      practices: [
+        {
+          id: practiceId,
+          name: "Reminder Backup Practice",
+          targetCount: 10000,
+          orderIndex: 1,
+          dailyTargetCount: 500,
+          defaultSessionCount: 108,
+        },
+      ],
+      sessions: [],
+      practiceReminders: [
+        {
+          practiceId,
+          enabled: true,
+          hour: 20,
+          minute: 30,
+        },
+      ],
+    };
+
+    assert.doesNotThrow(() => validateBackup(validBackup));
+
+    assert.throws(
+      () => validateBackup({
+        ...validBackup,
+        practiceReminders: [
+          {
+            practiceId: randomUUID(),
+            enabled: true,
+            hour: 20,
+            minute: 30,
+          },
+        ],
+      }),
+      /Invalid practice reminder practice id/
+    );
+
+    assert.throws(
+      () => validateBackup({
+        ...validBackup,
+        practiceReminders: [
+          {
+            practiceId,
+            enabled: true,
+            hour: 24,
+            minute: 0,
+          },
+        ],
+      }),
+      /Invalid practice reminder time/
+    );
+  }
+);
+
+await test(
   "practice content route restores only while last focused route was practice",
   async () => {
     const device = makeLocalDevice();
