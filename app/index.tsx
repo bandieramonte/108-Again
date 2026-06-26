@@ -36,6 +36,25 @@ type Practice = {
   defaultSessionCount?: number | null;
 };
 
+const MAX_STREAK_FIRE_DAYS = 365;
+const MIN_STREAK_FIRE_SIZE = 5;
+const MAX_STREAK_FIRE_SIZE = 26;
+const STREAK_FIRE_GROWTH_EXPONENT = 1.4;
+
+function getStreakFireSize(streak: number) {
+  const cappedStreak =
+    Math.min(Math.max(streak, 0), MAX_STREAK_FIRE_DAYS);
+  const progress = Math.pow(
+    cappedStreak / MAX_STREAK_FIRE_DAYS,
+    STREAK_FIRE_GROWTH_EXPONENT
+  );
+
+  return Math.round(
+    MIN_STREAK_FIRE_SIZE +
+    (MAX_STREAK_FIRE_SIZE - MIN_STREAK_FIRE_SIZE) * progress
+  );
+}
+
 export default function Dashboard() {
 
   const router = useRouter();
@@ -70,6 +89,7 @@ export default function Dashboard() {
   const practiceActions = usePracticeActions({
     onDeleted: refreshDashboard,
   });
+  const streakFireSize = getStreakFireSize(streak);
 
   useFocusEffect(
     useCallback(() => {
@@ -271,6 +291,14 @@ export default function Dashboard() {
       >
         <View style={styles.streakContainer}>
           <View style={styles.streakBadge}>
+            <View style={styles.streakFireIconBox}>
+              <MaterialIcons
+                name="local-fire-department"
+                size={streakFireSize}
+                color={colors.primary}
+              />
+            </View>
+
             <Text style={styles.streakText}>
               {t("dashboard.streak", {
                 count: streak,
@@ -282,12 +310,13 @@ export default function Dashboard() {
 
             <Pressable
               onPress={() => setInfoOpen(true)}
+              style={styles.streakInfoButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <MaterialIcons
                 name="info-outline"
-                size={20}
-                color="#666"
-                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                size={18}
+                color="#6B7280"
               />
             </Pressable>
           </View>
@@ -1136,8 +1165,9 @@ const styles = StyleSheet.create({
   },
 
   streakText: {
-    fontWeight: "bold",
-    fontStyle: "italic"
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111",
   },
 
   infoOverlay: {
@@ -1190,18 +1220,36 @@ const styles = StyleSheet.create({
   streakBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    backgroundColor: "#f3f4f6",
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
+    gap: 7,
+    backgroundColor: "#FAFBFF",
+    paddingLeft: 7,
+    paddingRight: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#DBE4FF",
     shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
+    shadowOpacity: 0.05,
+    shadowRadius: 7,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
+  },
+
+  streakFireIconBox: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EEF2FF",
+  },
+
+  streakInfoButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
 });

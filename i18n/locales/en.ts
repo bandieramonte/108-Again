@@ -175,7 +175,7 @@ export const en = {
     "dashboard.infoTitle": "Dashboard Info",
     "dashboard.quickAddTip": "Tip: Long press this button to change the default session count.",
     "dashboard.setDailyTarget": "Set daily target",
-    "dashboard.streak": "Streak: {{count}} {{unit}}",
+    "dashboard.streak": "{{count}} {{unit}} streak",
     "dashboard.streakDay": "day",
     "dashboard.streakDays": "days",
 

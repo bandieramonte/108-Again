@@ -177,7 +177,7 @@ export const es: Record<TranslationKey, string> = {
     "dashboard.infoTitle": "Información del panel",
     "dashboard.quickAddTip": "Consejo: mantén pulsado este botón para cambiar el conteo predeterminado por sesión.",
     "dashboard.setDailyTarget": "Establecer objetivo diario",
-    "dashboard.streak": "Racha: {{count}} {{unit}}",
+    "dashboard.streak": "{{count}} {{unit}} de racha",
     "dashboard.streakDay": "día",
     "dashboard.streakDays": "días",
 

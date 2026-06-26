@@ -179,7 +179,7 @@ export const ru: Record<TranslationKey, string> = {
     "dashboard.infoTitle": "Информация о панели",
     "dashboard.quickAddTip": "Подсказка: удерживайте эту кнопку, чтобы изменить количество в сеансе по умолчанию.",
     "dashboard.setDailyTarget": "Задать дневную цель",
-    "dashboard.streak": "Серия: {{count}} {{unit}}",
+    "dashboard.streak": "{{count}} {{unit}} подряд",
     "dashboard.streakDay": "дн.",
     "dashboard.streakDays": "дн.",
 
