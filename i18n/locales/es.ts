@@ -170,6 +170,7 @@ export const es: Record<TranslationKey, string> = {
     "dashboard.addPractice": "Añadir práctica",
     "dashboard.dailyTarget": "Objetivo diario",
     "dashboard.dailyTargetPositive": "El objetivo diario debe ser mayor que 0",
+    "dashboard.congratulations": "¡¡Felicidades!!",
     "dashboard.infoLongPressPractice": "Mantén pulsada una práctica para editarla, ver su historial o eliminarla.",
     "dashboard.infoQuickAdd": "Consejo: mantén pulsado el botón de suma rápida para cambiar el conteo predeterminado por sesión.",
     "dashboard.infoStreak": "Tu racha muestra cuántos días consecutivos hiciste alguna práctica al menos una vez.",
@@ -207,6 +208,7 @@ export const es: Record<TranslationKey, string> = {
     "practice.enterAmount": "Introduce cantidad",
     "practice.enterWholeNumber": "Introduce un número entero",
     "practice.noEstimate": "Sin estimación",
+    "practice.openActionsA11y": "Abrir acciones para {{practiceName}}",
     "practice.practiceCalendar": "Calendario de práctica",
     "practice.reached": "¡Alcanzado!",
     "practice.reminderAt": "Recordatorio: {{time}} si no está completo",
@@ -233,6 +235,14 @@ export const es: Record<TranslationKey, string> = {
     "reminderEditor.reminderTime": "Hora del recordatorio",
     "reminderEditor.title": "Recordatorio de práctica",
     "reminderEditor.turnOff": "Desactivar",
+
+    "reminderNotification.body": "Necesitas {{count}} más para completar el objetivo de hoy.",
+    "reminderNotification.channelName": "Recordatorios de práctica",
+    "reminderNotification.dailyTargetRequired": "Establece un objetivo diario antes de activar recordatorios.",
+    "reminderNotification.invalidTime": "La hora del recordatorio debe estar entre 00:00 y 23:59.",
+    "reminderNotification.permissionDenied": "Las notificaciones están desactivadas. Activa las notificaciones de 108 Again para recibir recordatorios de práctica.",
+    "reminderNotification.title": "{{practiceName}}: objetivo de hoy",
+    "reminderNotification.unavailableOnWeb": "Los recordatorios de práctica están disponibles en iOS y Android.",
 
     "targetDateEditor.title": "Editar fecha objetivo",
 

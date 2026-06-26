@@ -53,6 +53,8 @@ const { createLastPracticeScreenService } =
   require("../.build/services/lastPracticeScreenService.js");
 const { createSyncCoordinator } =
   require("../.build/services/syncCoordinator.js");
+const { detectSupportedLanguageFromLocale } =
+  require("../.build/i18n/languageDetection.js");
 const { formatMonthDayYear } =
   require("../.build/utils/dateUtils.js");
 const { formatCountProgress } =
@@ -591,6 +593,41 @@ await test(
     assert.equal(
       formatMonthDayYear(date, "es-ES"),
       "enero 13, 2027"
+    );
+  }
+);
+
+await test(
+  "initial language detection follows supported device language",
+  () => {
+    assert.equal(
+      detectSupportedLanguageFromLocale({
+        languageCode: "es",
+        regionCode: "US",
+      }),
+      "es"
+    );
+
+    assert.equal(
+      detectSupportedLanguageFromLocale({
+        languageCode: "ru",
+      }),
+      "ru"
+    );
+
+    assert.equal(
+      detectSupportedLanguageFromLocale({
+        languageCode: "en",
+        regionCode: "MX",
+      }),
+      "en"
+    );
+
+    assert.equal(
+      detectSupportedLanguageFromLocale({
+        languageCode: "it",
+      }),
+      "en"
     );
   }
 );

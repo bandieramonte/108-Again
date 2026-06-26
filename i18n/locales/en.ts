@@ -168,6 +168,7 @@ export const en = {
     "dashboard.addPractice": "Add Practice",
     "dashboard.dailyTarget": "Daily target",
     "dashboard.dailyTargetPositive": "Daily target must be greater than 0",
+    "dashboard.congratulations": "Congratulations!!",
     "dashboard.infoLongPressPractice": "Long press a practice to edit it, view its history, or delete it.",
     "dashboard.infoQuickAdd": "Tip: Long press the quick add button to change the default session count.",
     "dashboard.infoStreak": "Your streak shows how many consecutive days you did any practice at least once.",
@@ -205,6 +206,7 @@ export const en = {
     "practice.enterAmount": "Enter amount",
     "practice.enterWholeNumber": "Please enter a whole number",
     "practice.noEstimate": "No estimate",
+    "practice.openActionsA11y": "Open actions for {{practiceName}}",
     "practice.practiceCalendar": "Practice Calendar",
     "practice.reached": "Reached!",
     "practice.reminderAt": "Reminder: {{time}} if unfinished",
@@ -231,6 +233,14 @@ export const en = {
     "reminderEditor.reminderTime": "Reminder time",
     "reminderEditor.title": "Practice reminder",
     "reminderEditor.turnOff": "Turn off",
+
+    "reminderNotification.body": "You need {{count}} more to complete today's goal.",
+    "reminderNotification.channelName": "Practice reminders",
+    "reminderNotification.dailyTargetRequired": "Set a daily target before enabling reminders.",
+    "reminderNotification.invalidTime": "Reminder time must be between 00:00 and 23:59.",
+    "reminderNotification.permissionDenied": "Notifications are disabled. Enable notifications for 108 Again to receive practice reminders.",
+    "reminderNotification.title": "{{practiceName}}: today's goal",
+    "reminderNotification.unavailableOnWeb": "Practice reminders are available on iOS and Android.",
 
     "targetDateEditor.title": "Edit target date",
 

@@ -27,6 +27,7 @@ type ReminderScheduleContext = {
     practiceName: string;
     todayCount: number;
     dailyTargetCount: number | null;
+    reminderText?: PracticeReminderText;
 };
 
 type SavePracticeReminderInput = ReminderScheduleContext & {
@@ -35,6 +36,16 @@ type SavePracticeReminderInput = ReminderScheduleContext & {
 };
 
 type PracticeReminderResponseHandler = (practiceId: string) => void;
+
+export type PracticeReminderText = {
+    channelName: string;
+    dailyTargetRequiredMessage: string;
+    invalidTimeMessage: string;
+    notificationBody: (remainingCount: number) => string;
+    notificationTitle: (practiceName: string) => string;
+    permissionDeniedMessage: string;
+    unavailableOnWebMessage: string;
+};
 
 let notificationHandlerRegistered = false;
 
@@ -88,8 +99,26 @@ function formatDateKey(date: Date) {
     );
 }
 
-function getReminderBody(remainingCount: number) {
-    return `You need ${formatNumber(remainingCount)} more to complete today's goal.`;
+function getDefaultReminderText(): PracticeReminderText {
+    return {
+        channelName: "Practice reminders",
+        dailyTargetRequiredMessage: "Set a daily target before enabling reminders.",
+        invalidTimeMessage: "Reminder time must be between 00:00 and 23:59.",
+        notificationBody: (remainingCount) =>
+            `You need ${formatNumber(remainingCount)} more to complete today's goal.`,
+        notificationTitle: (practiceName) =>
+            `${practiceName}: today's goal`,
+        permissionDeniedMessage:
+            "Notifications are disabled. Enable notifications for 108 Again to receive practice reminders.",
+        unavailableOnWebMessage:
+            "Practice reminders are available on iOS and Android.",
+    };
+}
+
+function getReminderText(
+    reminderText?: PracticeReminderText
+): PracticeReminderText {
+    return reminderText ?? getDefaultReminderText();
 }
 
 function getPracticeIdFromNotificationResponse(
@@ -178,16 +207,20 @@ async function cancelScheduledNotifications(
     );
 }
 
-async function ensureNotificationPermission() {
+async function ensureNotificationPermission(
+    reminderText?: PracticeReminderText
+) {
+    const text = getReminderText(reminderText);
+
     initializePracticeReminderNotifications();
 
     if (Platform.OS === "web") {
-        throw new Error("Practice reminders are available on iOS and Android.");
+        throw new Error(text.unavailableOnWebMessage);
     }
 
     if (Platform.OS === "android") {
         await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-            name: "Practice reminders",
+            name: text.channelName,
             importance: Notifications.AndroidImportance.DEFAULT,
         });
     }
@@ -201,9 +234,7 @@ async function ensureNotificationPermission() {
     }
 
     if (finalStatus !== "granted") {
-        throw new Error(
-            "Notifications are disabled. Enable notifications for 108 Again to receive practice reminders."
-        );
+        throw new Error(text.permissionDeniedMessage);
     }
 }
 
@@ -212,6 +243,7 @@ function getDesiredReminderDates({
     minute,
     todayCount,
     dailyTargetCount,
+    reminderText,
 }: PracticeReminderSettings & ReminderScheduleContext) {
     const now = new Date();
     const todayKey = formatDateKey(now);
@@ -240,7 +272,8 @@ function getDesiredReminderDates({
         desired.push({
             date,
             scheduledAt,
-            body: getReminderBody(remainingCount),
+            body: getReminderText(reminderText)
+                .notificationBody(remainingCount),
         });
     }
 
@@ -283,7 +316,8 @@ async function scheduleNotifications(
         const id = await Notifications.scheduleNotificationAsync({
             identifier: `${STORAGE_KEY_PREFIX}${context.practiceId}:${reminder.date}`,
             content: {
-                title: `${context.practiceName}: today's goal`,
+                title: getReminderText(context.reminderText)
+                    .notificationTitle(context.practiceName),
                 body: reminder.body,
                 data: {
                     practiceId: context.practiceId,
@@ -353,18 +387,21 @@ export async function savePracticeReminderSettings({
     practiceName,
     todayCount,
     dailyTargetCount,
+    reminderText,
     hour,
     minute,
 }: SavePracticeReminderInput): Promise<PracticeReminderSettings> {
+    const text = getReminderText(reminderText);
+
     if (!isValidTime(hour, minute)) {
-        throw new Error("Reminder time must be between 00:00 and 23:59.");
+        throw new Error(text.invalidTimeMessage);
     }
 
     if (dailyTargetCount == null || dailyTargetCount <= 0) {
-        throw new Error("Set a daily target before enabling reminders.");
+        throw new Error(text.dailyTargetRequiredMessage);
     }
 
-    await ensureNotificationPermission();
+    await ensureNotificationPermission(text);
 
     const current = await getPracticeReminderSettings(practiceId);
     const next: PracticeReminderSettings = {
@@ -379,6 +416,7 @@ export async function savePracticeReminderSettings({
         practiceName,
         todayCount,
         dailyTargetCount,
+        reminderText,
     });
 
     await saveSettings(practiceId, next);

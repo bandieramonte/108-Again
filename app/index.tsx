@@ -18,6 +18,7 @@ import { usePracticeActions } from "../hooks/usePracticeActions";
 import { useReachedCelebration } from "../hooks/useReachedCelebration";
 import { useI18n } from "../i18n";
 import { getPracticeDisplayName } from "../i18n/practiceNames";
+import { createPracticeReminderText } from "../i18n/reminderText";
 import * as dashboardService from "../services/dashboardService";
 import * as practiceReminderService from "../services/practiceReminderService";
 import * as practiceService from "../services/practiceService";
@@ -181,6 +182,7 @@ export default function Dashboard() {
             practiceName: practiceDisplayName,
             todayCount: practice.today + count,
             dailyTargetCount: practice.dailyTargetCount,
+            reminderText: createPracticeReminderText(t),
           })
           .catch(error => {
             console.warn("Failed to refresh practice reminder", error);
@@ -509,7 +511,7 @@ export default function Dashboard() {
                               { opacity: celebrationFade }
                             ]}
                           >
-                            Congratulations!!
+                            {t("dashboard.congratulations")}
                           </Animated.Text>
                         )}
                       </View>

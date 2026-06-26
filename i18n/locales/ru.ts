@@ -172,6 +172,7 @@ export const ru: Record<TranslationKey, string> = {
     "dashboard.addPractice": "Добавить практику",
     "dashboard.dailyTarget": "Дневная цель",
     "dashboard.dailyTargetPositive": "Дневная цель должна быть больше 0",
+    "dashboard.congratulations": "Поздравляем!!",
     "dashboard.infoLongPressPractice": "Удерживайте практику, чтобы изменить ее, посмотреть историю или удалить.",
     "dashboard.infoQuickAdd": "Подсказка: удерживайте кнопку быстрого добавления, чтобы изменить количество в сеансе по умолчанию.",
     "dashboard.infoStreak": "Серия показывает, сколько дней подряд вы выполняли любую практику хотя бы один раз.",
@@ -209,6 +210,7 @@ export const ru: Record<TranslationKey, string> = {
     "practice.enterAmount": "Введите количество",
     "practice.enterWholeNumber": "Введите целое число",
     "practice.noEstimate": "Нет расчета",
+    "practice.openActionsA11y": "Открыть действия для {{practiceName}}",
     "practice.practiceCalendar": "Календарь практики",
     "practice.reached": "Достигнуто!",
     "practice.reminderAt": "Напоминание: {{time}}, если не завершено",
@@ -235,6 +237,14 @@ export const ru: Record<TranslationKey, string> = {
     "reminderEditor.reminderTime": "Время напоминания",
     "reminderEditor.title": "Напоминание о практике",
     "reminderEditor.turnOff": "Выключить",
+
+    "reminderNotification.body": "Вам нужно еще {{count}}, чтобы выполнить сегодняшнюю цель.",
+    "reminderNotification.channelName": "Напоминания о практике",
+    "reminderNotification.dailyTargetRequired": "Задайте дневную цель перед включением напоминаний.",
+    "reminderNotification.invalidTime": "Время напоминания должно быть между 00:00 и 23:59.",
+    "reminderNotification.permissionDenied": "Уведомления отключены. Включите уведомления для 108 Again, чтобы получать напоминания о практике.",
+    "reminderNotification.title": "{{practiceName}}: цель на сегодня",
+    "reminderNotification.unavailableOnWeb": "Напоминания о практике доступны на iOS и Android.",
 
     "targetDateEditor.title": "Изменить целевую дату",
 

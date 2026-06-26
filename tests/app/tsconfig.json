@@ -20,6 +20,7 @@
     "../../constants/defaultPractices.ts",
     "../../database/schema.ts",
     "../../database/sqliteTypes.ts",
+    "../../i18n/languageDetection.ts",
     "../../repositories/appMetaRepoFactory.ts",
     "../../repositories/deletedRecordRepoFactory.ts",
     "../../repositories/practiceRepoFactory.ts",

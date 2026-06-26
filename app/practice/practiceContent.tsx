@@ -17,6 +17,7 @@ import { practiceImages } from "../../constants/practiceImages";
 import { useReachedCelebration } from "../../hooks/useReachedCelebration";
 import { useI18n } from "../../i18n";
 import { getPracticeDisplayName } from "../../i18n/practiceNames";
+import { createPracticeReminderText } from "../../i18n/reminderText";
 import * as appService from "../../services/appService";
 import type { PracticeReminderSettings } from "../../services/practiceReminderService";
 import * as practiceReminderService from "../../services/practiceReminderService";
@@ -46,6 +47,10 @@ export default function PracticeContent({
     const [practiceName, setPracticeName] = useState(initialPractice?.name ?? "");
     const displayPracticeName =
         getPracticeDisplayName(practiceId, practiceName, t);
+    const reminderText = useMemo(
+        () => createPracticeReminderText(t),
+        [t]
+    );
     const [total, setTotal] = useState(() =>
         sessionService.getPracticeTotal(practiceId).total
     );
@@ -191,6 +196,7 @@ export default function PracticeContent({
                 practiceName: displayPracticeName,
                 todayCount,
                 dailyTargetCount: effectiveDailyTargetCount,
+                reminderText,
             })
             .then(setReminderSettings)
             .catch(error => {
@@ -199,6 +205,7 @@ export default function PracticeContent({
     }, [
         practiceId,
         displayPracticeName,
+        reminderText,
         todayCount,
         effectiveDailyTargetCount,
         reminderSettings?.enabled,
@@ -413,6 +420,7 @@ export default function PracticeContent({
                     practiceName: displayPracticeName,
                     todayCount,
                     dailyTargetCount: effectiveDailyTargetCount,
+                    reminderText,
                     hour,
                     minute,
                 });
@@ -459,7 +467,9 @@ export default function PracticeContent({
                                         ]}
                                         onPress={toggleMenu}
                                         accessibilityRole="button"
-                                        accessibilityLabel={`Open actions for ${displayPracticeName}`}
+                                        accessibilityLabel={t("practice.openActionsA11y", {
+                                            practiceName: displayPracticeName,
+                                        })}
                                     >
                                         <Text style={styles.title}>
                                             {displayPracticeName}
@@ -744,14 +754,21 @@ export default function PracticeContent({
                                 </View>
                             </View>
 
-                            <Pressable
-                                style={styles.calendarButton}
-                                onPress={() => setCalendarOpen(true)}
+                            <View
+                                style={[
+                                    styles.calendarButtonContainer,
+                                    { width: imageDisplayWidth }
+                                ]}
                             >
-                                <Text style={styles.calendarButtonText}>
-                                    {t("practice.practiceCalendar")}
-                                </Text>
-                            </Pressable>
+                                <Pressable
+                                    style={styles.calendarButton}
+                                    onPress={() => setCalendarOpen(true)}
+                                >
+                                    <Text style={styles.calendarButtonText}>
+                                        {t("practice.practiceCalendar")}
+                                    </Text>
+                                </Pressable>
+                            </View>
 
                         </View>
 
@@ -1476,9 +1493,12 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         marginRight: 2
     },
+    calendarButtonContainer: {
+        alignSelf: "center",
+        marginTop: 24,
+    },
     calendarButton: {
         width: "100%",
-        marginTop: 24,
         paddingVertical: 14,
         borderRadius: 12,
         backgroundColor: colors.primary,

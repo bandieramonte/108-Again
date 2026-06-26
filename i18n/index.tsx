@@ -9,11 +9,15 @@ import {
     useState,
     type ReactNode,
 } from "react";
+import {
+    detectSupportedLanguageFromLocale,
+    type LanguageCode,
+} from "./languageDetection";
 import { en, type TranslationKey } from "./locales/en";
 import { es } from "./locales/es";
 import { ru } from "./locales/ru";
 
-export type LanguageCode = "en" | "es" | "ru";
+export type { LanguageCode } from "./languageDetection";
 
 type TranslationParams = Record<string, number | string | null | undefined>;
 
@@ -37,32 +41,6 @@ const localeByLanguage: Record<LanguageCode, string> = {
     es: "es-ES",
     ru: "ru-RU",
 };
-
-const spanishRegions = new Set([
-    "AR",
-    "BO",
-    "CL",
-    "CO",
-    "CR",
-    "CU",
-    "DO",
-    "EC",
-    "ES",
-    "GQ",
-    "GT",
-    "HN",
-    "MX",
-    "NI",
-    "PA",
-    "PE",
-    "PR",
-    "PY",
-    "SV",
-    "UY",
-    "VE",
-]);
-
-const russianRegions = new Set(["RU"]);
 
 export const languageOptions: {
     code: LanguageCode;
@@ -91,25 +69,7 @@ function isLanguageCode(value: string | null): value is LanguageCode {
 }
 
 function detectDeviceLanguage(): LanguageCode {
-    const locale = Localization.getLocales()[0];
-    const languageCode = locale?.languageCode?.toLowerCase();
-    const regionCode = locale?.regionCode?.toUpperCase();
-
-    if (
-        languageCode === "es" ||
-        (regionCode != null && spanishRegions.has(regionCode))
-    ) {
-        return "es";
-    }
-
-    if (
-        languageCode === "ru" ||
-        (regionCode != null && russianRegions.has(regionCode))
-    ) {
-        return "ru";
-    }
-
-    return "en";
+    return detectSupportedLanguageFromLocale(Localization.getLocales()[0]);
 }
 
 function interpolate(template: string, params?: TranslationParams) {
@@ -141,12 +101,36 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         let active = true;
 
-        void AsyncStorage
-            .getItem(LANGUAGE_STORAGE_KEY)
-            .then(savedLanguage => {
-                if (!active || !isLanguageCode(savedLanguage)) return;
+        void (async () => {
+            let savedLanguage: string | null = null;
+
+            try {
+                savedLanguage =
+                    await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
+            } catch {
+                savedLanguage = null;
+            }
+
+            if (!active) return;
+
+            if (isLanguageCode(savedLanguage)) {
                 setLanguageState(savedLanguage);
-            });
+                return;
+            }
+
+            const detectedLanguage = detectDeviceLanguage();
+            setLanguageState(detectedLanguage);
+
+            try {
+                await AsyncStorage.setItem(
+                    LANGUAGE_STORAGE_KEY,
+                    detectedLanguage
+                );
+            } catch {
+                // The in-memory language has already been selected; storage
+                // can try again when the user manually changes language.
+            }
+        })();
 
         return () => {
             active = false;
