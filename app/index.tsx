@@ -96,12 +96,18 @@ export default function Dashboard() {
   const [showQuickAddHint, setShowQuickAddHint] = useState(false);
   const scrollViewRef = useRef<ScrollView | null>(null);
   const scrollYRef = useRef(0);
+  const scrollViewWindowXRef = useRef(0);
   const scrollViewWindowYRef = useRef(0);
   const scrollViewHeightRef = useRef(0);
   const scrollContentHeightRef = useRef(0);
   const dashboardContentXRef = useRef(0);
+  const dashboardRootRef = useRef<View | null>(null);
+  const dashboardRootWindowXRef = useRef(0);
+  const dashboardContentRef = useRef<View | null>(null);
+  const dashboardContentWindowXRef = useRef(0);
   const quickAddRefs = useRef<Record<string, View | null>>({});
   const practiceRowRefs = useRef<Record<string, View | null>>({});
+  const practiceCardRefs = useRef<Record<string, View | null>>({});
   const practiceCardLayoutsRef = useRef<Record<string, CardLayout>>({});
   const dragStartLayoutsRef = useRef<Record<string, CardLayout>>({});
   const dragPanHandlersRef = useRef<Record<string, any>>({});
@@ -282,7 +288,8 @@ export default function Dashboard() {
 
   function updateScrollViewWindowMetrics() {
     (scrollViewRef.current as any)?.measureInWindow?.(
-      (_x: number, y: number, _width: number, height: number) => {
+      (x: number, y: number, _width: number, height: number) => {
+        scrollViewWindowXRef.current = x;
         scrollViewWindowYRef.current = y;
 
         if (height > 0) {
@@ -290,6 +297,60 @@ export default function Dashboard() {
         }
       }
     );
+  }
+
+  function updateDashboardRootWindowMetrics() {
+    (dashboardRootRef.current as any)?.measureInWindow?.(
+      (x: number) => {
+        dashboardRootWindowXRef.current = x;
+      }
+    );
+  }
+
+  function updateDashboardContentWindowMetrics() {
+    (dashboardContentRef.current as any)?.measureInWindow?.(
+      (x: number) => {
+        dashboardContentWindowXRef.current = x;
+      }
+    );
+  }
+
+  function getOverlayLeftFromLayout(layout: CardLayout) {
+    const contentWindowX =
+      dashboardContentWindowXRef.current ||
+      scrollViewWindowXRef.current +
+      dashboardContentXRef.current;
+
+    return contentWindowX -
+      dashboardRootWindowXRef.current +
+      layout.x;
+  }
+
+  function updateDragOverlayFrameFromMeasuredCard(practiceId: string) {
+    const rootNode = dashboardRootRef.current as any;
+    const cardNode = practiceCardRefs.current[practiceId] as any;
+
+    if (
+      !rootNode?.measureInWindow ||
+      !cardNode?.measureInWindow
+    ) {
+      return;
+    }
+
+    rootNode.measureInWindow((rootX: number) => {
+      dashboardRootWindowXRef.current = rootX;
+
+      cardNode.measureInWindow(
+        (cardX: number, _cardY: number, width: number) => {
+          if (draggingPracticeIdRef.current !== practiceId) return;
+
+          setDragOverlayFrame({
+            left: cardX - rootX,
+            width,
+          });
+        }
+      );
+    });
   }
 
   function getMaxScrollY() {
@@ -443,6 +504,8 @@ export default function Dashboard() {
     if (!startLayout || !draggedPractice) return;
 
     updateScrollViewWindowMetrics();
+    updateDashboardRootWindowMetrics();
+    updateDashboardContentWindowMetrics();
     dragOverlayTranslateY.stopAnimation();
     draggingPracticeIdRef.current = practiceId;
     dragStartLayoutsRef.current = layoutSnapshot;
@@ -460,10 +523,11 @@ export default function Dashboard() {
     setDraggedOverlayTop(dragStartOverlayTopRef.current);
     setDragOverlayPractice(draggedPractice);
     setDragOverlayFrame({
-      left: dashboardContentXRef.current + startLayout.x,
+      left: getOverlayLeftFromLayout(startLayout),
       width: startLayout.width,
     });
     setDraggingPracticeId(practiceId);
+    updateDragOverlayFrameFromMeasuredCard(practiceId);
   }
 
   function updatePracticeDragPosition(practiceId: string, dy: number) {
@@ -478,7 +542,7 @@ export default function Dashboard() {
     const nextVisualTopY = dragVisualTopYRef.current;
     if (nextVisualTopY == null) return;
 
-    const draggedCenterY = nextVisualTopY + startLayout.height / 2;
+    const draggedTopY = nextVisualTopY;
     const currentPractices = practicesRef.current;
     const startOrder = dragStartOrderRef.current;
     const startLayouts = dragStartLayoutsRef.current;
@@ -490,7 +554,7 @@ export default function Dashboard() {
       const layout = startLayouts[orderedPracticeId];
       if (!layout) continue;
 
-      if (draggedCenterY > layout.y + layout.height / 2) {
+      if (draggedTopY > layout.y) {
         insertIndex += 1;
       }
     }
@@ -895,7 +959,11 @@ export default function Dashboard() {
 
   return (
 
-    <View style={styles.dashboardRoot}>
+    <View
+      ref={dashboardRootRef}
+      style={styles.dashboardRoot}
+      onLayout={updateDashboardRootWindowMetrics}
+    >
       <ScrollView
       ref={scrollViewRef}
       style={containers.screen}
@@ -916,6 +984,7 @@ export default function Dashboard() {
       }}
     >
       <View
+        ref={dashboardContentRef}
         style={{
           width: "100%",
           maxWidth: 700,
@@ -923,6 +992,7 @@ export default function Dashboard() {
         }}
         onLayout={(event) => {
           dashboardContentXRef.current = event.nativeEvent.layout.x;
+          updateDashboardContentWindowMetrics();
         }}
       >
         <View style={styles.streakContainer}>
@@ -972,6 +1042,10 @@ export default function Dashboard() {
 
             <Animated.View
               key={practice.id}
+              ref={(node) => {
+                practiceCardRefs.current[practice.id] =
+                  node as unknown as View | null;
+              }}
               style={[
                 styles.card,
                 draggingPracticeId === practice.id &&
