@@ -2,7 +2,7 @@ import { subscribeData } from "@/utils/events";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Dimensions, Image, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, unstable_batchedUpdates, View } from "react-native";
 import * as Progress from "react-native-progress";
 import Reanimated, { LinearTransition } from "react-native-reanimated";
@@ -616,7 +616,9 @@ export default function Dashboard() {
     if (samePracticeIdOrder(dragCurrentOrderRef.current, nextOrder)) return;
 
     dragCurrentOrderRef.current = nextOrder;
-    setDragPreviewOrderIds(nextOrder);
+    startTransition(() => {
+      setDragPreviewOrderIds(nextOrder);
+    });
   }
 
   function movePracticeDrag(
@@ -1029,14 +1031,19 @@ export default function Dashboard() {
     );
   }
 
-  const practiceById =
-    new Map(practices.map(practice => [practice.id, practice]));
-  const renderedPractices =
-    dragPreviewOrderIds
-      ? dragPreviewOrderIds
-        .map(practiceId => practiceById.get(practiceId))
-        .filter((practice): practice is Practice => Boolean(practice))
-      : practices;
+  const practiceById = useMemo(
+    () => new Map(practices.map(practice => [practice.id, practice])),
+    [practices]
+  );
+  const renderedPractices = useMemo(
+    () =>
+      dragPreviewOrderIds
+        ? dragPreviewOrderIds
+          .map(practiceId => practiceById.get(practiceId))
+          .filter((practice): practice is Practice => Boolean(practice))
+        : practices,
+    [dragPreviewOrderIds, practiceById, practices]
+  );
 
   return (
 
