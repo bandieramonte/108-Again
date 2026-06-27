@@ -2,8 +2,8 @@ import { subscribeData } from "@/utils/events";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Dimensions, Image, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, unstable_batchedUpdates, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import * as Progress from "react-native-progress";
 import Reanimated, { LinearTransition } from "react-native-reanimated";
 import CelebrationOverlay from "../components/CelebrationOverlay";
@@ -20,6 +20,12 @@ import { useReachedCelebration } from "../hooks/useReachedCelebration";
 import { useI18n } from "../i18n";
 import { getPracticeDisplayName } from "../i18n/practiceNames";
 import * as dashboardService from "../services/dashboardService";
+import {
+  DEFAULT_DRAG_REORDER_ANIMATION_MS,
+  DragReorderService,
+  getDragPreviewItems,
+  type DragOverlayFrame,
+} from "../services/dragReorderService";
 import * as practiceService from "../services/practiceService";
 import * as sessionService from "../services/sessionService";
 import { colors, containers } from "../styles/theme";
@@ -37,29 +43,12 @@ type Practice = {
   defaultSessionCount?: number | null;
 };
 
-type CardLayout = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-type DragOverlayFrame = {
-  left: number;
-  width: number;
-};
-
 const MAX_STREAK_FIRE_DAYS = 365;
 const MIN_STREAK_FIRE_SIZE = 5;
 const MAX_STREAK_FIRE_SIZE = 26;
 const STREAK_FIRE_GROWTH_EXPONENT = 1.4;
-const DRAG_AUTO_SCROLL_EDGE = 96;
-const DRAG_AUTO_SCROLL_SPEED_PER_SECOND = 360;
-const DRAG_AUTO_SCROLL_MAX_FRAME_MS = 32;
-const DRAG_REORDER_ANIMATION_MS = 150;
-const DRAG_RELEASE_ANIMATION_MS = 120;
 const practiceCardLayoutTransition =
-  LinearTransition.duration(DRAG_REORDER_ANIMATION_MS);
+  LinearTransition.duration(DEFAULT_DRAG_REORDER_ANIMATION_MS);
 
 function getStreakFireSize(streak: number) {
   const cappedStreak =
@@ -90,41 +79,9 @@ export default function Dashboard() {
     useState<{ id: string; name: string } | null>(null);
   const [dailyTargetInput, setDailyTargetInput] = useState("");
   const [showQuickAddHint, setShowQuickAddHint] = useState(false);
-  const scrollViewRef = useRef<ScrollView | null>(null);
-  const scrollYRef = useRef(0);
-  const scrollViewWindowXRef = useRef(0);
-  const scrollViewWindowYRef = useRef(0);
-  const scrollViewHeightRef = useRef(0);
-  const scrollContentHeightRef = useRef(0);
-  const dashboardContentXRef = useRef(0);
-  const dashboardRootRef = useRef<View | null>(null);
-  const dashboardRootWindowXRef = useRef(0);
-  const dashboardRootWindowYRef = useRef(0);
-  const dashboardContentRef = useRef<View | null>(null);
-  const dashboardContentWindowXRef = useRef(0);
-  const dashboardContentWindowYRef = useRef(0);
   const quickAddRefs = useRef<Record<string, View | null>>({});
   const practiceRowRefs = useRef<Record<string, View | null>>({});
-  const practiceCardRefs = useRef<Record<string, View | null>>({});
-  const practiceCardLayoutsRef = useRef<Record<string, CardLayout>>({});
-  const dragStartLayoutsRef = useRef<Record<string, CardLayout>>({});
-  const dragPanHandlersRef = useRef<Record<string, any>>({});
-  const dragAutoScrollFrameRef = useRef<number | null>(null);
-  const dragAutoScrollLastTimestampRef = useRef<number | null>(null);
-  const dragStartScrollYRef = useRef(0);
-  const dragStartOverlayTopRef = useRef<number | null>(null);
-  const dragLatestDyRef = useRef(0);
-  const dragLatestMoveYRef = useRef<number | null>(null);
-  const dragVisualTopYRef = useRef<number | null>(null);
-  const dragOverlayTranslateY = useRef(new Animated.Value(0)).current;
   const practicesRef = useRef<Practice[]>([]);
-  const draggingPracticeIdRef = useRef<string | null>(null);
-  const dragStartLayoutRef = useRef<CardLayout | null>(null);
-  const dragStartOrderRef = useRef<string[]>([]);
-  const dragStartPracticesRef = useRef<Practice[]>([]);
-  const dragCurrentOrderRef = useRef<string[]>([]);
-  const dragMovedRef = useRef(false);
-  const suppressCardPressRef = useRef(false);
   const [draggingPracticeId, setDraggingPracticeId] = useState<string | null>(null);
   const [dragPreviewOrderIds, setDragPreviewOrderIds] = useState<string[] | null>(null);
   const [dragOverlayPractice, setDragOverlayPractice] = useState<Practice | null>(null);
@@ -169,6 +126,35 @@ export default function Dashboard() {
     onDeleted: refreshDashboard,
   });
   const streakFireSize = getStreakFireSize(streak);
+  const refreshDashboardRef = useRef(refreshDashboard);
+  const dragReorderRef = useRef<DragReorderService<Practice> | null>(null);
+
+  if (!dragReorderRef.current) {
+    dragReorderRef.current = new DragReorderService<Practice>({
+      getItems: () => practicesRef.current,
+      setItems: (nextPractices) => {
+        practicesRef.current = nextPractices;
+        setPractices(nextPractices);
+      },
+      setPreviewOrderIds: setDragPreviewOrderIds,
+      setDraggingItemId: setDraggingPracticeId,
+      setOverlayItem: setDragOverlayPractice,
+      setOverlayFrame: setDragOverlayFrame,
+      onReorder: (nextOrder) => {
+        practiceService.reorderPractices(nextOrder);
+      },
+      onReorderError: (error: any) => {
+        alert(error.message);
+        refreshDashboardRef.current();
+      },
+    });
+  }
+
+  const dragReorder = dragReorderRef.current;
+
+  useEffect(() => {
+    refreshDashboardRef.current = refreshDashboard;
+  }, [refreshDashboard]);
 
   useFocusEffect(
     useCallback(() => {
@@ -182,12 +168,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     return () => {
-      if (dragAutoScrollFrameRef.current != null) {
-        cancelAnimationFrame(dragAutoScrollFrameRef.current);
-        dragAutoScrollFrameRef.current = null;
-      }
+      dragReorder.dispose();
     };
-  }, []);
+  }, [dragReorder]);
 
   useEffect(() => {
     maybeShowWelcomeModal();
@@ -248,505 +231,6 @@ export default function Dashboard() {
         setTooltipPosition(null);
       }, 5000);
     });
-  }
-
-  function samePracticeIdOrder(left: string[], right: string[]) {
-    if (left.length !== right.length) return false;
-
-    return left.every((practiceId, index) => practiceId === right[index]);
-  }
-
-  function reorderPracticeIds(
-    orderedPracticeIds: string[],
-    practiceId: string,
-    insertIndex: number
-  ) {
-    if (!orderedPracticeIds.includes(practiceId)) {
-      return orderedPracticeIds;
-    }
-
-    const withoutDragged =
-      orderedPracticeIds.filter(id => id !== practiceId);
-    const clampedIndex =
-      Math.max(0, Math.min(insertIndex, withoutDragged.length));
-    const next = [...withoutDragged];
-
-    next.splice(clampedIndex, 0, practiceId);
-
-    return next;
-  }
-
-  function buildPracticesFromOrder(orderedPracticeIds: string[]) {
-    const practiceById =
-      new Map(
-        dragStartPracticesRef.current.map(practice => [
-          practice.id,
-          practice,
-        ])
-      );
-
-    return orderedPracticeIds
-      .map(practiceId => practiceById.get(practiceId))
-      .filter((practice): practice is Practice => Boolean(practice));
-  }
-
-  function updateScrollViewWindowMetrics() {
-    (scrollViewRef.current as any)?.measureInWindow?.(
-      (x: number, y: number, _width: number, height: number) => {
-        scrollViewWindowXRef.current = x;
-        scrollViewWindowYRef.current = y;
-
-        if (height > 0) {
-          scrollViewHeightRef.current = height;
-        }
-      }
-    );
-  }
-
-  function updateDashboardRootWindowMetrics() {
-    (dashboardRootRef.current as any)?.measureInWindow?.(
-      (x: number, y: number) => {
-        dashboardRootWindowXRef.current = x;
-        dashboardRootWindowYRef.current = y;
-      }
-    );
-  }
-
-  function updateDashboardContentWindowMetrics() {
-    (dashboardContentRef.current as any)?.measureInWindow?.(
-      (x: number, y: number) => {
-        dashboardContentWindowXRef.current = x;
-        dashboardContentWindowYRef.current = y;
-      }
-    );
-  }
-
-  function getOverlayLeftFromLayout(layout: CardLayout) {
-    const contentWindowX =
-      dashboardContentWindowXRef.current ||
-      scrollViewWindowXRef.current +
-      dashboardContentXRef.current;
-
-    return contentWindowX -
-      dashboardRootWindowXRef.current +
-      layout.x;
-  }
-
-  function getOverlayTopFromLayout(layout: CardLayout) {
-    if (dashboardContentWindowYRef.current) {
-      return dashboardContentWindowYRef.current -
-        dashboardRootWindowYRef.current +
-        layout.y;
-    }
-
-    const scrollDelta =
-      scrollYRef.current - dragStartScrollYRef.current;
-    const startLayout = dragStartLayoutRef.current;
-    const startOverlayTop = dragStartOverlayTopRef.current;
-
-    if (startLayout && startOverlayTop != null) {
-      return startOverlayTop +
-        (layout.y - startLayout.y) -
-        scrollDelta;
-    }
-
-    return scrollViewWindowYRef.current -
-      dashboardRootWindowYRef.current +
-      layout.y -
-      scrollYRef.current;
-  }
-
-  function showDragOverlayFromMeasuredCard(
-    practiceId: string,
-    draggedPractice: Practice,
-    fallbackLayout: CardLayout
-  ) {
-    const rootNode = dashboardRootRef.current as any;
-    const cardNode = practiceCardRefs.current[practiceId] as any;
-
-    if (
-      !rootNode?.measureInWindow ||
-      !cardNode?.measureInWindow
-    ) {
-      const fallbackTop = getOverlayTopFromLayout(fallbackLayout);
-
-      dragStartOverlayTopRef.current = fallbackTop;
-      setDraggedOverlayTop(fallbackTop + dragLatestDyRef.current);
-      setDragOverlayPractice(draggedPractice);
-      setDragOverlayFrame({
-        left: getOverlayLeftFromLayout(fallbackLayout),
-        width: fallbackLayout.width,
-      });
-      setDraggingPracticeId(practiceId);
-      return;
-    }
-
-    rootNode.measureInWindow((rootX: number, rootY: number) => {
-      dashboardRootWindowXRef.current = rootX;
-      dashboardRootWindowYRef.current = rootY;
-
-      cardNode.measureInWindow(
-        (
-          cardX: number,
-          cardY: number,
-          width: number
-        ) => {
-          if (draggingPracticeIdRef.current !== practiceId) return;
-
-          const startOverlayTop = cardY - rootY;
-
-          dragStartOverlayTopRef.current = startOverlayTop;
-          setDraggedOverlayTop(
-            startOverlayTop + dragLatestDyRef.current
-          );
-          setDragOverlayPractice(draggedPractice);
-          setDragOverlayFrame({
-            left: cardX - rootX,
-            width,
-          });
-          setDraggingPracticeId(practiceId);
-        }
-      );
-    });
-  }
-
-  function getMaxScrollY() {
-    return Math.max(
-      0,
-      scrollContentHeightRef.current - scrollViewHeightRef.current
-    );
-  }
-
-  function getDragAutoScrollDirection(moveY: number) {
-    const top = scrollViewWindowYRef.current;
-    const height =
-      scrollViewHeightRef.current ||
-      Dimensions.get("window").height;
-    const bottom = top + height;
-    const topDistance = moveY - top;
-    const bottomDistance = bottom - moveY;
-
-    if (topDistance < DRAG_AUTO_SCROLL_EDGE) {
-      return -1;
-    }
-
-    if (bottomDistance < DRAG_AUTO_SCROLL_EDGE) {
-      return 1;
-    }
-
-    return 0;
-  }
-
-  function stopDragAutoScroll() {
-    if (dragAutoScrollFrameRef.current == null) return;
-
-    cancelAnimationFrame(dragAutoScrollFrameRef.current);
-    dragAutoScrollFrameRef.current = null;
-    dragAutoScrollLastTimestampRef.current = null;
-  }
-
-  function runDragAutoScrollStep(timestamp: number) {
-    const practiceId = draggingPracticeIdRef.current;
-    const moveY = dragLatestMoveYRef.current;
-
-    if (!practiceId || moveY == null) {
-      dragAutoScrollFrameRef.current = null;
-      dragAutoScrollLastTimestampRef.current = null;
-      return;
-    }
-
-    const direction = getDragAutoScrollDirection(moveY);
-
-    if (direction === 0) {
-      dragAutoScrollFrameRef.current = null;
-      dragAutoScrollLastTimestampRef.current = null;
-      return;
-    }
-
-    const lastTimestamp =
-      dragAutoScrollLastTimestampRef.current ?? timestamp;
-    const elapsedMs = Math.min(
-      DRAG_AUTO_SCROLL_MAX_FRAME_MS,
-      Math.max(0, timestamp - lastTimestamp)
-    );
-
-    dragAutoScrollLastTimestampRef.current = timestamp;
-
-    if (elapsedMs > 0) {
-      const scrollDelta =
-        direction *
-        DRAG_AUTO_SCROLL_SPEED_PER_SECOND *
-        (elapsedMs / 1000);
-      const maxScrollY = getMaxScrollY();
-      const nextScrollY = Math.round(
-        Math.max(
-          0,
-          Math.min(maxScrollY, scrollYRef.current + scrollDelta)
-        )
-      );
-
-      if (nextScrollY !== scrollYRef.current) {
-        scrollYRef.current = nextScrollY;
-        updatePracticeDragPosition(
-          practiceId,
-          dragLatestDyRef.current
-        );
-        scrollViewRef.current?.scrollTo({
-          y: nextScrollY,
-          animated: false,
-        });
-      }
-    }
-
-    if (draggingPracticeIdRef.current) {
-      dragAutoScrollFrameRef.current = requestAnimationFrame(
-        runDragAutoScrollStep
-      );
-    } else {
-      dragAutoScrollFrameRef.current = null;
-      dragAutoScrollLastTimestampRef.current = null;
-    }
-  }
-
-  function startDragAutoScroll() {
-    if (dragAutoScrollFrameRef.current != null) return;
-
-    dragAutoScrollLastTimestampRef.current = null;
-    dragAutoScrollFrameRef.current = requestAnimationFrame(
-      runDragAutoScrollStep
-    );
-  }
-
-  function setDraggedOverlayTop(top: number) {
-    dragOverlayTranslateY.setValue(top);
-  }
-
-  function updateDraggedVisualPosition(practiceId: string, dy: number) {
-    if (draggingPracticeIdRef.current !== practiceId) return;
-
-    const startLayout = dragStartLayoutRef.current;
-
-    if (!startLayout) return;
-
-    const startOverlayTop = dragStartOverlayTopRef.current;
-
-    if (startOverlayTop != null) {
-      setDraggedOverlayTop(startOverlayTop + dy);
-    }
-
-    const scrollDelta =
-      scrollYRef.current - dragStartScrollYRef.current;
-    dragVisualTopYRef.current =
-      startLayout.y +
-      dy +
-      scrollDelta;
-  }
-
-  function beginPracticeDrag(practiceId: string) {
-    const layoutSnapshot = { ...practiceCardLayoutsRef.current };
-    const startLayout = layoutSnapshot[practiceId] ?? null;
-    const draggedPractice =
-      practicesRef.current.find(practice => practice.id === practiceId) ??
-      null;
-
-    if (!startLayout || !draggedPractice) return;
-
-    updateScrollViewWindowMetrics();
-    updateDashboardRootWindowMetrics();
-    updateDashboardContentWindowMetrics();
-    dragOverlayTranslateY.stopAnimation();
-    draggingPracticeIdRef.current = practiceId;
-    dragStartLayoutsRef.current = layoutSnapshot;
-    dragStartLayoutRef.current = startLayout;
-    dragStartOrderRef.current =
-      practicesRef.current.map(practice => practice.id);
-    dragStartPracticesRef.current = practicesRef.current;
-    dragCurrentOrderRef.current = dragStartOrderRef.current;
-    setDragPreviewOrderIds(dragStartOrderRef.current);
-    dragStartScrollYRef.current = scrollYRef.current;
-    dragStartOverlayTopRef.current = null;
-    dragLatestDyRef.current = 0;
-    dragLatestMoveYRef.current = null;
-    dragAutoScrollLastTimestampRef.current = null;
-    dragMovedRef.current = false;
-    suppressCardPressRef.current = true;
-    dragVisualTopYRef.current = startLayout?.y ?? null;
-    showDragOverlayFromMeasuredCard(
-      practiceId,
-      draggedPractice,
-      startLayout
-    );
-  }
-
-  function updatePracticeDragPosition(practiceId: string, dy: number) {
-    if (draggingPracticeIdRef.current !== practiceId) return;
-
-    const startLayout = dragStartLayoutRef.current;
-
-    if (!startLayout) return;
-
-    updateDraggedVisualPosition(practiceId, dy);
-
-    const nextVisualTopY = dragVisualTopYRef.current;
-    if (nextVisualTopY == null) return;
-
-    const draggedTopY = nextVisualTopY;
-    const startOrder = dragStartOrderRef.current;
-    const startLayouts = dragStartLayoutsRef.current;
-    let insertIndex = 0;
-
-    for (const orderedPracticeId of startOrder) {
-      if (orderedPracticeId === practiceId) continue;
-
-      const layout = startLayouts[orderedPracticeId];
-      if (!layout) continue;
-
-      if (draggedTopY > layout.y) {
-        insertIndex += 1;
-      }
-    }
-
-    const nextOrder =
-      reorderPracticeIds(
-        startOrder,
-        practiceId,
-        insertIndex
-      );
-
-    if (samePracticeIdOrder(dragCurrentOrderRef.current, nextOrder)) return;
-
-    dragCurrentOrderRef.current = nextOrder;
-    startTransition(() => {
-      setDragPreviewOrderIds(nextOrder);
-    });
-  }
-
-  function movePracticeDrag(
-    practiceId: string,
-    dy: number,
-    moveY: number
-  ) {
-    if (draggingPracticeIdRef.current !== practiceId) return;
-
-    dragLatestDyRef.current = dy;
-    dragLatestMoveYRef.current = moveY;
-
-    if (Math.abs(dy) > 4) {
-      dragMovedRef.current = true;
-    }
-
-    updatePracticeDragPosition(practiceId, dy);
-
-    if (getDragAutoScrollDirection(moveY) === 0) {
-      stopDragAutoScroll();
-    } else {
-      startDragAutoScroll();
-    }
-  }
-
-  function finishPracticeDrag() {
-    const draggedPracticeId = draggingPracticeIdRef.current;
-    const moved = dragMovedRef.current;
-    const startOrder = dragStartOrderRef.current;
-    const nextOrder =
-      dragCurrentOrderRef.current.length > 0
-        ? dragCurrentOrderRef.current
-        : startOrder;
-    const orderChanged =
-      startOrder.length === nextOrder.length &&
-      startOrder.some((practiceId, index) => practiceId !== nextOrder[index]);
-    const startLayouts = dragStartLayoutsRef.current;
-    const targetSlotIndex =
-      draggedPracticeId ? nextOrder.indexOf(draggedPracticeId) : -1;
-    const targetSlotId =
-      targetSlotIndex >= 0 ? startOrder[targetSlotIndex] : null;
-    const targetSlotLayout =
-      targetSlotId ? startLayouts[targetSlotId] : null;
-    const finalPractices =
-      orderChanged ? buildPracticesFromOrder(nextOrder) : [];
-    const startLayout = dragStartLayoutRef.current;
-    const startOverlayTop = dragStartOverlayTopRef.current;
-    const scrollDelta =
-      scrollYRef.current - dragStartScrollYRef.current;
-    const releaseTop =
-      targetSlotLayout && startLayout && startOverlayTop != null
-        ? startOverlayTop +
-        (targetSlotLayout.y - startLayout.y) -
-        scrollDelta
-        : targetSlotLayout
-          ? getOverlayTopFromLayout(targetSlotLayout)
-          : startOverlayTop ?? 0;
-
-    draggingPracticeIdRef.current = null;
-    stopDragAutoScroll();
-    dragStartLayoutsRef.current = {};
-    dragStartLayoutRef.current = null;
-    dragStartOrderRef.current = [];
-    dragStartScrollYRef.current = 0;
-    dragStartOverlayTopRef.current = null;
-    dragLatestDyRef.current = 0;
-    dragLatestMoveYRef.current = null;
-    dragMovedRef.current = false;
-    dragVisualTopYRef.current = null;
-
-    Animated.timing(dragOverlayTranslateY, {
-      toValue: releaseTop,
-      duration: DRAG_RELEASE_ANIMATION_MS,
-      useNativeDriver: true,
-    }).start(() => {
-      unstable_batchedUpdates(() => {
-        setDragPreviewOrderIds(null);
-        setDraggingPracticeId(null);
-        setDragOverlayPractice(null);
-        setDragOverlayFrame(null);
-
-        if (orderChanged && finalPractices.length === nextOrder.length) {
-          practicesRef.current = finalPractices;
-          setPractices(finalPractices);
-        }
-
-        dragStartPracticesRef.current = [];
-        dragCurrentOrderRef.current = [];
-      });
-
-      if (!draggedPracticeId || !moved || !orderChanged) return;
-
-      try {
-        practiceService.reorderPractices(nextOrder);
-      } catch (error: any) {
-        alert(error.message);
-        refreshDashboard();
-      }
-    });
-
-    setTimeout(() => {
-      suppressCardPressRef.current = false;
-    }, 120);
-  }
-
-  function createDragPanHandlers(practiceId: string) {
-    if (!dragPanHandlersRef.current[practiceId]) {
-      dragPanHandlersRef.current[practiceId] =
-        PanResponder.create({
-          onStartShouldSetPanResponder: () => true,
-          onStartShouldSetPanResponderCapture: () => true,
-          onMoveShouldSetPanResponder: () => true,
-          onMoveShouldSetPanResponderCapture: () => true,
-          onPanResponderGrant: () => beginPracticeDrag(practiceId),
-          onPanResponderMove: (_, gestureState) =>
-            movePracticeDrag(
-              practiceId,
-              gestureState.dy,
-              gestureState.moveY
-            ),
-          onPanResponderRelease: finishPracticeDrag,
-          onPanResponderTerminate: finishPracticeDrag,
-          onPanResponderTerminationRequest: () => false,
-          onShouldBlockNativeResponder: () => true,
-        }).panHandlers;
-    }
-
-    return dragPanHandlersRef.current[practiceId];
   }
 
   async function quickAdd(practice: Practice) {
@@ -909,7 +393,7 @@ export default function Dashboard() {
           {
             left: dragOverlayFrame.left,
             width: dragOverlayFrame.width,
-            transform: [{ translateY: dragOverlayTranslateY }],
+            transform: [{ translateY: dragReorder.overlayTranslateY }],
           }
         ]}
       >
@@ -1031,56 +515,47 @@ export default function Dashboard() {
     );
   }
 
-  const practiceById = useMemo(
-    () => new Map(practices.map(practice => [practice.id, practice])),
-    [practices]
-  );
   const renderedPractices = useMemo(
-    () =>
-      dragPreviewOrderIds
-        ? dragPreviewOrderIds
-          .map(practiceId => practiceById.get(practiceId))
-          .filter((practice): practice is Practice => Boolean(practice))
-        : practices,
-    [dragPreviewOrderIds, practiceById, practices]
+    () => getDragPreviewItems(practices, dragPreviewOrderIds),
+    [dragPreviewOrderIds, practices]
   );
 
   return (
 
     <View
-      ref={dashboardRootRef}
+      ref={dragReorder.rootRef}
       style={styles.dashboardRoot}
-      onLayout={updateDashboardRootWindowMetrics}
+      onLayout={() => dragReorder.updateRootWindowMetrics()}
     >
       <ScrollView
-      ref={scrollViewRef}
+      ref={dragReorder.scrollViewRef}
       style={containers.screen}
       contentContainerStyle={{ paddingBottom: 30 }}
       scrollEnabled={draggingPracticeId === null}
       scrollEventThrottle={16}
       onScroll={(event) => {
-        if (draggingPracticeIdRef.current) return;
-
-        scrollYRef.current = event.nativeEvent.contentOffset.y;
+        dragReorder.setScrollY(event.nativeEvent.contentOffset.y);
       }}
       onContentSizeChange={(_width, height) => {
-        scrollContentHeightRef.current = height;
+        dragReorder.setScrollContentHeight(height);
       }}
       onLayout={(event) => {
-        scrollViewHeightRef.current = event.nativeEvent.layout.height;
-        updateScrollViewWindowMetrics();
+        dragReorder.handleScrollViewLayout(
+          event.nativeEvent.layout.height
+        );
       }}
     >
       <View
-        ref={dashboardContentRef}
+        ref={dragReorder.contentRef}
         style={{
           width: "100%",
           maxWidth: 700,
           alignSelf: "center"
         }}
         onLayout={(event) => {
-          dashboardContentXRef.current = event.nativeEvent.layout.x;
-          updateDashboardContentWindowMetrics();
+          dragReorder.handleContentLayout(
+            event.nativeEvent.layout.x
+          );
         }}
       >
         <View style={styles.streakContainer}>
@@ -1131,7 +606,7 @@ export default function Dashboard() {
               key={practice.id}
               layout={draggingPracticeId ? practiceCardLayoutTransition : undefined}
               ref={(node) => {
-                practiceCardRefs.current[practice.id] =
+                dragReorder.cardRefs[practice.id] =
                   node as unknown as View | null;
               }}
               style={[
@@ -1140,17 +615,17 @@ export default function Dashboard() {
                 styles.cardDraggingPlaceholder,
               ]}
               onLayout={(event) => {
-                practiceCardLayoutsRef.current[practice.id] = {
+                dragReorder.setCardLayout(practice.id, {
                   x: event.nativeEvent.layout.x,
                   y: event.nativeEvent.layout.y,
                   width: event.nativeEvent.layout.width,
                   height: event.nativeEvent.layout.height,
-                };
+                });
               }}
             >
               <TouchableOpacity
                 onPress={() => {
-                  if (suppressCardPressRef.current) return;
+                  if (dragReorder.isPressSuppressed()) return;
 
                   router.push({
                     pathname: "/practice",
@@ -1173,7 +648,7 @@ export default function Dashboard() {
                   <View style={styles.practiceNameRow}>
                     <View
                       style={styles.dragHandle}
-                      {...createDragPanHandlers(practice.id)}
+                      {...dragReorder.getPanHandlers(practice.id)}
                       accessibilityRole="adjustable"
                       accessibilityLabel={`${t("dashboard.reorderPractice")}: ${practiceDisplayName}`}
                     >
