@@ -10,14 +10,33 @@ export function createPractice(
     name: string,
     target: number,
     dailyTargetCount: number | null = null,
-    defaultSessionCount: number = 108
+    defaultSessionCount: number = 108,
+    imageKey: string | null = null
 ) {
     return getAppOperationEngine().createPractice(
         name,
         target,
         dailyTargetCount,
-        defaultSessionCount
+        defaultSessionCount,
+        imageKey
     );
+}
+
+export function createSeedPractice(
+    seedPracticeId: string,
+    options: {
+        targetCount?: number;
+        defaultSessionCount?: number;
+    } = {}
+) {
+    return getAppOperationEngine().createSeedPractice(
+        seedPracticeId,
+        options
+    );
+}
+
+export function reorderPractices(orderedPracticeIds: string[]) {
+    getAppOperationEngine().reorderPractices(orderedPracticeIds);
 }
 
 export function updatePractice(

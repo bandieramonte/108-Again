@@ -98,6 +98,16 @@ export const en = {
     "form.totalCount": "Total count",
     "form.totalCountSoFar": "Total count so far",
 
+    "addPractice.customInstead": "Custom instead",
+    "addPractice.customPractice": "Create custom practice",
+    "addPractice.customPracticeDescription": "Add a new practice with your own name, target, default session count, and optional image.",
+    "addPractice.fixedSeedImage": "Seed practice image is fixed.",
+    "addPractice.noImageSelected": "Optional. If you do not choose one, the generic image will be used.",
+    "addPractice.optionalImage": "Practice image",
+    "addPractice.restoreSeedPractice": "Restore a default practice",
+    "addPractice.seedPractice": "Default practice",
+    "addPractice.seedPracticeDescription": "Choose a deleted default practice to add it again with its original image and default name.",
+
     "language.english": "English",
     "language.russian": "Russian",
     "language.spanish": "Spanish",
@@ -174,6 +184,7 @@ export const en = {
     "dashboard.infoStreak": "Your streak shows how many consecutive days you did any practice at least once.",
     "dashboard.infoTitle": "Dashboard Info",
     "dashboard.quickAddTip": "Tip: Long press this button to change the default session count.",
+    "dashboard.reorderPractice": "Reorder practice",
     "dashboard.setDailyTarget": "Set daily target",
     "dashboard.streak": "{{count}} {{unit}} streak",
     "dashboard.streakDay": "day",
@@ -217,6 +228,11 @@ export const en = {
     "practice.targetDate": "Target Date",
     "practice.totalProgress": "Total Progress",
     "practice.valueCannotBeNegative": "Value cannot be negative",
+
+    "practiceImage.generic": "Default image",
+    "practiceImage.greenTara": "Green Tara",
+    "practiceImage.lovingEyes": "Loving Eyes",
+    "practiceImage.whiteLiberatrice": "White Tara",
 
     "practiceMenu.calendar": "Practice calendar",
     "practiceMenu.delete": "Delete practice",

@@ -100,6 +100,16 @@ export const ru: Record<TranslationKey, string> = {
     "form.totalCount": "Общее количество",
     "form.totalCountSoFar": "Общее количество сейчас",
 
+    "addPractice.customInstead": "Своя практика",
+    "addPractice.customPractice": "Создать свою практику",
+    "addPractice.customPracticeDescription": "Добавьте новую практику со своим названием, целью, количеством в сеансе и необязательной картинкой.",
+    "addPractice.fixedSeedImage": "Картинка исходной практики фиксирована.",
+    "addPractice.noImageSelected": "Необязательно. Если ничего не выбрать, будет использована стандартная картинка.",
+    "addPractice.optionalImage": "Картинка практики",
+    "addPractice.restoreSeedPractice": "Восстановить практику по умолчанию",
+    "addPractice.seedPractice": "Практика по умолчанию",
+    "addPractice.seedPracticeDescription": "Выберите удалённую практику по умолчанию, чтобы добавить её снова с исходной картинкой и названием.",
+
     "language.english": "Английский",
     "language.russian": "Русский",
     "language.spanish": "Испанский",
@@ -178,6 +188,7 @@ export const ru: Record<TranslationKey, string> = {
     "dashboard.infoStreak": "Серия показывает, сколько дней подряд вы выполняли любую практику хотя бы один раз.",
     "dashboard.infoTitle": "Информация о панели",
     "dashboard.quickAddTip": "Подсказка: удерживайте эту кнопку, чтобы изменить количество в сеансе по умолчанию.",
+    "dashboard.reorderPractice": "Изменить порядок практики",
     "dashboard.setDailyTarget": "Задать дневную цель",
     "dashboard.streak": "{{count}} {{unit}} подряд",
     "dashboard.streakDay": "дн.",
@@ -221,6 +232,11 @@ export const ru: Record<TranslationKey, string> = {
     "practice.targetDate": "Целевая дата",
     "practice.totalProgress": "Общий прогресс",
     "practice.valueCannotBeNegative": "Значение не может быть отрицательным",
+
+    "practiceImage.generic": "Стандартная картинка",
+    "practiceImage.greenTara": "Зелёная Тара",
+    "practiceImage.lovingEyes": "Любящие Глаза",
+    "practiceImage.whiteLiberatrice": "Белая Тара",
 
     "practiceMenu.calendar": "Календарь практики",
     "practiceMenu.delete": "Удалить практику",

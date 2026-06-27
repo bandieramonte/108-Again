@@ -60,6 +60,11 @@ type OperationPracticeRepo = {
         defaultSessionCount: number,
         syncMetadata: SyncMetadata
     ): void;
+    updatePracticeOrder(
+        id: string,
+        orderIndex: number,
+        syncMetadata: SyncMetadata
+    ): void;
     updatePracticeTotalOffset(
         id: string,
         totalOffset: number,
@@ -245,7 +250,8 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         name: string,
         target: number,
         dailyTargetCount: number | null = null,
-        defaultSessionCount = 108
+        defaultSessionCount = 108,
+        imageKey: string | null = null
     ) {
         const practices = deps.practiceRepo.getAllPractices();
 
@@ -264,7 +270,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
             target,
             nextOrder,
             syncMetadata,
-            null,
+            imageKey,
             dailyTargetCount,
             defaultSessionCount,
             0
@@ -275,6 +281,89 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         void deps.requestSync?.(syncMetadata.userId);
 
         return id;
+    }
+
+    function createSeedPractice(
+        seedPracticeId: string,
+        options: {
+            targetCount?: number;
+            defaultSessionCount?: number;
+        } = {}
+    ) {
+        const defaultPractice =
+            DEFAULT_PRACTICES.find(practice => practice.id === seedPracticeId);
+
+        if (!defaultPractice) {
+            throw new Error(`Seed practice not found: ${seedPracticeId}`);
+        }
+
+        const practices = deps.practiceRepo.getAllPractices();
+
+        if (practices.some(practice => practice.id === seedPracticeId)) {
+            throw new Error("This seed practice is already active.");
+        }
+
+        if (practices.length >= 10) {
+            throw new Error("Maximum of 10 practices reached.");
+        }
+
+        const orderResult = deps.practiceRepo.getMaxOrderIndex();
+        const nextOrder = (orderResult.maxOrder ?? 0) + 1;
+        const syncMetadata = getWriteSyncMetadata();
+
+        deps.practiceRepo.insertPractice(
+            defaultPractice.id,
+            defaultPractice.name,
+            options.targetCount ?? defaultPractice.targetCount,
+            nextOrder,
+            syncMetadata,
+            defaultPractice.imageKey ?? null,
+            defaultPractice.dailyTargetCount ?? null,
+            options.defaultSessionCount ??
+                defaultPractice.defaultSessionCount ??
+                108,
+            defaultPractice.totalOffset ?? 0
+        );
+
+        deps.emitDataChanged?.();
+        refreshReminderForPractice(defaultPractice.id);
+        void deps.requestSync?.(syncMetadata.userId);
+
+        return defaultPractice.id;
+    }
+
+    function reorderPractices(orderedPracticeIds: string[]) {
+        const practices = deps.practiceRepo.getAllPractices();
+        const activeIds = new Set(practices.map(practice => practice.id));
+
+        if (orderedPracticeIds.length !== practices.length) {
+            throw new Error("Practice order does not include all practices.");
+        }
+
+        for (const practiceId of orderedPracticeIds) {
+            if (!activeIds.has(practiceId)) {
+                throw new Error(`Practice not found: ${practiceId}`);
+            }
+        }
+
+        if (new Set(orderedPracticeIds).size !== orderedPracticeIds.length) {
+            throw new Error("Practice order contains duplicate practices.");
+        }
+
+        const syncMetadata = getWriteSyncMetadata();
+
+        deps.transaction(() => {
+            orderedPracticeIds.forEach((practiceId, index) => {
+                deps.practiceRepo.updatePracticeOrder(
+                    practiceId,
+                    index + 1,
+                    syncMetadata
+                );
+            });
+        });
+
+        deps.emitDataChanged?.();
+        void deps.requestSync?.(syncMetadata.userId);
     }
 
     function updatePractice(
@@ -830,6 +919,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         addSession,
         adjustDayTotal,
         createPractice,
+        createSeedPractice,
         deletePractice,
         getAllPractices,
         getBackupData,
@@ -845,6 +935,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         getWriteSyncMetadata,
         restoreBackupData,
         restoreDefaults,
+        reorderPractices,
         updatePractice,
         updatePracticeDailyTargetCount,
         updatePracticeDefaultSessionCount,

@@ -100,6 +100,16 @@ export const es: Record<TranslationKey, string> = {
     "form.totalCount": "Conteo total",
     "form.totalCountSoFar": "Conteo total hasta ahora",
 
+    "addPractice.customInstead": "Personalizada",
+    "addPractice.customPractice": "Crear práctica personalizada",
+    "addPractice.customPracticeDescription": "Añade una nueva práctica con tu propio nombre, objetivo, sesión predeterminada e imagen opcional.",
+    "addPractice.fixedSeedImage": "La imagen de la práctica semilla es fija.",
+    "addPractice.noImageSelected": "Opcional. Si no eliges una, se usará la imagen genérica.",
+    "addPractice.optionalImage": "Imagen de la práctica",
+    "addPractice.restoreSeedPractice": "Restaurar una práctica predeterminada",
+    "addPractice.seedPractice": "Práctica predeterminada",
+    "addPractice.seedPracticeDescription": "Elige una práctica predeterminada eliminada para añadirla de nuevo con su imagen y nombre originales.",
+
     "language.english": "Inglés",
     "language.russian": "Ruso",
     "language.spanish": "Español",
@@ -176,6 +186,7 @@ export const es: Record<TranslationKey, string> = {
     "dashboard.infoStreak": "Tu racha muestra cuántos días consecutivos hiciste alguna práctica al menos una vez.",
     "dashboard.infoTitle": "Información del panel",
     "dashboard.quickAddTip": "Consejo: mantén pulsado este botón para cambiar el conteo predeterminado por sesión.",
+    "dashboard.reorderPractice": "Reordenar práctica",
     "dashboard.setDailyTarget": "Establecer objetivo diario",
     "dashboard.streak": "{{count}} {{unit}} de racha",
     "dashboard.streakDay": "día",
@@ -219,6 +230,11 @@ export const es: Record<TranslationKey, string> = {
     "practice.targetDate": "Fecha objetivo",
     "practice.totalProgress": "Progreso total",
     "practice.valueCannotBeNegative": "El valor no puede ser negativo",
+
+    "practiceImage.generic": "Imagen predeterminada",
+    "practiceImage.greenTara": "Tara Verde",
+    "practiceImage.lovingEyes": "Ojos Amorosos",
+    "practiceImage.whiteLiberatrice": "Tara Blanca",
 
     "practiceMenu.calendar": "Calendario de práctica",
     "practiceMenu.delete": "Eliminar práctica",

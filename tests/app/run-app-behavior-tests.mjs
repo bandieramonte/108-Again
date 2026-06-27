@@ -33,6 +33,8 @@ Module._load = function loadWithAsyncStorageMock(request, parent, isMain) {
 
 const { initializeDatabaseSchema } =
   require("../.build/database/schema.js");
+const { DEFAULT_PRACTICES } =
+  require("../.build/constants/defaultPractices.js");
 const { createAppMetaRepo } =
   require("../.build/repositories/appMetaRepoFactory.js");
 const { createDeletedRecordRepo } =
@@ -433,6 +435,106 @@ await test(
     );
     assert.equal(restoredPractice.dailyTargetCount, 500);
     assert.equal(restoredPractice.defaultSessionCount, 125);
+  }
+);
+
+await test(
+  "custom practice images and reordered cards round trip through backup",
+  async () => {
+    const source = makeLocalDevice();
+    const firstPracticeId = source.operations.createPractice(
+      "Custom Image One",
+      10000,
+      null,
+      108,
+      "green-tara"
+    );
+    const secondPracticeId = source.operations.createPractice(
+      "Custom Image Two",
+      20000,
+      null,
+      54,
+      "loving-eyes"
+    );
+    const activeIds =
+      source.practiceRepo.getAllPractices().map(practice => practice.id);
+    const reorderedIds = [
+      secondPracticeId,
+      ...activeIds.filter(practiceId => practiceId !== secondPracticeId),
+    ];
+
+    source.operations.reorderPractices(reorderedIds);
+
+    const reorderedRows = source.practiceRepo.getAllPractices();
+    assert.equal(reorderedRows[0].id, secondPracticeId);
+    assert.equal(
+      source.practiceRepo.getPracticeById(firstPracticeId).imageKey,
+      "green-tara"
+    );
+    assert.equal(
+      source.practiceRepo.getPracticeById(secondPracticeId).imageKey,
+      "loving-eyes"
+    );
+
+    const backup = source.operations.getBackupData();
+    const exportedSecondPractice = backup.practices.find(
+      practice => practice.id === secondPracticeId
+    );
+
+    assert.equal(exportedSecondPractice.imageKey, "loving-eyes");
+    assert.equal(exportedSecondPractice.orderIndex, 1);
+    assert.doesNotThrow(() => validateBackup(backup));
+
+    const destination = makeLocalDevice();
+    await destination.operations.restoreBackupData(backup);
+
+    const restoredRows = destination.practiceRepo.getAllPractices();
+    assert.equal(restoredRows[0].id, secondPracticeId);
+    assert.equal(
+      destination.practiceRepo.getPracticeById(firstPracticeId).imageKey,
+      "green-tara"
+    );
+    assert.equal(
+      destination.practiceRepo.getPracticeById(secondPracticeId).imageKey,
+      "loving-eyes"
+    );
+  }
+);
+
+await test(
+  "deleted seed practices can be restored with their fixed image",
+  async () => {
+    const device = makeLocalDevice();
+    const seedPractice = DEFAULT_PRACTICES[2];
+
+    await device.operations.restoreDefaults();
+    await device.operations.deletePractice(seedPractice.id);
+    assert.equal(
+      device.practiceRepo.getPracticeById(seedPractice.id),
+      null
+    );
+
+    const restoredPracticeId =
+      device.operations.createSeedPractice(
+        seedPractice.id,
+        {
+          targetCount: 222222,
+          defaultSessionCount: 216,
+        }
+      );
+    const restoredPractice =
+      device.practiceRepo.getPracticeById(restoredPracticeId);
+
+    assert.equal(restoredPracticeId, seedPractice.id);
+    assert.equal(restoredPractice.name, seedPractice.name);
+    assert.equal(restoredPractice.targetCount, 222222);
+    assert.equal(restoredPractice.imageKey, seedPractice.imageKey);
+    assert.equal(restoredPractice.dailyTargetCount, null);
+    assert.equal(restoredPractice.defaultSessionCount, 216);
+    assert.throws(
+      () => device.operations.createSeedPractice(seedPractice.id),
+      /already active/
+    );
   }
 );
 
