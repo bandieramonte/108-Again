@@ -3,8 +3,9 @@ import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Dimensions, Image, LayoutAnimation, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View } from "react-native";
+import { Animated, Dimensions, Image, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, unstable_batchedUpdates, View } from "react-native";
 import * as Progress from "react-native-progress";
+import Reanimated, { LinearTransition } from "react-native-reanimated";
 import CelebrationOverlay from "../components/CelebrationOverlay";
 import DailyGoalProgress from "../components/DailyGoalProgress";
 import PracticeActionsMenu, {
@@ -57,13 +58,8 @@ const DRAG_AUTO_SCROLL_SPEED_PER_SECOND = 360;
 const DRAG_AUTO_SCROLL_MAX_FRAME_MS = 32;
 const DRAG_REORDER_ANIMATION_MS = 150;
 const DRAG_RELEASE_ANIMATION_MS = 120;
-
-function isReactNativeNewArchitectureEnabled() {
-  return Boolean(
-    (globalThis as any).nativeFabricUIManager ||
-    (globalThis as any).RN$Bridgeless
-  );
-}
+const practiceCardLayoutTransition =
+  LinearTransition.duration(DRAG_REORDER_ANIMATION_MS);
 
 function getStreakFireSize(streak: number) {
   const cappedStreak =
@@ -103,8 +99,10 @@ export default function Dashboard() {
   const dashboardContentXRef = useRef(0);
   const dashboardRootRef = useRef<View | null>(null);
   const dashboardRootWindowXRef = useRef(0);
+  const dashboardRootWindowYRef = useRef(0);
   const dashboardContentRef = useRef<View | null>(null);
   const dashboardContentWindowXRef = useRef(0);
+  const dashboardContentWindowYRef = useRef(0);
   const quickAddRefs = useRef<Record<string, View | null>>({});
   const practiceRowRefs = useRef<Record<string, View | null>>({});
   const practiceCardRefs = useRef<Record<string, View | null>>({});
@@ -123,9 +121,12 @@ export default function Dashboard() {
   const draggingPracticeIdRef = useRef<string | null>(null);
   const dragStartLayoutRef = useRef<CardLayout | null>(null);
   const dragStartOrderRef = useRef<string[]>([]);
+  const dragStartPracticesRef = useRef<Practice[]>([]);
+  const dragCurrentOrderRef = useRef<string[]>([]);
   const dragMovedRef = useRef(false);
   const suppressCardPressRef = useRef(false);
   const [draggingPracticeId, setDraggingPracticeId] = useState<string | null>(null);
+  const [dragPreviewOrderIds, setDragPreviewOrderIds] = useState<string[] | null>(null);
   const [dragOverlayPractice, setDragOverlayPractice] = useState<Practice | null>(null);
   const [dragOverlayFrame, setDragOverlayFrame] = useState<DragOverlayFrame | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
@@ -178,16 +179,6 @@ export default function Dashboard() {
   useEffect(() => {
     practicesRef.current = practices;
   }, [practices]);
-
-  useEffect(() => {
-    if (
-      Platform.OS === "android" &&
-      !isReactNativeNewArchitectureEnabled() &&
-      UIManager.setLayoutAnimationEnabledExperimental
-    ) {
-      UIManager.setLayoutAnimationEnabledExperimental(true);
-    }
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -259,31 +250,44 @@ export default function Dashboard() {
     });
   }
 
-  function samePracticeOrder(left: Practice[], right: Practice[]) {
+  function samePracticeIdOrder(left: string[], right: string[]) {
     if (left.length !== right.length) return false;
 
-    return left.every((practice, index) => practice.id === right[index]?.id);
+    return left.every((practiceId, index) => practiceId === right[index]);
   }
 
-  function reorderPracticeList(
-    list: Practice[],
+  function reorderPracticeIds(
+    orderedPracticeIds: string[],
     practiceId: string,
     insertIndex: number
   ) {
-    const draggedPractice =
-      list.find(practice => practice.id === practiceId);
-
-    if (!draggedPractice) return list;
+    if (!orderedPracticeIds.includes(practiceId)) {
+      return orderedPracticeIds;
+    }
 
     const withoutDragged =
-      list.filter(practice => practice.id !== practiceId);
+      orderedPracticeIds.filter(id => id !== practiceId);
     const clampedIndex =
       Math.max(0, Math.min(insertIndex, withoutDragged.length));
     const next = [...withoutDragged];
 
-    next.splice(clampedIndex, 0, draggedPractice);
+    next.splice(clampedIndex, 0, practiceId);
 
     return next;
+  }
+
+  function buildPracticesFromOrder(orderedPracticeIds: string[]) {
+    const practiceById =
+      new Map(
+        dragStartPracticesRef.current.map(practice => [
+          practice.id,
+          practice,
+        ])
+      );
+
+    return orderedPracticeIds
+      .map(practiceId => practiceById.get(practiceId))
+      .filter((practice): practice is Practice => Boolean(practice));
   }
 
   function updateScrollViewWindowMetrics() {
@@ -301,16 +305,18 @@ export default function Dashboard() {
 
   function updateDashboardRootWindowMetrics() {
     (dashboardRootRef.current as any)?.measureInWindow?.(
-      (x: number) => {
+      (x: number, y: number) => {
         dashboardRootWindowXRef.current = x;
+        dashboardRootWindowYRef.current = y;
       }
     );
   }
 
   function updateDashboardContentWindowMetrics() {
     (dashboardContentRef.current as any)?.measureInWindow?.(
-      (x: number) => {
+      (x: number, y: number) => {
         dashboardContentWindowXRef.current = x;
+        dashboardContentWindowYRef.current = y;
       }
     );
   }
@@ -326,7 +332,35 @@ export default function Dashboard() {
       layout.x;
   }
 
-  function updateDragOverlayFrameFromMeasuredCard(practiceId: string) {
+  function getOverlayTopFromLayout(layout: CardLayout) {
+    if (dashboardContentWindowYRef.current) {
+      return dashboardContentWindowYRef.current -
+        dashboardRootWindowYRef.current +
+        layout.y;
+    }
+
+    const scrollDelta =
+      scrollYRef.current - dragStartScrollYRef.current;
+    const startLayout = dragStartLayoutRef.current;
+    const startOverlayTop = dragStartOverlayTopRef.current;
+
+    if (startLayout && startOverlayTop != null) {
+      return startOverlayTop +
+        (layout.y - startLayout.y) -
+        scrollDelta;
+    }
+
+    return scrollViewWindowYRef.current -
+      dashboardRootWindowYRef.current +
+      layout.y -
+      scrollYRef.current;
+  }
+
+  function showDragOverlayFromMeasuredCard(
+    practiceId: string,
+    draggedPractice: Practice,
+    fallbackLayout: CardLayout
+  ) {
     const rootNode = dashboardRootRef.current as any;
     const cardNode = practiceCardRefs.current[practiceId] as any;
 
@@ -334,20 +368,43 @@ export default function Dashboard() {
       !rootNode?.measureInWindow ||
       !cardNode?.measureInWindow
     ) {
+      const fallbackTop = getOverlayTopFromLayout(fallbackLayout);
+
+      dragStartOverlayTopRef.current = fallbackTop;
+      setDraggedOverlayTop(fallbackTop + dragLatestDyRef.current);
+      setDragOverlayPractice(draggedPractice);
+      setDragOverlayFrame({
+        left: getOverlayLeftFromLayout(fallbackLayout),
+        width: fallbackLayout.width,
+      });
+      setDraggingPracticeId(practiceId);
       return;
     }
 
-    rootNode.measureInWindow((rootX: number) => {
+    rootNode.measureInWindow((rootX: number, rootY: number) => {
       dashboardRootWindowXRef.current = rootX;
+      dashboardRootWindowYRef.current = rootY;
 
       cardNode.measureInWindow(
-        (cardX: number, _cardY: number, width: number) => {
+        (
+          cardX: number,
+          cardY: number,
+          width: number
+        ) => {
           if (draggingPracticeIdRef.current !== practiceId) return;
 
+          const startOverlayTop = cardY - rootY;
+
+          dragStartOverlayTopRef.current = startOverlayTop;
+          setDraggedOverlayTop(
+            startOverlayTop + dragLatestDyRef.current
+          );
+          setDragOverlayPractice(draggedPractice);
           setDragOverlayFrame({
             left: cardX - rootX,
             width,
           });
+          setDraggingPracticeId(practiceId);
         }
       );
     });
@@ -460,15 +517,6 @@ export default function Dashboard() {
     );
   }
 
-  function configureDragReorderAnimation() {
-    LayoutAnimation.configureNext({
-      duration: DRAG_REORDER_ANIMATION_MS,
-      update: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-      },
-    });
-  }
-
   function setDraggedOverlayTop(top: number) {
     dragOverlayTranslateY.setValue(top);
   }
@@ -512,22 +560,22 @@ export default function Dashboard() {
     dragStartLayoutRef.current = startLayout;
     dragStartOrderRef.current =
       practicesRef.current.map(practice => practice.id);
+    dragStartPracticesRef.current = practicesRef.current;
+    dragCurrentOrderRef.current = dragStartOrderRef.current;
+    setDragPreviewOrderIds(dragStartOrderRef.current);
     dragStartScrollYRef.current = scrollYRef.current;
-    dragStartOverlayTopRef.current = startLayout.y - scrollYRef.current;
+    dragStartOverlayTopRef.current = null;
     dragLatestDyRef.current = 0;
     dragLatestMoveYRef.current = null;
     dragAutoScrollLastTimestampRef.current = null;
     dragMovedRef.current = false;
     suppressCardPressRef.current = true;
     dragVisualTopYRef.current = startLayout?.y ?? null;
-    setDraggedOverlayTop(dragStartOverlayTopRef.current);
-    setDragOverlayPractice(draggedPractice);
-    setDragOverlayFrame({
-      left: getOverlayLeftFromLayout(startLayout),
-      width: startLayout.width,
-    });
-    setDraggingPracticeId(practiceId);
-    updateDragOverlayFrameFromMeasuredCard(practiceId);
+    showDragOverlayFromMeasuredCard(
+      practiceId,
+      draggedPractice,
+      startLayout
+    );
   }
 
   function updatePracticeDragPosition(practiceId: string, dy: number) {
@@ -543,7 +591,6 @@ export default function Dashboard() {
     if (nextVisualTopY == null) return;
 
     const draggedTopY = nextVisualTopY;
-    const currentPractices = practicesRef.current;
     const startOrder = dragStartOrderRef.current;
     const startLayouts = dragStartLayoutsRef.current;
     let insertIndex = 0;
@@ -559,18 +606,17 @@ export default function Dashboard() {
       }
     }
 
-    const nextPractices =
-      reorderPracticeList(
-        currentPractices,
+    const nextOrder =
+      reorderPracticeIds(
+        startOrder,
         practiceId,
         insertIndex
       );
 
-    if (samePracticeOrder(currentPractices, nextPractices)) return;
+    if (samePracticeIdOrder(dragCurrentOrderRef.current, nextOrder)) return;
 
-    practicesRef.current = nextPractices;
-    configureDragReorderAnimation();
-    setPractices(nextPractices);
+    dragCurrentOrderRef.current = nextOrder;
+    setDragPreviewOrderIds(nextOrder);
   }
 
   function movePracticeDrag(
@@ -601,10 +647,33 @@ export default function Dashboard() {
     const moved = dragMovedRef.current;
     const startOrder = dragStartOrderRef.current;
     const nextOrder =
-      practicesRef.current.map(practice => practice.id);
+      dragCurrentOrderRef.current.length > 0
+        ? dragCurrentOrderRef.current
+        : startOrder;
     const orderChanged =
       startOrder.length === nextOrder.length &&
       startOrder.some((practiceId, index) => practiceId !== nextOrder[index]);
+    const startLayouts = dragStartLayoutsRef.current;
+    const targetSlotIndex =
+      draggedPracticeId ? nextOrder.indexOf(draggedPracticeId) : -1;
+    const targetSlotId =
+      targetSlotIndex >= 0 ? startOrder[targetSlotIndex] : null;
+    const targetSlotLayout =
+      targetSlotId ? startLayouts[targetSlotId] : null;
+    const finalPractices =
+      orderChanged ? buildPracticesFromOrder(nextOrder) : [];
+    const startLayout = dragStartLayoutRef.current;
+    const startOverlayTop = dragStartOverlayTopRef.current;
+    const scrollDelta =
+      scrollYRef.current - dragStartScrollYRef.current;
+    const releaseTop =
+      targetSlotLayout && startLayout && startOverlayTop != null
+        ? startOverlayTop +
+        (targetSlotLayout.y - startLayout.y) -
+        scrollDelta
+        : targetSlotLayout
+          ? getOverlayTopFromLayout(targetSlotLayout)
+          : startOverlayTop ?? 0;
 
     draggingPracticeIdRef.current = null;
     stopDragAutoScroll();
@@ -617,37 +686,40 @@ export default function Dashboard() {
     dragLatestMoveYRef.current = null;
     dragMovedRef.current = false;
     dragVisualTopYRef.current = null;
-    const finalLayout =
-      draggedPracticeId
-        ? practiceCardLayoutsRef.current[draggedPracticeId]
-        : null;
-    const releaseTop =
-      finalLayout
-        ? finalLayout.y - scrollYRef.current
-        : 0;
 
     Animated.timing(dragOverlayTranslateY, {
       toValue: releaseTop,
       duration: DRAG_RELEASE_ANIMATION_MS,
       useNativeDriver: true,
     }).start(() => {
-      setDraggingPracticeId(null);
-      setDragOverlayPractice(null);
-      setDragOverlayFrame(null);
+      unstable_batchedUpdates(() => {
+        setDragPreviewOrderIds(null);
+        setDraggingPracticeId(null);
+        setDragOverlayPractice(null);
+        setDragOverlayFrame(null);
+
+        if (orderChanged && finalPractices.length === nextOrder.length) {
+          practicesRef.current = finalPractices;
+          setPractices(finalPractices);
+        }
+
+        dragStartPracticesRef.current = [];
+        dragCurrentOrderRef.current = [];
+      });
+
+      if (!draggedPracticeId || !moved || !orderChanged) return;
+
+      try {
+        practiceService.reorderPractices(nextOrder);
+      } catch (error: any) {
+        alert(error.message);
+        refreshDashboard();
+      }
     });
 
     setTimeout(() => {
       suppressCardPressRef.current = false;
     }, 120);
-
-    if (!draggedPracticeId || !moved || !orderChanged) return;
-
-    try {
-      practiceService.reorderPractices(nextOrder);
-    } catch (error: any) {
-      alert(error.message);
-      refreshDashboard();
-    }
   }
 
   function createDragPanHandlers(practiceId: string) {
@@ -957,6 +1029,15 @@ export default function Dashboard() {
     );
   }
 
+  const practiceById =
+    new Map(practices.map(practice => [practice.id, practice]));
+  const renderedPractices =
+    dragPreviewOrderIds
+      ? dragPreviewOrderIds
+        .map(practiceId => practiceById.get(practiceId))
+        .filter((practice): practice is Practice => Boolean(practice))
+      : practices;
+
   return (
 
     <View
@@ -1027,7 +1108,7 @@ export default function Dashboard() {
             </Pressable>
           </View>
         </View>
-        {practices.map((practice) => {
+        {renderedPractices.map((practice) => {
 
           const {
             practiceDisplayName,
@@ -1037,11 +1118,11 @@ export default function Dashboard() {
             targetReached,
             expectedTargetDate,
           } = getPracticeCardViewModel(practice);
-
           return (
 
-            <Animated.View
+            <Reanimated.View
               key={practice.id}
+              layout={draggingPracticeId ? practiceCardLayoutTransition : undefined}
               ref={(node) => {
                 practiceCardRefs.current[practice.id] =
                   node as unknown as View | null;
@@ -1349,7 +1430,7 @@ export default function Dashboard() {
                 </View>
               </View>
 
-            </Animated.View>
+            </Reanimated.View>
 
           );
         })}
