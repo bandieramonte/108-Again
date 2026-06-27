@@ -210,6 +210,37 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         };
     }
 
+    function applyPracticeOrder(
+        orderedPracticeIds: string[],
+        syncMetadata: SyncMetadata
+    ) {
+        orderedPracticeIds.forEach((practiceId, index) => {
+            deps.practiceRepo.updatePracticeOrder(
+                practiceId,
+                index + 1,
+                syncMetadata
+            );
+        });
+    }
+
+    function insertPracticeIdAtDefaultOrder(
+        practices: OperationPracticeRow[],
+        practiceId: string,
+        defaultOrderIndex: number
+    ) {
+        const orderedPracticeIds =
+            practices.map(practice => practice.id);
+        const insertIndex =
+            Math.max(
+                0,
+                Math.min(defaultOrderIndex - 1, orderedPracticeIds.length)
+            );
+
+        orderedPracticeIds.splice(insertIndex, 0, practiceId);
+
+        return orderedPracticeIds;
+    }
+
     function refreshReminderForPractice(practiceId: string) {
         try {
             void Promise
@@ -310,20 +341,30 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         const orderResult = deps.practiceRepo.getMaxOrderIndex();
         const nextOrder = (orderResult.maxOrder ?? 0) + 1;
         const syncMetadata = getWriteSyncMetadata();
+        const orderedPracticeIds =
+            insertPracticeIdAtDefaultOrder(
+                practices,
+                defaultPractice.id,
+                defaultPractice.orderIndex
+            );
 
-        deps.practiceRepo.insertPractice(
-            defaultPractice.id,
-            defaultPractice.name,
-            options.targetCount ?? defaultPractice.targetCount,
-            nextOrder,
-            syncMetadata,
-            defaultPractice.imageKey ?? null,
-            defaultPractice.dailyTargetCount ?? null,
-            options.defaultSessionCount ??
-                defaultPractice.defaultSessionCount ??
-                108,
-            defaultPractice.totalOffset ?? 0
-        );
+        deps.transaction(() => {
+            deps.practiceRepo.insertPractice(
+                defaultPractice.id,
+                defaultPractice.name,
+                options.targetCount ?? defaultPractice.targetCount,
+                nextOrder,
+                syncMetadata,
+                defaultPractice.imageKey ?? null,
+                defaultPractice.dailyTargetCount ?? null,
+                options.defaultSessionCount ??
+                    defaultPractice.defaultSessionCount ??
+                    108,
+                defaultPractice.totalOffset ?? 0
+            );
+
+            applyPracticeOrder(orderedPracticeIds, syncMetadata);
+        });
 
         deps.emitDataChanged?.();
         refreshReminderForPractice(defaultPractice.id);
@@ -353,13 +394,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         const syncMetadata = getWriteSyncMetadata();
 
         deps.transaction(() => {
-            orderedPracticeIds.forEach((practiceId, index) => {
-                deps.practiceRepo.updatePracticeOrder(
-                    practiceId,
-                    index + 1,
-                    syncMetadata
-                );
-            });
+            applyPracticeOrder(orderedPracticeIds, syncMetadata);
         });
 
         deps.emitDataChanged?.();
@@ -698,6 +733,12 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         await deps.enqueueWrite(() => {
             deps.transaction(() => {
                 const restoredAt = now();
+                const restoreSyncMetadata: SyncMetadata = {
+                    userId,
+                    updatedAt: restoredAt,
+                    syncStatus: userId ? "pending" : "synced",
+                    lastSyncedAt: userId ? null : restoredAt,
+                };
                 const sessions = deps.sessionRepo.getAllSessionsForSync();
 
                 for (const session of sessions) {
@@ -763,29 +804,22 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
 
                     if (!defaultPractice) continue;
 
-                    const syncMetadata: SyncMetadata = {
-                        userId,
-                        updatedAt: restoredAt,
-                        syncStatus: "pending",
-                        lastSyncedAt: null,
-                    };
-
                     deps.practiceRepo.updatePractice(
                         practice.id,
                         defaultPractice.name,
                         defaultPractice.targetCount,
-                        syncMetadata
+                        restoreSyncMetadata
                     );
 
                     deps.practiceRepo.updatePracticeDailyTargetCount(
                         practice.id,
                         defaultPractice.dailyTargetCount ?? null,
-                        syncMetadata
+                        restoreSyncMetadata
                     );
                     deps.practiceRepo.updatePracticeDefaultSessionCount(
                         practice.id,
                         defaultPractice.defaultSessionCount ?? 108,
-                        syncMetadata
+                        restoreSyncMetadata
                     );
                 }
 
@@ -802,13 +836,18 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                         defaultPractice.name,
                         defaultPractice.targetCount,
                         defaultPractice.orderIndex,
-                        getWriteSyncMetadata(),
+                        restoreSyncMetadata,
                         defaultPractice.imageKey ?? null,
                         defaultPractice.dailyTargetCount ?? null,
                         defaultPractice.defaultSessionCount ?? 108,
                         0
                     );
                 }
+
+                applyPracticeOrder(
+                    DEFAULT_PRACTICES.map(practice => practice.id),
+                    restoreSyncMetadata
+                );
 
                 deps.practiceRepo.resetPracticeTotals(userId, restoredAt);
 

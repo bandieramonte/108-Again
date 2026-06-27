@@ -907,6 +907,11 @@ function assertOnlySeededRemoteZero(snapshot, label) {
     DEFAULT_PRACTICES.length,
     `${label}: active remote practice count`
   );
+  assert.deepEqual(
+    active.map((practice) => practice.id),
+    DEFAULT_PRACTICES.map((practice) => practice.id),
+    `${label}: active remote default practice order`
+  );
 
   for (const seededId of SEEDED_ID_LIST) {
     assert.ok(activeIds.has(seededId), `${label}: has seeded ${seededId}`);
@@ -928,6 +933,11 @@ function assertOnlySeedIdsRemoteZero(snapshot, seedIds, label) {
     expectedIds.size,
     `${label}: active remote practice count`
   );
+  assert.deepEqual(
+    active.map((practice) => practice.id),
+    seedIds,
+    `${label}: active remote seed practice order`
+  );
 
   for (const seededId of expectedIds) {
     assert.ok(activeIds.has(seededId), `${label}: has seeded ${seededId}`);
@@ -947,6 +957,11 @@ function assertOnlySeededDeviceZero(device, label) {
     active.length,
     DEFAULT_PRACTICES.length,
     `${label}: active local practice count`
+  );
+  assert.deepEqual(
+    active.map((practice) => practice.id),
+    DEFAULT_PRACTICES.map((practice) => practice.id),
+    `${label}: active local default practice order`
   );
 
   for (const seededId of SEEDED_ID_LIST) {

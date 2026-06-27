@@ -37,8 +37,15 @@ type Practice = {
 };
 
 type CardLayout = {
+  x: number;
   y: number;
+  width: number;
   height: number;
+};
+
+type DragOverlayFrame = {
+  left: number;
+  width: number;
 };
 
 const MAX_STREAK_FIRE_DAYS = 365;
@@ -46,8 +53,8 @@ const MIN_STREAK_FIRE_SIZE = 5;
 const MAX_STREAK_FIRE_SIZE = 26;
 const STREAK_FIRE_GROWTH_EXPONENT = 1.4;
 const DRAG_AUTO_SCROLL_EDGE = 96;
-const DRAG_AUTO_SCROLL_MAX_SPEED = 18;
-const DRAG_AUTO_SCROLL_INTERVAL_MS = 16;
+const DRAG_AUTO_SCROLL_SPEED_PER_SECOND = 360;
+const DRAG_AUTO_SCROLL_MAX_FRAME_MS = 32;
 const DRAG_REORDER_ANIMATION_MS = 150;
 const DRAG_RELEASE_ANIMATION_MS = 120;
 
@@ -92,17 +99,20 @@ export default function Dashboard() {
   const scrollViewWindowYRef = useRef(0);
   const scrollViewHeightRef = useRef(0);
   const scrollContentHeightRef = useRef(0);
+  const dashboardContentXRef = useRef(0);
   const quickAddRefs = useRef<Record<string, View | null>>({});
   const practiceRowRefs = useRef<Record<string, View | null>>({});
   const practiceCardLayoutsRef = useRef<Record<string, CardLayout>>({});
   const dragStartLayoutsRef = useRef<Record<string, CardLayout>>({});
   const dragPanHandlersRef = useRef<Record<string, any>>({});
-  const dragAutoScrollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const dragAutoScrollFrameRef = useRef<number | null>(null);
+  const dragAutoScrollLastTimestampRef = useRef<number | null>(null);
   const dragStartScrollYRef = useRef(0);
+  const dragStartOverlayTopRef = useRef<number | null>(null);
   const dragLatestDyRef = useRef(0);
   const dragLatestMoveYRef = useRef<number | null>(null);
   const dragVisualTopYRef = useRef<number | null>(null);
-  const dragTranslateY = useRef(new Animated.Value(0)).current;
+  const dragOverlayTranslateY = useRef(new Animated.Value(0)).current;
   const practicesRef = useRef<Practice[]>([]);
   const draggingPracticeIdRef = useRef<string | null>(null);
   const dragStartLayoutRef = useRef<CardLayout | null>(null);
@@ -110,6 +120,8 @@ export default function Dashboard() {
   const dragMovedRef = useRef(false);
   const suppressCardPressRef = useRef(false);
   const [draggingPracticeId, setDraggingPracticeId] = useState<string | null>(null);
+  const [dragOverlayPractice, setDragOverlayPractice] = useState<Practice | null>(null);
+  const [dragOverlayFrame, setDragOverlayFrame] = useState<DragOverlayFrame | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
   const [menuPractice, setMenuPractice] = useState<Practice | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<PracticeMenuAnchor | null>(null);
@@ -173,9 +185,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     return () => {
-      if (dragAutoScrollTimerRef.current) {
-        clearInterval(dragAutoScrollTimerRef.current);
-        dragAutoScrollTimerRef.current = null;
+      if (dragAutoScrollFrameRef.current != null) {
+        cancelAnimationFrame(dragAutoScrollFrameRef.current);
+        dragAutoScrollFrameRef.current = null;
       }
     };
   }, []);
@@ -287,7 +299,7 @@ export default function Dashboard() {
     );
   }
 
-  function getDragAutoScrollSpeed(moveY: number) {
+  function getDragAutoScrollDirection(moveY: number) {
     const top = scrollViewWindowYRef.current;
     const height =
       scrollViewHeightRef.current ||
@@ -297,71 +309,93 @@ export default function Dashboard() {
     const bottomDistance = bottom - moveY;
 
     if (topDistance < DRAG_AUTO_SCROLL_EDGE) {
-      const intensity =
-        (DRAG_AUTO_SCROLL_EDGE - topDistance) /
-        DRAG_AUTO_SCROLL_EDGE;
-
-      return -Math.ceil(
-        Math.min(1, Math.max(0, intensity)) *
-        DRAG_AUTO_SCROLL_MAX_SPEED
-      );
+      return -1;
     }
 
     if (bottomDistance < DRAG_AUTO_SCROLL_EDGE) {
-      const intensity =
-        (DRAG_AUTO_SCROLL_EDGE - bottomDistance) /
-        DRAG_AUTO_SCROLL_EDGE;
-
-      return Math.ceil(
-        Math.min(1, Math.max(0, intensity)) *
-        DRAG_AUTO_SCROLL_MAX_SPEED
-      );
+      return 1;
     }
 
     return 0;
   }
 
   function stopDragAutoScroll() {
-    if (!dragAutoScrollTimerRef.current) return;
+    if (dragAutoScrollFrameRef.current == null) return;
 
-    clearInterval(dragAutoScrollTimerRef.current);
-    dragAutoScrollTimerRef.current = null;
+    cancelAnimationFrame(dragAutoScrollFrameRef.current);
+    dragAutoScrollFrameRef.current = null;
+    dragAutoScrollLastTimestampRef.current = null;
   }
 
-  function runDragAutoScrollStep() {
+  function runDragAutoScrollStep(timestamp: number) {
     const practiceId = draggingPracticeIdRef.current;
     const moveY = dragLatestMoveYRef.current;
 
-    if (!practiceId || moveY == null) return;
+    if (!practiceId || moveY == null) {
+      dragAutoScrollFrameRef.current = null;
+      dragAutoScrollLastTimestampRef.current = null;
+      return;
+    }
 
-    const speed = getDragAutoScrollSpeed(moveY);
-    if (speed === 0) return;
+    const direction = getDragAutoScrollDirection(moveY);
 
-    const maxScrollY = getMaxScrollY();
-    const nextScrollY = Math.max(
-      0,
-      Math.min(maxScrollY, scrollYRef.current + speed)
+    if (direction === 0) {
+      dragAutoScrollFrameRef.current = null;
+      dragAutoScrollLastTimestampRef.current = null;
+      return;
+    }
+
+    const lastTimestamp =
+      dragAutoScrollLastTimestampRef.current ?? timestamp;
+    const elapsedMs = Math.min(
+      DRAG_AUTO_SCROLL_MAX_FRAME_MS,
+      Math.max(0, timestamp - lastTimestamp)
     );
 
-    if (nextScrollY === scrollYRef.current) return;
+    dragAutoScrollLastTimestampRef.current = timestamp;
 
-    scrollYRef.current = nextScrollY;
-    scrollViewRef.current?.scrollTo({
-      y: nextScrollY,
-      animated: false,
-    });
-    updatePracticeDragPosition(
-      practiceId,
-      dragLatestDyRef.current
-    );
+    if (elapsedMs > 0) {
+      const scrollDelta =
+        direction *
+        DRAG_AUTO_SCROLL_SPEED_PER_SECOND *
+        (elapsedMs / 1000);
+      const maxScrollY = getMaxScrollY();
+      const nextScrollY = Math.round(
+        Math.max(
+          0,
+          Math.min(maxScrollY, scrollYRef.current + scrollDelta)
+        )
+      );
+
+      if (nextScrollY !== scrollYRef.current) {
+        scrollYRef.current = nextScrollY;
+        updatePracticeDragPosition(
+          practiceId,
+          dragLatestDyRef.current
+        );
+        scrollViewRef.current?.scrollTo({
+          y: nextScrollY,
+          animated: false,
+        });
+      }
+    }
+
+    if (draggingPracticeIdRef.current) {
+      dragAutoScrollFrameRef.current = requestAnimationFrame(
+        runDragAutoScrollStep
+      );
+    } else {
+      dragAutoScrollFrameRef.current = null;
+      dragAutoScrollLastTimestampRef.current = null;
+    }
   }
 
   function startDragAutoScroll() {
-    if (dragAutoScrollTimerRef.current) return;
+    if (dragAutoScrollFrameRef.current != null) return;
 
-    dragAutoScrollTimerRef.current = setInterval(
-      runDragAutoScrollStep,
-      DRAG_AUTO_SCROLL_INTERVAL_MS
+    dragAutoScrollLastTimestampRef.current = null;
+    dragAutoScrollFrameRef.current = requestAnimationFrame(
+      runDragAutoScrollStep
     );
   }
 
@@ -371,52 +405,65 @@ export default function Dashboard() {
       update: {
         type: LayoutAnimation.Types.easeInEaseOut,
       },
-      create: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-        property: LayoutAnimation.Properties.opacity,
-      },
-      delete: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-        property: LayoutAnimation.Properties.opacity,
-      },
     });
   }
 
-  function syncDraggedCardTransform(practiceId: string) {
-    const visualTopY = dragVisualTopYRef.current;
+  function setDraggedOverlayTop(top: number) {
+    dragOverlayTranslateY.setValue(top);
+  }
 
-    if (visualTopY == null) return;
+  function updateDraggedVisualPosition(practiceId: string, dy: number) {
+    if (draggingPracticeIdRef.current !== practiceId) return;
 
-    const currentLayout =
-      practiceCardLayoutsRef.current[practiceId] ??
-      dragStartLayoutRef.current;
+    const startLayout = dragStartLayoutRef.current;
 
-    if (!currentLayout) return;
+    if (!startLayout) return;
 
-    dragTranslateY.setValue(visualTopY - currentLayout.y);
+    const startOverlayTop = dragStartOverlayTopRef.current;
+
+    if (startOverlayTop != null) {
+      setDraggedOverlayTop(startOverlayTop + dy);
+    }
+
+    const scrollDelta =
+      scrollYRef.current - dragStartScrollYRef.current;
+    dragVisualTopYRef.current =
+      startLayout.y +
+      dy +
+      scrollDelta;
   }
 
   function beginPracticeDrag(practiceId: string) {
     const layoutSnapshot = { ...practiceCardLayoutsRef.current };
     const startLayout = layoutSnapshot[practiceId] ?? null;
+    const draggedPractice =
+      practicesRef.current.find(practice => practice.id === practiceId) ??
+      null;
+
+    if (!startLayout || !draggedPractice) return;
 
     updateScrollViewWindowMetrics();
-    dragTranslateY.stopAnimation();
-    dragTranslateY.setValue(0);
+    dragOverlayTranslateY.stopAnimation();
     draggingPracticeIdRef.current = practiceId;
     dragStartLayoutsRef.current = layoutSnapshot;
     dragStartLayoutRef.current = startLayout;
     dragStartOrderRef.current =
       practicesRef.current.map(practice => practice.id);
     dragStartScrollYRef.current = scrollYRef.current;
+    dragStartOverlayTopRef.current = startLayout.y - scrollYRef.current;
     dragLatestDyRef.current = 0;
     dragLatestMoveYRef.current = null;
+    dragAutoScrollLastTimestampRef.current = null;
     dragMovedRef.current = false;
     suppressCardPressRef.current = true;
     dragVisualTopYRef.current = startLayout?.y ?? null;
+    setDraggedOverlayTop(dragStartOverlayTopRef.current);
+    setDragOverlayPractice(draggedPractice);
+    setDragOverlayFrame({
+      left: dashboardContentXRef.current + startLayout.x,
+      width: startLayout.width,
+    });
     setDraggingPracticeId(practiceId);
-    syncDraggedCardTransform(practiceId);
-    startDragAutoScroll();
   }
 
   function updatePracticeDragPosition(practiceId: string, dy: number) {
@@ -426,20 +473,16 @@ export default function Dashboard() {
 
     if (!startLayout) return;
 
-    const scrollDelta =
-      scrollYRef.current - dragStartScrollYRef.current;
-    const nextVisualTopY =
-      startLayout.y +
-      dy +
-      scrollDelta;
+    updateDraggedVisualPosition(practiceId, dy);
+
+    const nextVisualTopY = dragVisualTopYRef.current;
+    if (nextVisualTopY == null) return;
+
     const draggedCenterY = nextVisualTopY + startLayout.height / 2;
     const currentPractices = practicesRef.current;
     const startOrder = dragStartOrderRef.current;
     const startLayouts = dragStartLayoutsRef.current;
     let insertIndex = 0;
-
-    dragVisualTopYRef.current = nextVisualTopY;
-    syncDraggedCardTransform(practiceId);
 
     for (const orderedPracticeId of startOrder) {
       if (orderedPracticeId === practiceId) continue;
@@ -481,7 +524,12 @@ export default function Dashboard() {
     }
 
     updatePracticeDragPosition(practiceId, dy);
-    runDragAutoScrollStep();
+
+    if (getDragAutoScrollDirection(moveY) === 0) {
+      stopDragAutoScroll();
+    } else {
+      startDragAutoScroll();
+    }
   }
 
   function finishPracticeDrag() {
@@ -500,16 +548,28 @@ export default function Dashboard() {
     dragStartLayoutRef.current = null;
     dragStartOrderRef.current = [];
     dragStartScrollYRef.current = 0;
+    dragStartOverlayTopRef.current = null;
     dragLatestDyRef.current = 0;
     dragLatestMoveYRef.current = null;
     dragMovedRef.current = false;
     dragVisualTopYRef.current = null;
-    Animated.timing(dragTranslateY, {
-      toValue: 0,
+    const finalLayout =
+      draggedPracticeId
+        ? practiceCardLayoutsRef.current[draggedPracticeId]
+        : null;
+    const releaseTop =
+      finalLayout
+        ? finalLayout.y - scrollYRef.current
+        : 0;
+
+    Animated.timing(dragOverlayTranslateY, {
+      toValue: releaseTop,
       duration: DRAG_RELEASE_ANIMATION_MS,
       useNativeDriver: true,
     }).start(() => {
       setDraggingPracticeId(null);
+      setDragOverlayPractice(null);
+      setDragOverlayFrame(null);
     });
 
     setTimeout(() => {
@@ -648,15 +708,203 @@ export default function Dashboard() {
     });
   }
 
+  function getPracticeCardViewModel(practice: Practice) {
+    const practiceDisplayName =
+      getPracticeDisplayName(practice.id, practice.name, t);
+    const currentCycleProgress =
+      practice.total >= practice.targetCount
+        ? 1
+        : (practice.total % practice.targetCount) / practice.targetCount;
+    const dailyTargetCount = practice.dailyTargetCount ?? null;
+    const hasDailyTarget =
+      dailyTargetCount != null &&
+      dailyTargetCount > 0;
+    const targetDate =
+      hasDailyTarget
+        ? practiceService.getExpectedTargetDate(
+          practice.targetCount,
+          practice.total,
+          dailyTargetCount
+        )
+        : null;
+    const targetReached =
+      practice.targetCount > 0 &&
+      practice.total >= practice.targetCount;
+    const expectedTargetDate =
+      targetReached
+        ? t("practice.reached")
+        : !hasDailyTarget
+          ? t("practice.setDailyTargetFirst")
+          : targetDate
+            ? formatMonthDayYear(targetDate, locale)
+            : t("practice.noEstimate");
+
+    return {
+      practiceDisplayName,
+      currentCycleProgress,
+      dailyTargetCount,
+      hasDailyTarget,
+      targetReached,
+      expectedTargetDate,
+    };
+  }
+
+  function renderPracticeDragOverlay() {
+    if (!dragOverlayPractice || !dragOverlayFrame) return null;
+
+    const {
+      practiceDisplayName,
+      currentCycleProgress,
+      dailyTargetCount,
+      hasDailyTarget,
+      targetReached,
+      expectedTargetDate,
+    } = getPracticeCardViewModel(dragOverlayPractice);
+    const defaultSessionCount =
+      dragOverlayPractice.defaultSessionCount ?? 108;
+
+    return (
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.dragOverlayCard,
+          {
+            left: dragOverlayFrame.left,
+            width: dragOverlayFrame.width,
+            transform: [{ translateY: dragOverlayTranslateY }],
+          }
+        ]}
+      >
+        <View style={[styles.card, styles.cardDragging, styles.dragOverlaySurface]}>
+          <View style={styles.cardContent}>
+            <View style={styles.practiceNameRow}>
+              <View style={styles.dragHandle}>
+                <MaterialIcons
+                  name="drag-indicator"
+                  size={22}
+                  color="#9CA3AF"
+                />
+              </View>
+
+              <Text numberOfLines={1} ellipsizeMode="tail" style={styles.practiceName}>
+                {practiceDisplayName}
+              </Text>
+
+              <View style={styles.practiceActionButtons}>
+                <View style={styles.practiceActionButton}>
+                  <MaterialIcons name="edit" size={18} color={colors.primary} />
+                </View>
+                <View style={styles.practiceActionButton}>
+                  <MaterialIcons name="bar-chart" size={18} color={colors.primary} />
+                </View>
+                <View style={styles.practiceActionButton}>
+                  <MaterialIcons name="calendar-today" size={17} color={colors.primary} />
+                </View>
+                <View style={styles.practiceActionButton}>
+                  <MaterialIcons name="delete-outline" size={18} color="#c62828" />
+                </View>
+              </View>
+            </View>
+
+            <Progress.Bar
+              progress={currentCycleProgress}
+              width={null}
+              height={10}
+              color={colors.primary}
+              unfilledColor="#E5E5E5"
+              borderWidth={0}
+              borderRadius={5}
+            />
+
+            <View style={styles.practiceBodyRow}>
+              <Image
+                source={dragOverlayPractice.imageKey && practiceImages[dragOverlayPractice.imageKey] ? practiceImages[dragOverlayPractice.imageKey] : practiceImages["generic"]}
+                style={styles.icon}
+                resizeMode="contain"
+              />
+
+              <View style={styles.practiceMetricGroup}>
+                <Text style={styles.countText}>
+                  {t("practice.totalProgress")}: {formatCountProgress(
+                    dragOverlayPractice.total,
+                    dragOverlayPractice.targetCount || null
+                  )}
+                </Text>
+
+                <Text style={styles.countText}>
+                  {t("practice.targetDate")}:{" "}
+                  <Text style={targetReached ? { color: colors.primary } : undefined}>
+                    {expectedTargetDate}
+                  </Text>
+                </Text>
+
+                {hasDailyTarget ? (
+                  <DailyGoalProgress
+                    todayCount={dragOverlayPractice.today}
+                    dailyTargetCount={dailyTargetCount ?? 0}
+                    style={styles.dailyGoalInline}
+                    labelStyle={[styles.countText, styles.dailyGoalLabel]}
+                    barStyle={styles.dailyGoalBar}
+                    textStyle={styles.dailyGoalBarText}
+                    labelNumberOfLines={1}
+                  />
+                ) : (
+                  <View style={styles.enableDailyTargetButton}>
+                    <MaterialIcons
+                      name="check-circle-outline"
+                      size={16}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.enableDailyTargetText}>
+                      {t("practice.enableDailyTarget")}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.quickAddContainer}>
+            <View style={styles.quickAddButton}>
+              <View style={styles.quickAddMainButton}>
+                <Text style={styles.quickAddAmountText}>
+                  +{formatNumber(defaultSessionCount)}
+                </Text>
+
+                <Text
+                  style={styles.quickAddLabelText}
+                  numberOfLines={1}
+                >
+                  {t("practice.addDefaultSession")}
+                </Text>
+              </View>
+
+              <View style={styles.quickAddEditButton}>
+                <MaterialIcons
+                  name="edit"
+                  size={15}
+                  color={colors.primary}
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      </Animated.View>
+    );
+  }
+
   return (
 
-    <ScrollView
+    <View style={styles.dashboardRoot}>
+      <ScrollView
       ref={scrollViewRef}
       style={containers.screen}
       contentContainerStyle={{ paddingBottom: 30 }}
       scrollEnabled={draggingPracticeId === null}
       scrollEventThrottle={16}
       onScroll={(event) => {
+        if (draggingPracticeIdRef.current) return;
+
         scrollYRef.current = event.nativeEvent.contentOffset.y;
       }}
       onContentSizeChange={(_width, height) => {
@@ -672,6 +920,9 @@ export default function Dashboard() {
           width: "100%",
           maxWidth: 700,
           alignSelf: "center"
+        }}
+        onLayout={(event) => {
+          dashboardContentXRef.current = event.nativeEvent.layout.x;
         }}
       >
         <View style={styles.streakContainer}>
@@ -708,33 +959,14 @@ export default function Dashboard() {
         </View>
         {practices.map((practice) => {
 
-          const practiceDisplayName =
-            getPracticeDisplayName(practice.id, practice.name, t);
-          const currentCycleProgress = practice.total >= practice.targetCount ? 1 : (practice.total % practice.targetCount) / practice.targetCount;
-          const dailyTargetCount = practice.dailyTargetCount ?? null;
-          const hasDailyTarget =
-            dailyTargetCount != null &&
-            dailyTargetCount > 0;
-          const targetDate =
-            hasDailyTarget
-              ? practiceService.getExpectedTargetDate(
-                practice.targetCount,
-                practice.total,
-                dailyTargetCount
-              )
-              : null;
-
-          const targetReached =
-            practice.targetCount > 0 &&
-            practice.total >= practice.targetCount;
-          const expectedTargetDate =
-            targetReached
-              ? t("practice.reached")
-              : !hasDailyTarget
-                ? t("practice.setDailyTargetFirst")
-                : targetDate
-                  ? formatMonthDayYear(targetDate, locale)
-                  : t("practice.noEstimate");
+          const {
+            practiceDisplayName,
+            currentCycleProgress,
+            dailyTargetCount,
+            hasDailyTarget,
+            targetReached,
+            expectedTargetDate,
+          } = getPracticeCardViewModel(practice);
 
           return (
 
@@ -742,20 +974,16 @@ export default function Dashboard() {
               key={practice.id}
               style={[
                 styles.card,
-                draggingPracticeId === practice.id && [
-                  styles.cardDragging,
-                  { transform: [{ translateY: dragTranslateY }] }
-                ],
+                draggingPracticeId === practice.id &&
+                styles.cardDraggingPlaceholder,
               ]}
               onLayout={(event) => {
                 practiceCardLayoutsRef.current[practice.id] = {
+                  x: event.nativeEvent.layout.x,
                   y: event.nativeEvent.layout.y,
+                  width: event.nativeEvent.layout.width,
                   height: event.nativeEvent.layout.height,
                 };
-
-                if (draggingPracticeIdRef.current === practice.id) {
-                  syncDraggedCardTransform(practice.id);
-                }
               }}
             >
               <TouchableOpacity
@@ -946,7 +1174,7 @@ export default function Dashboard() {
                       {hasDailyTarget ? (
                         <DailyGoalProgress
                           todayCount={practice.today}
-                          dailyTargetCount={dailyTargetCount}
+                          dailyTargetCount={dailyTargetCount ?? 0}
                           style={styles.dailyGoalInline}
                           labelStyle={[styles.countText, styles.dailyGoalLabel]}
                           barStyle={styles.dailyGoalBar}
@@ -1231,7 +1459,10 @@ export default function Dashboard() {
         visible={welcomeOpen}
         onClose={() => setWelcomeOpen(false)}
       />
-    </ScrollView>
+      </ScrollView>
+
+      {renderPracticeDragOverlay()}
+    </View>
   );
 }
 
@@ -1239,6 +1470,10 @@ const screenWidth = Dimensions.get("window").width;
 const iconSize = screenWidth < 360 ? 56 : 66;
 const addPracticeCardHeight = Math.round(iconSize);
 const styles = StyleSheet.create({
+
+  dashboardRoot: {
+    flex: 1,
+  },
 
   title: {
     fontSize: 28,
@@ -1271,6 +1506,22 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 7,
     zIndex: 10,
+  },
+
+  cardDraggingPlaceholder: {
+    opacity: 0,
+  },
+
+  dragOverlayCard: {
+    position: "absolute",
+    top: 0,
+    zIndex: 1000,
+    elevation: 12,
+  },
+
+  dragOverlaySurface: {
+    marginBottom: 0,
+    marginHorizontal: 0,
   },
 
   dragHandle: {

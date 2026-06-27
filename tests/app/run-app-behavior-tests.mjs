@@ -513,6 +513,9 @@ await test(
       device.practiceRepo.getPracticeById(seedPractice.id),
       null
     );
+    device.operations.reorderPractices(
+      device.practiceRepo.getAllPractices().map(practice => practice.id)
+    );
 
     const restoredPracticeId =
       device.operations.createSeedPractice(
@@ -531,9 +534,38 @@ await test(
     assert.equal(restoredPractice.imageKey, seedPractice.imageKey);
     assert.equal(restoredPractice.dailyTargetCount, null);
     assert.equal(restoredPractice.defaultSessionCount, 216);
+    assert.equal(restoredPractice.orderIndex, seedPractice.orderIndex);
+    assert.deepEqual(
+      device.practiceRepo.getAllPractices().map(practice => practice.id),
+      DEFAULT_PRACTICES.map(practice => practice.id)
+    );
     assert.throws(
       () => device.operations.createSeedPractice(seedPractice.id),
       /already active/
+    );
+  }
+);
+
+await test(
+  "restore defaults resets default practice order",
+  async () => {
+    const device = makeLocalDevice();
+
+    await device.operations.restoreDefaults();
+    device.operations.reorderPractices(
+      DEFAULT_PRACTICES.map(practice => practice.id).reverse()
+    );
+
+    assert.deepEqual(
+      device.practiceRepo.getAllPractices().map(practice => practice.id),
+      DEFAULT_PRACTICES.map(practice => practice.id).reverse()
+    );
+
+    await device.operations.restoreDefaults();
+
+    assert.deepEqual(
+      device.practiceRepo.getAllPractices().map(practice => practice.id),
+      DEFAULT_PRACTICES.map(practice => practice.id)
     );
   }
 );
