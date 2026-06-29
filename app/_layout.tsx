@@ -33,8 +33,10 @@ function LayoutContent() {
         useState<UpdateRequirement | null>(null);
     const [checkingForUpdate, setCheckingForUpdate] = useState(true);
     const pathname = usePathname();
+    const pathnameRef = useRef(pathname);
     const restoringPracticeRoute = useRef(false);
     const reminderRouteHandled = useRef(false);
+    const startupRouteRestoreAttempted = useRef(false);
     const appInitializedRef = useRef(false);
     const initializationRef = useRef<Promise<void> | null>(null);
 
@@ -104,6 +106,10 @@ function LayoutContent() {
     }, [checkAppAccess, initializeAppOnce]);
 
     useEffect(() => {
+        pathnameRef.current = pathname;
+    }, [pathname]);
+
+    useEffect(() => {
         if (!appInitialized) return;
 
         function openReminderPractice(practiceId: string) {
@@ -131,11 +137,16 @@ function LayoutContent() {
 
     useEffect(() => {
         if (!appInitialized) return;
+        if (startupRouteRestoreAttempted.current) return;
+
+        startupRouteRestoreAttempted.current = true;
 
         let cancelled = false;
 
         async function restorePracticeRoute() {
-            if (pathname !== "/") {
+            const startupPathname = pathnameRef.current;
+
+            if (startupPathname !== "/") {
                 setStartupRouteHandled(true);
                 return;
             }
@@ -175,7 +186,7 @@ function LayoutContent() {
         return () => {
             cancelled = true;
         };
-    }, [appInitialized, pathname]);
+    }, [appInitialized]);
 
     useEffect(() => {
         if (!startupRouteHandled) return;
