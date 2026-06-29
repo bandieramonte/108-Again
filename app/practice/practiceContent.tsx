@@ -12,6 +12,7 @@ import PracticeActionsMenu, {
     type PracticeMenuAnchor,
 } from "../../components/PracticeActionsMenu";
 import PracticeCalendar from "../../components/PracticeCalendar";
+import PracticeProgressEditor from "../../components/PracticeProgressEditor";
 import PracticeReminderEditor from "../../components/PracticeReminderEditor";
 import QuickAddEditor from "../../components/QuickAddEditor";
 import TargetDateEditor from "../../components/TargetDateEditor";
@@ -42,6 +43,7 @@ export default function PracticeContent({
     const insets = useSafeAreaInsets();
     const { locale, t } = useI18n();
     const [quickAddOpen, setQuickAddOpen] = useState(false);
+    const [progressEditOpen, setProgressEditOpen] = useState(false);
     const [targetEditOpen, setTargetEditOpen] = useState(false);
     const [reminderOpen, setReminderOpen] = useState(false);
     const [reminderSettings, setReminderSettings] =
@@ -327,6 +329,18 @@ export default function PracticeContent({
         schedulePracticeRefresh();
     }
 
+    function saveProgress(nextTotal: number, nextTargetCount: number) {
+        practiceService.updatePractice(
+            practiceId,
+            practiceName,
+            nextTargetCount,
+            nextTotal
+        );
+        setTargetCount(nextTargetCount);
+        setTotal(nextTotal);
+        schedulePracticeRefresh();
+    }
+
     function addCustomAmount() {
         const error =
             validateNonNegativeInteger(
@@ -559,7 +573,16 @@ export default function PracticeContent({
                                     { width: imageDisplayWidth }
                                 ]}
                             >
-                                <View style={styles.statsCard}>
+                                <Pressable
+                                    style={({ pressed }) => [
+                                        styles.statsCard,
+                                        styles.statsCardPressable,
+                                        pressed && styles.statsCardPressed
+                                    ]}
+                                    onPress={() => setProgressEditOpen(true)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t("practice.totalProgress")}
+                                >
                                     <View style={styles.statsCardLabelRow}>
                                         <MaterialIcons
                                             name="trending-up"
@@ -569,6 +592,11 @@ export default function PracticeContent({
                                         <Text style={styles.statsCardLabel}>
                                             {t("practice.totalProgress")}
                                         </Text>
+                                        <MaterialIcons
+                                            name="edit"
+                                            size={14}
+                                            color={colors.primary}
+                                        />
                                     </View>
                                     <Text style={styles.statsCardValue}>
                                         {formatCountProgress(
@@ -576,7 +604,7 @@ export default function PracticeContent({
                                             targetCount || null
                                         )}
                                     </Text>
-                                </View>
+                                </Pressable>
 
                                 <Pressable
                                     style={({ pressed }) => [
@@ -945,6 +973,15 @@ export default function PracticeContent({
                         practiceName={displayPracticeName}
                         defaultValue={Number(defaultSessionCount)}
                         onClose={() => setQuickAddOpen(false)}
+                    />
+
+                    <PracticeProgressEditor
+                        visible={progressEditOpen}
+                        practiceName={displayPracticeName}
+                        total={total}
+                        targetCount={targetCount}
+                        onClose={() => setProgressEditOpen(false)}
+                        onSave={saveProgress}
                     />
 
                     <DailyTargetEditor
