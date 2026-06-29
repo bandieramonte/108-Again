@@ -5,6 +5,8 @@ import { Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CelebrationOverlay from "../../components/CelebrationOverlay";
 import DailyGoalProgress from "../../components/DailyGoalProgress";
+import DailyTargetEditor from "../../components/DailyTargetEditor";
+import EnableDailyTargetButton from "../../components/EnableDailyTargetButton";
 import FloatingAddAnimation, { FloatingAddAnimationRef } from "../../components/FloatingAddAnimation";
 import PracticeActionsMenu, {
     type PracticeMenuAnchor,
@@ -61,6 +63,7 @@ export default function PracticeContent({
             ? ""
             : String(initialPractice.dailyTargetCount)
     );
+    const [dailyTargetOpen, setDailyTargetOpen] = useState(false);
     const [defaultSessionCount, setDefaultSessionCount] = useState(
         String(initialPractice?.defaultSessionCount ?? 108)
     );
@@ -304,6 +307,23 @@ export default function PracticeContent({
         setCustomAmount("");
     }
 
+    function openDailyTargetEditor() {
+        setDailyTargetOpen(true);
+    }
+
+    function closeDailyTargetEditor() {
+        setDailyTargetOpen(false);
+    }
+
+    function saveDailyTarget(dailyTargetCount: number) {
+        practiceService.updatePracticeDailyTargetCount(
+            practiceId,
+            dailyTargetCount
+        );
+        setDailyTargetCount(String(dailyTargetCount));
+        schedulePracticeRefresh();
+    }
+
     function addCustomAmount() {
         const error =
             validateNonNegativeInteger(
@@ -407,7 +427,7 @@ export default function PracticeContent({
     function openReminderEditor() {
         if (!hasDailyTarget) {
             alert(t("practice.setDailyTargetBeforeReminders"));
-            setTargetEditOpen(true);
+            openDailyTargetEditor();
             return;
         }
 
@@ -615,24 +635,10 @@ export default function PracticeContent({
                                         textStyle={styles.todayGoalProgressText}
                                     />
                                 ) : (
-                                    <Pressable
-                                        style={({ pressed }) => [
-                                            styles.enableDailyTargetButton,
-                                            pressed && styles.enableDailyTargetButtonPressed
-                                        ]}
-                                        onPress={() => setTargetEditOpen(true)}
-                                        accessibilityRole="button"
+                                    <EnableDailyTargetButton
+                                        onPress={openDailyTargetEditor}
                                         accessibilityLabel={t("practice.enableDailyTarget")}
-                                    >
-                                        <MaterialIcons
-                                            name="check-circle-outline"
-                                            size={17}
-                                            color={colors.primary}
-                                        />
-                                        <Text style={styles.enableDailyTargetText}>
-                                            {t("practice.enableDailyTarget")}
-                                        </Text>
-                                    </Pressable>
+                                    />
                                 )}
 
                                 <Pressable
@@ -936,6 +942,14 @@ export default function PracticeContent({
                         practiceName={displayPracticeName}
                         defaultValue={Number(defaultSessionCount)}
                         onClose={() => setQuickAddOpen(false)}
+                    />
+
+                    <DailyTargetEditor
+                        visible={dailyTargetOpen}
+                        practiceName={displayPracticeName}
+                        initialValue={dailyTargetCount}
+                        onClose={closeDailyTargetEditor}
+                        onSave={saveDailyTarget}
                     />
 
                     <PracticeReminderEditor
@@ -1298,29 +1312,6 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         color: "#666",
         textAlign: "center",
-    },
-
-    enableDailyTargetButton: {
-        flexDirection: "row",
-        alignItems: "center",
-        alignSelf: "flex-start",
-        gap: 7,
-        paddingVertical: 5,
-        paddingHorizontal: 10,
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: "#BFDBFE",
-        backgroundColor: "transparent",
-    },
-
-    enableDailyTargetButtonPressed: {
-        opacity: 0.72,
-    },
-
-    enableDailyTargetText: {
-        fontSize: 14,
-        fontWeight: "400",
-        color: "#111",
     },
 
     reminderButton: {

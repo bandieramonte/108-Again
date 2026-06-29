@@ -3,11 +3,13 @@ import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import * as Progress from "react-native-progress";
 import Reanimated, { LinearTransition } from "react-native-reanimated";
 import CelebrationOverlay from "../components/CelebrationOverlay";
 import DailyGoalProgress from "../components/DailyGoalProgress";
+import DailyTargetEditor from "../components/DailyTargetEditor";
+import EnableDailyTargetButton from "../components/EnableDailyTargetButton";
 import PracticeActionsMenu, {
   type PracticeMenuAnchor,
 } from "../components/PracticeActionsMenu";
@@ -30,7 +32,7 @@ import * as practiceService from "../services/practiceService";
 import * as sessionService from "../services/sessionService";
 import { colors, containers } from "../styles/theme";
 import { formatMonthDayYear } from "../utils/dateUtils";
-import { digitsOnly, formatCountProgress, formatNumber, MAX_REPETITIONS_PER_DAY, validateRepetitionCount } from "../utils/numberUtils";
+import { formatCountProgress, formatNumber } from "../utils/numberUtils";
 
 type Practice = {
   id: string;
@@ -78,7 +80,6 @@ export default function Dashboard() {
   const [defaultSessionInput, setDefaultSessionInput] = useState("");
   const [dailyTargetPromptPractice, setDailyTargetPromptPractice] =
     useState<{ id: string; name: string } | null>(null);
-  const [dailyTargetInput, setDailyTargetInput] = useState("");
   const [showQuickAddHint, setShowQuickAddHint] = useState(false);
   const quickAddRefs = useRef<Record<string, View | null>>({});
   const practiceRowRefs = useRef<Record<string, View | null>>({});
@@ -281,45 +282,20 @@ export default function Dashboard() {
       id: practice.id,
       name: getPracticeDisplayName(practice.id, practice.name, t),
     });
-    setDailyTargetInput("");
   }
 
   function closeDailyTargetPrompt() {
     setDailyTargetPromptPractice(null);
-    setDailyTargetInput("");
   }
 
-  function saveDailyTarget() {
+  function saveDailyTarget(dailyTargetCount: number) {
     if (!dailyTargetPromptPractice) return;
 
-    const error =
-      validateRepetitionCount(
-        dailyTargetInput,
-        t("dashboard.dailyTarget")
-      );
-
-    if (error) {
-      alert(error);
-      return;
-    }
-
-    const value = Number(dailyTargetInput);
-
-    if (value <= 0) {
-      alert(t("dashboard.dailyTargetPositive"));
-      return;
-    }
-
-    try {
-      practiceService.updatePracticeDailyTargetCount(
-        dailyTargetPromptPractice.id,
-        value
-      );
-      closeDailyTargetPrompt();
-      refreshDashboard();
-    } catch (error: any) {
-      alert(error.message);
-    }
+    practiceService.updatePracticeDailyTargetCount(
+      dailyTargetPromptPractice.id,
+      dailyTargetCount
+    );
+    refreshDashboard();
   }
 
   function openPracticeCalendar(practiceId: string) {
@@ -840,24 +816,10 @@ export default function Dashboard() {
                           labelNumberOfLines={1}
                         />
                       ) : (
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.enableDailyTargetButton,
-                            pressed && styles.enableDailyTargetButtonPressed
-                          ]}
+                        <EnableDailyTargetButton
                           onPress={() => openDailyTargetPrompt(practice)}
-                          accessibilityRole="button"
                           accessibilityLabel={`${t("practice.enableDailyTarget")}: ${practiceDisplayName}`}
-                        >
-                          <MaterialIcons
-                            name="check-circle-outline"
-                            size={16}
-                            color={colors.primary}
-                          />
-                          <Text style={styles.enableDailyTargetText}>
-                            {t("practice.enableDailyTarget")}
-                          </Text>
-                        </Pressable>
+                        />
                       )}
                     </View>
                   </View>
@@ -987,63 +949,12 @@ export default function Dashboard() {
           />
         )}
 
-        <Modal
+        <DailyTargetEditor
           visible={dailyTargetPromptPractice !== null}
-          transparent
-          animationType="fade"
-          onRequestClose={closeDailyTargetPrompt}
-        >
-          <Pressable
-            style={styles.modalOverlay}
-            onPress={closeDailyTargetPrompt}
-          >
-            <Pressable
-              style={styles.modalCard}
-              onPress={() => { }}
-            >
-              <Text style={styles.modalTitle}>
-                {t("dashboard.setDailyTarget")}
-              </Text>
-
-              <Text style={styles.modalSubtitle}>
-                {dailyTargetPromptPractice?.name}
-              </Text>
-
-              <TextInput
-                value={dailyTargetInput}
-                onChangeText={(value) => {
-                  const clean = digitsOnly(value);
-                  if (Number(clean) > MAX_REPETITIONS_PER_DAY) return;
-                  setDailyTargetInput(clean);
-                }}
-                keyboardType="numeric"
-                returnKeyType="done"
-                onSubmitEditing={saveDailyTarget}
-                placeholder={t("dashboard.dailyTarget")}
-                placeholderTextColor="#999"
-                style={styles.modalInput}
-                maxLength={String(MAX_REPETITIONS_PER_DAY).length}
-                autoFocus
-              />
-
-              <View style={styles.modalButtons}>
-                <Pressable
-                  style={styles.modalButton}
-                  onPress={closeDailyTargetPrompt}
-                >
-                  <Text>{t("common.cancel")}</Text>
-                </Pressable>
-
-                <Pressable
-                  style={styles.modalButton}
-                  onPress={saveDailyTarget}
-                >
-                  <Text>{t("common.save")}</Text>
-                </Pressable>
-              </View>
-            </Pressable>
-          </Pressable>
-        </Modal>
+          practiceName={dailyTargetPromptPractice?.name}
+          onClose={closeDailyTargetPrompt}
+          onSave={saveDailyTarget}
+        />
 
         {showQuickAddHint && tooltipPosition && (
           <Pressable
@@ -1299,10 +1210,6 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
 
-  enableDailyTargetButtonPressed: {
-    opacity: 0.72,
-  },
-
   enableDailyTargetText: {
     fontSize: 14,
     fontWeight: "400",
@@ -1400,53 +1307,6 @@ const styles = StyleSheet.create({
 
   quickAddEditButtonPressed: {
     backgroundColor: "#DBE4FF",
-  },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.25)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-
-  modalCard: {
-    width: "100%",
-    maxWidth: 360,
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 20,
-  },
-
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-
-  modalSubtitle: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 16,
-  },
-
-  modalInput: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    padding: 10,
-    marginBottom: 16,
-    borderRadius: 8,
-  },
-
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 10,
-  },
-
-  modalButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
   },
 
   tooltipOverlay: {
