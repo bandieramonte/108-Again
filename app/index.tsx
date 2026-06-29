@@ -13,6 +13,7 @@ import EnableDailyTargetButton from "../components/EnableDailyTargetButton";
 import PracticeActionsMenu, {
   type PracticeMenuAnchor,
 } from "../components/PracticeActionsMenu";
+import PracticeCalendarModal from "../components/PracticeCalendarModal";
 import PracticeHistoryModal from "../components/PracticeHistoryModal";
 import QuickAddEditor from "../components/QuickAddEditor";
 import WelcomeModal from "../components/WelcomeModal";
@@ -29,6 +30,7 @@ import {
   type DragOverlayFrame,
 } from "../services/dragReorderService";
 import * as practiceService from "../services/practiceService";
+import * as appService from "../services/appService";
 import * as sessionService from "../services/sessionService";
 import { colors, containers } from "../styles/theme";
 import { formatMonthDayYear } from "../utils/dateUtils";
@@ -91,6 +93,11 @@ export default function Dashboard() {
   const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
   const [menuPractice, setMenuPractice] = useState<Practice | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<PracticeMenuAnchor | null>(null);
+  const [calendarPractice, setCalendarPractice] =
+    useState<Practice | null>(null);
+  const [calendarData, setCalendarData] = useState<
+    { date: string; count: number }[]
+  >([]);
   const {
     celebrationFade,
     sparkle1,
@@ -298,15 +305,73 @@ export default function Dashboard() {
     refreshDashboard();
   }
 
-  function openPracticeCalendar(practiceId: string) {
-    router.push({
-      pathname: "/practice",
-      params: {
-        id: practiceId,
-        openCalendar: "1",
-      }
-    });
+  function openPracticeCalendar(practice: Practice) {
+    setCalendarPractice(practice);
+    setCalendarData(sessionService.getCalendarDailyData(practice.id));
   }
+
+  function closePracticeCalendar() {
+    setCalendarPractice(null);
+    setCalendarData([]);
+  }
+
+  function handleCalendarEdit(date: string, newValue: number) {
+    if (!calendarPractice) return;
+
+    if (!Number.isFinite(newValue)) return;
+
+    if (newValue < 0) {
+      alert(t("practice.valueCannotBeNegative"));
+      return;
+    }
+
+    if (!Number.isInteger(newValue)) {
+      alert(t("practice.enterWholeNumber"));
+      return;
+    }
+
+    try {
+      sessionService.adjustDayTotal(
+        calendarPractice.id,
+        date,
+        newValue
+      );
+      setCalendarData(
+        sessionService.getCalendarDailyData(calendarPractice.id)
+      );
+
+      const latestPractice =
+        dashboardService
+          .getDashboardPractices()
+          .find(practice => practice.id === calendarPractice.id);
+
+      if (latestPractice) {
+        setCalendarPractice(latestPractice);
+      }
+
+      refreshDashboard();
+    } catch (error: any) {
+      alert(error.message);
+    }
+  }
+
+  const calendarStartDate = useMemo(
+    () => calendarPractice
+      ? appService.getCalendarStartDate(calendarPractice.id)
+      : new Date(),
+    [calendarPractice]
+  );
+  const calendarEndDate = useMemo(() => {
+    if (!calendarPractice) return new Date();
+
+    return (
+      practiceService.getExpectedTargetDate(
+        calendarPractice.targetCount,
+        calendarPractice.total,
+        calendarPractice.dailyTargetCount ?? null
+      ) ?? new Date()
+    );
+  }, [calendarPractice]);
 
   function getPracticeCardViewModel(practice: Practice) {
     const practiceDisplayName =
@@ -714,7 +779,7 @@ export default function Dashboard() {
                         ]}
                         onPress={(event) => {
                           event.stopPropagation();
-                          openPracticeCalendar(practice.id);
+                          openPracticeCalendar(practice);
                         }}
                         hitSlop={6}
                         accessibilityRole="button"
@@ -938,6 +1003,14 @@ export default function Dashboard() {
           practice={menuPractice}
           onClose={closePracticeMenu}
           onDeleted={refreshDashboard}
+          onCalendar={(practice) => {
+            const latestPractice =
+              practicesRef.current.find(row => row.id === practice.id);
+
+            if (latestPractice) {
+              openPracticeCalendar(latestPractice);
+            }
+          }}
         />
 
         {practiceActions.historyPractice && (
@@ -954,6 +1027,15 @@ export default function Dashboard() {
           practiceName={dailyTargetPromptPractice?.name}
           onClose={closeDailyTargetPrompt}
           onSave={saveDailyTarget}
+        />
+
+        <PracticeCalendarModal
+          visible={calendarPractice !== null}
+          data={calendarData}
+          startDate={calendarStartDate}
+          endDate={calendarEndDate}
+          onEditDay={handleCalendarEdit}
+          onClose={closePracticeCalendar}
         />
 
         {showQuickAddHint && tooltipPosition && (

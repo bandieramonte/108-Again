@@ -2,7 +2,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Localization from "expo-localization";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Alert, Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CelebrationOverlay from "../../components/CelebrationOverlay";
 import DailyGoalProgress from "../../components/DailyGoalProgress";
@@ -12,7 +12,7 @@ import FloatingAddAnimation, { FloatingAddAnimationRef } from "../../components/
 import PracticeActionsMenu, {
     type PracticeMenuAnchor,
 } from "../../components/PracticeActionsMenu";
-import PracticeCalendar from "../../components/PracticeCalendar";
+import PracticeCalendarModal from "../../components/PracticeCalendarModal";
 import PracticeProgressEditor from "../../components/PracticeProgressEditor";
 import PracticeReminderEditor from "../../components/PracticeReminderEditor";
 import QuickAddEditor from "../../components/QuickAddEditor";
@@ -177,7 +177,6 @@ export default function PracticeContent({
     const dailyAnimRef = useRef<FloatingAddAnimationRef>(null);
     const customAnimRef = useRef<FloatingAddAnimationRef>(null);
     const [calendarOpen, setCalendarOpen] = useState(openCalendarInitially);
-    const [calendarInfoOpen, setCalendarInfoOpen] = useState(false);
     const [dateAdjustedInfo, setDateAdjustedInfo] = useState<{
         selected: Date;
         actual: Date;
@@ -444,8 +443,16 @@ export default function PracticeContent({
 
     function openReminderEditor() {
         if (!hasDailyTarget) {
-            alert(t("practice.setDailyTargetBeforeReminders"));
-            openDailyTargetEditor();
+            Alert.alert(
+                t("practice.enableDailyTarget"),
+                t("practice.setDailyTargetBeforeReminders"),
+                [
+                    {
+                        text: t("common.ok"),
+                        onPress: openDailyTargetEditor,
+                    },
+                ]
+            );
             return;
         }
 
@@ -880,90 +887,14 @@ export default function PracticeContent({
                             </Pressable>
                         </Modal>
 
-                        <Modal
+                        <PracticeCalendarModal
                             visible={calendarOpen}
-                            transparent
-                            animationType="slide"
-                            statusBarTranslucent
-                            onRequestClose={() => setCalendarOpen(false)}
-                        >
-                            <Pressable style={styles.calendarOverlay} onPress={() => setCalendarOpen(false)}>
-
-                                <View style={styles.calendarSheet}>
-
-                                    <View style={styles.sheetHandle} />
-
-                                    <View style={styles.calendarHeader}>
-                                        <Pressable onPress={() => setCalendarOpen(false)}>
-                                            <Text style={styles.calendarClose}>
-                                                {t("common.close")}
-                                            </Text>
-                                        </Pressable>
-
-                                        <Pressable
-                                            onPress={() => setCalendarInfoOpen(true)}
-                                            style={styles.calendarInfoIcon}
-                                            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-                                            accessibilityRole="button"
-                                            accessibilityLabel={t("practice.calendarInfoA11y")}
-                                        >
-                                            <MaterialIcons
-                                                name="info-outline"
-                                                size={20}
-                                                color="#666"
-                                            />
-                                        </Pressable>
-                                    </View>
-
-                                    <PracticeCalendar
-                                        data={calendarData}
-                                        startDate={calendarStartDate}
-                                        endDate={calendarEndDate}
-                                        onEditDay={handleEdit}
-                                    />
-
-                                </View>
-
-                            </Pressable>
-                        </Modal>
-
-                        <Modal
-                            visible={calendarInfoOpen}
-                            transparent
-                            animationType="fade"
-                            onRequestClose={() => setCalendarInfoOpen(false)}
-                        >
-                            <Pressable
-                                style={styles.infoOverlay}
-                                onPress={() => setCalendarInfoOpen(false)}
-                            >
-                                <Pressable
-                                    style={styles.infoModal}
-                                    onPress={() => { }}
-                                >
-                                    <Text style={styles.infoTitle}>
-                                        {t("practice.calendarInfoTitle")}
-                                    </Text>
-
-                                    <Text style={styles.infoText}>
-                                        {t("practice.calendarInfoText1")}
-                                    </Text>
-
-                                    <Text style={styles.infoText}>
-                                        {t("practice.calendarInfoText2")}
-                                    </Text>
-
-                                    <Pressable
-                                        style={styles.infoButton}
-                                        onPress={() => setCalendarInfoOpen(false)}
-                                    >
-                                        <Text style={styles.infoButtonText}>
-                                            {t("common.ok")}
-                                        </Text>
-                                    </Pressable>
-                                </Pressable>
-                            </Pressable>
-                        </Modal>
+                            data={calendarData}
+                            startDate={calendarStartDate}
+                            endDate={calendarEndDate}
+                            onEditDay={handleEdit}
+                            onClose={() => setCalendarOpen(false)}
+                        />
 
                         <PracticeActionsMenu
                             visible={menuOpen}
@@ -1516,28 +1447,6 @@ const styles = StyleSheet.create({
         color: "white"
     },
 
-    calendarHeader: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: 20,
-        paddingBottom: 10,
-        borderBottomWidth: 1,
-        borderColor: "#eee"
-    },
-
-    calendarClose: {
-        fontSize: 16,
-        fontWeight: "600",
-        color: colors.primary
-    },
-    calendarInfoIcon: {
-        width: 28,
-        height: 28,
-        alignItems: "center",
-        justifyContent: "center",
-        marginRight: 2
-    },
     calendarButtonContainer: {
         alignSelf: "center",
         marginTop: 24,
@@ -1557,31 +1466,4 @@ const styles = StyleSheet.create({
         elevation: 4,
     },
 
-    calendarOverlay: {
-        flex: 1,
-        justifyContent: "flex-end",
-        backgroundColor: "rgba(0,0,0,0.15)"
-    },
-
-    calendarSheet: {
-        height: Dimensions.get("window").width > 700 ? "70%" : "60%",
-        backgroundColor: "white",
-        borderTopLeftRadius: 18,
-        borderTopRightRadius: 18,
-        paddingTop: 6,
-        shadowColor: "#000",
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: -3 },
-        elevation: 8
-    },
-    sheetHandle: {
-        width: 40,
-        height: 4,
-        backgroundColor: "#ddd",
-        alignSelf: "center",
-        borderRadius: 2,
-        marginTop: 6,
-        marginBottom: 8
-    },
 });
