@@ -82,6 +82,21 @@ export default function HeaderMenu({
 
     return (
         <View style={styles.container}>
+            <Pressable
+                onPress={() => setLanguageOpen(true)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t("language.switch")}
+                style={({ pressed }) => [
+                    styles.languageButton,
+                    pressed && { opacity: 0.5 }
+                ]}
+            >
+                <Text style={styles.flagText}>
+                    {selectedLanguage.flag}
+                </Text>
+            </Pressable>
+
             {!hideAccountIcon ? (
                 <Pressable
                     onPress={() => {
@@ -102,21 +117,6 @@ export default function HeaderMenu({
             ) : (
                 <View style={{ width: 32 }} />
             )}
-
-            <Pressable
-                onPress={() => setLanguageOpen(true)}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel={t("language.switch")}
-                style={({ pressed }) => [
-                    styles.languageButton,
-                    pressed && { opacity: 0.5 }
-                ]}
-            >
-                <Text style={styles.flagText}>
-                    {selectedLanguage.flag}
-                </Text>
-            </Pressable>
 
             <Pressable
                 ref={moreButtonRef}

@@ -38,9 +38,6 @@ export default function PracticePager() {
         return currentIndex;
     }, [currentIndex, pageCount]);
 
-    const shouldRenderPage = (index: number) => {
-        return Math.abs(index - normalizedIndex) <= 1;
-    };
     const pendingJumpRef = useRef<number | null>(null);
     const visiblePracticeId = useMemo(() => {
         if (pageCount === 0) return null;

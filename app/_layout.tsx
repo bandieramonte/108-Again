@@ -2,12 +2,11 @@ import HeaderMenu from "@/components/HeaderMenu";
 import HeaderTitle from "@/components/HeaderTitle";
 import UpdateRequiredScreen from "@/components/UpdateRequiredScreen";
 import { I18nProvider, useI18n } from "@/i18n";
-import { getSupabase } from "@/lib/supabase";
 import { subscribeAuth } from "@/utils/events";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack, router, usePathname } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Pressable, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, View } from "react-native";
 import * as appService from "../services/appService";
 import type { UpdateRequirement } from "../services/appUpdatePolicy";
 import * as appUpdateService from "../services/appUpdateService";
@@ -29,14 +28,11 @@ function LayoutContent() {
     const { t } = useI18n();
     const [authState, setAuthState] = useState(authService.getAuthState());
     const [appInitialized, setAppInitialized] = useState(false);
-    const [initialUrlChecked, setInitialUrlChecked] = useState(false);
     const [startupRouteHandled, setStartupRouteHandled] = useState(false);
     const [updateRequirement, setUpdateRequirement] =
         useState<UpdateRequirement | null>(null);
     const [checkingForUpdate, setCheckingForUpdate] = useState(true);
     const pathname = usePathname();
-    const handledDeepLink = useRef(false);
-    const initialUrlPresent = useRef(false);
     const restoringPracticeRoute = useRef(false);
     const reminderRouteHandled = useRef(false);
     const appInitializedRef = useRef(false);
@@ -108,72 +104,6 @@ function LayoutContent() {
     }, [checkAppAccess, initializeAppOnce]);
 
     useEffect(() => {
-        if (
-            !appInitialized ||
-            !updateRequirement ||
-            updateRequirement.kind === "required"
-        ) {
-            return;
-        }
-
-        async function handleInitialUrl() {
-            const url = await Linking.getInitialURL();
-            if (url) {
-                initialUrlPresent.current = true;
-                handleDeepLink(url);
-            }
-
-            setInitialUrlChecked(true);
-        }
-
-        async function handleDeepLink(url: string) {
-            if (handledDeepLink.current) return;
-
-            const fragment = url.split("#")[1];
-            if (!fragment) return;
-
-            const params = new URLSearchParams(fragment);
-            const access_token = params.get("access_token");
-            const refresh_token = params.get("refresh_token");
-            const type = params.get("type");
-
-            if (type === "recovery" && access_token && refresh_token) {
-                authService.setPasswordRecoveryFlow(true);
-
-                handledDeepLink.current = true;
-
-                console.log("Setting recovery session...");
-                const supabase = getSupabase();
-                const { error } = await supabase.auth.setSession({
-                    access_token,
-                    refresh_token,
-                });
-
-                if (error) {
-                    console.error("setSession failed:", error);
-                    Alert.alert(
-                        "Reset failed",
-                        "Invalid or expired password reset link."
-                    );
-                    return;
-                }
-
-                console.log("Recovery session established");
-
-                router.replace("/reset-password");
-            }
-        }
-
-        handleInitialUrl();
-
-        const sub = Linking.addEventListener("url", (event) => {
-            handleDeepLink(event.url);
-        });
-
-        return () => sub.remove();
-    }, [appInitialized, updateRequirement]);
-
-    useEffect(() => {
         if (!appInitialized) return;
 
         function openReminderPractice(practiceId: string) {
@@ -200,12 +130,12 @@ function LayoutContent() {
     }, [appInitialized]);
 
     useEffect(() => {
-        if (!appInitialized || !initialUrlChecked) return;
+        if (!appInitialized) return;
 
         let cancelled = false;
 
         async function restorePracticeRoute() {
-            if (handledDeepLink.current || initialUrlPresent.current) {
+            if (pathname !== "/") {
                 setStartupRouteHandled(true);
                 return;
             }
@@ -245,7 +175,7 @@ function LayoutContent() {
         return () => {
             cancelled = true;
         };
-    }, [appInitialized, initialUrlChecked]);
+    }, [appInitialized, pathname]);
 
     useEffect(() => {
         if (!startupRouteHandled) return;

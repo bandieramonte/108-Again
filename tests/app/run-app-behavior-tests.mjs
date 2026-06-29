@@ -13,6 +13,20 @@ function createMemoryStorage() {
     async getItem(key) {
       return store.has(key) ? store.get(key) : null;
     },
+    async getAllKeys() {
+      return [...store.keys()];
+    },
+    async multiGet(keys) {
+      return keys.map((key) => [
+        key,
+        store.has(key) ? store.get(key) : null,
+      ]);
+    },
+    async multiRemove(keys) {
+      for (const key of keys) {
+        store.delete(key);
+      }
+    },
     async removeItem(key) {
       store.delete(key);
     },
@@ -20,6 +34,109 @@ function createMemoryStorage() {
       store.set(key, value);
     },
   };
+}
+
+function clearRequireCache(modulePath) {
+  try {
+    delete require.cache[require.resolve(modulePath)];
+  } catch {
+    // The module may not have been compiled into this focused test bundle.
+  }
+}
+
+async function withBackupServiceHarness(device, storage, fn) {
+  const backupServicePath = require.resolve(
+    "../.build/services/backupService.js"
+  );
+  const appOperationRuntimePath = require.resolve(
+    "../.build/services/appOperationRuntime.js"
+  );
+  let refreshAllReminderCalls = 0;
+
+  clearRequireCache("../.build/services/backupService.js");
+  clearRequireCache("../.build/services/appOperationRuntime.js");
+  clearRequireCache("../.build/services/practiceReminderService.js");
+
+  Module._load = function loadWithBackupServiceHarness(
+    request,
+    parent,
+    isMain
+  ) {
+    if (
+      parent?.filename === backupServicePath &&
+      request === "./appOperationRuntime"
+    ) {
+      return {
+        getAppOperationEngine: () => device.operations,
+      };
+    }
+
+    if (
+      parent?.filename === backupServicePath &&
+      request === "./practiceReminderRefreshService"
+    ) {
+      return {
+        queueRefreshAllPracticeReminders: () => {
+          refreshAllReminderCalls += 1;
+        },
+      };
+    }
+
+    if (request === appOperationRuntimePath) {
+      return {
+        getAppOperationEngine: () => device.operations,
+      };
+    }
+
+    if (request === "@react-native-async-storage/async-storage") {
+      return { default: storage };
+    }
+
+    if (request === "expo-notifications") {
+      return {
+        AndroidImportance: { DEFAULT: "default" },
+        AndroidNotificationPriority: { DEFAULT: "default" },
+        SchedulableTriggerInputTypes: { DATE: "date" },
+        addNotificationResponseReceivedListener: () => ({
+          remove: () => {},
+        }),
+        cancelScheduledNotificationAsync: async () => {},
+        clearLastNotificationResponse: () => {},
+        getLastNotificationResponse: () => null,
+        getPermissionsAsync: async () => ({ status: "granted" }),
+        requestPermissionsAsync: async () => ({ status: "granted" }),
+        scheduleNotificationAsync: async ({ identifier }) => identifier,
+        setNotificationChannelAsync: async () => {},
+        setNotificationHandler: () => {},
+      };
+    }
+
+    if (request === "react-native") {
+      return {
+        Platform: { OS: "android" },
+      };
+    }
+
+    return originalLoad.call(this, request, parent, isMain);
+  };
+
+  try {
+    const backupService =
+      require("../.build/services/backupService.js");
+    const practiceReminderService =
+      require("../.build/services/practiceReminderService.js");
+
+    return await fn(backupService, practiceReminderService, {
+      get refreshAllReminderCalls() {
+        return refreshAllReminderCalls;
+      },
+    });
+  } finally {
+    Module._load = originalLoad;
+    clearRequireCache("../.build/services/backupService.js");
+    clearRequireCache("../.build/services/appOperationRuntime.js");
+    clearRequireCache("../.build/services/practiceReminderService.js");
+  }
 }
 
 const originalLoad = Module._load;
@@ -47,6 +164,10 @@ const { createAppOperationEngine } =
   require("../.build/services/appOperationEngine.js");
 const { validateBackup } =
   require("../.build/services/backupService.js");
+const { redirectSystemPath } =
+  require("../.build/app/+native-intent.js");
+const { establishPasswordRecoverySessionCore } =
+  require("../.build/services/authAccountActions.js");
 const { isUnrecoverableRefreshTokenError } =
   require("../.build/services/authSessionPolicy.js");
 const { determineUpdateRequirement } =
@@ -334,6 +455,78 @@ const basePolicy = {
 };
 
 await test(
+  "reset password recovery links route to the reset screen and establish the recovery session",
+  async () => {
+    assert.equal(
+      redirectSystemPath({
+        path:
+          "app108again://reset-password#access_token=access-token&refresh_token=refresh-token&type=recovery",
+        initial: true,
+      }),
+      "/reset-password?access_token=access-token&refresh_token=refresh-token&type=recovery"
+    );
+
+    assert.equal(
+      redirectSystemPath({
+        path:
+          "app108againdev://reset-password?access_token=dev-access&refresh_token=dev-refresh&type=recovery",
+        initial: false,
+      }),
+      "/reset-password?access_token=dev-access&refresh_token=dev-refresh&type=recovery"
+    );
+
+    const sessionCalls = [];
+    const recoveryFlowChanges = [];
+
+    const result = await establishPasswordRecoverySessionCore(
+      {
+        setPasswordRecoveryFlow: (value) => {
+          recoveryFlowChanges.push(value);
+        },
+        setSession: async (session) => {
+          sessionCalls.push(session);
+          return { error: null };
+        },
+      },
+      {
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        type: "recovery",
+      }
+    );
+
+    assert.deepEqual(result, { kind: "session_established" });
+    assert.deepEqual(recoveryFlowChanges, [true]);
+    assert.deepEqual(sessionCalls, [
+      {
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+      },
+    ]);
+
+    await assert.rejects(
+      () => establishPasswordRecoverySessionCore(
+        {
+          setPasswordRecoveryFlow: (value) => {
+            recoveryFlowChanges.push(value);
+          },
+          setSession: async () => ({
+            error: { message: "Invalid or expired password reset link." },
+          }),
+        },
+        {
+          accessToken: "bad-access-token",
+          refreshToken: "bad-refresh-token",
+          type: "recovery",
+        }
+      ),
+      /Invalid or expired password reset link/
+    );
+    assert.deepEqual(recoveryFlowChanges, [true, true, false]);
+  }
+);
+
+await test(
   "new practices disable daily targets and default sessions to 108",
   () => {
     const device = makeLocalDevice();
@@ -604,6 +797,140 @@ await test(
         enabled: true,
         hour: 7,
         minute: 45,
+      }
+    );
+  }
+);
+
+await test(
+  "backup service wrapper exports and restores database and stored reminders",
+  async () => {
+    const source = makeLocalDevice();
+    const databasePracticeId = source.operations.createPractice(
+      "Database Reminder Practice",
+      10000,
+      500,
+      108
+    );
+    const storedPracticeId = source.operations.createPractice(
+      "Stored Reminder Practice",
+      10000,
+      500,
+      108
+    );
+    const sourceStorage = createMemoryStorage();
+
+    source.operations.updatePracticeReminderSettings(
+      databasePracticeId,
+      true,
+      6,
+      15
+    );
+
+    const backup = await withBackupServiceHarness(
+      source,
+      sourceStorage,
+      async (backupService, practiceReminderService) => {
+        await practiceReminderService.restorePracticeReminderBackupData(
+          [
+            {
+              practiceId: databasePracticeId,
+              enabled: true,
+              hour: 20,
+              minute: 30,
+            },
+            {
+              practiceId: storedPracticeId,
+              enabled: true,
+              hour: 7,
+              minute: 45,
+            },
+          ],
+          new Set([databasePracticeId, storedPracticeId])
+        );
+
+        return backupService.getBackupData();
+      }
+    );
+
+    assert.deepEqual(
+      backup.practiceReminders
+        .filter(row =>
+          row.practiceId === databasePracticeId ||
+          row.practiceId === storedPracticeId
+        )
+        .sort((a, b) => a.practiceId.localeCompare(b.practiceId)),
+      [
+        {
+          practiceId: databasePracticeId,
+          enabled: true,
+          hour: 6,
+          minute: 15,
+        },
+        {
+          practiceId: storedPracticeId,
+          enabled: true,
+          hour: 7,
+          minute: 45,
+        },
+      ].sort((a, b) => a.practiceId.localeCompare(b.practiceId)),
+      "Backup service uses database reminders first and stored reminders as a legacy fallback"
+    );
+
+    const destination = makeLocalDevice();
+    const destinationStorage = createMemoryStorage();
+
+    await withBackupServiceHarness(
+      destination,
+      destinationStorage,
+      async (
+        backupService,
+        practiceReminderService,
+        harnessState
+      ) => {
+        await backupService.restoreBackupData(backup);
+
+        const restoredDatabasePractice =
+          destination.practiceRepo.getPracticeById(databasePracticeId);
+        const restoredStoredPractice =
+          destination.practiceRepo.getPracticeById(storedPracticeId);
+
+        assert.equal(restoredDatabasePractice.reminderEnabled, 1);
+        assert.equal(restoredDatabasePractice.reminderHour, 6);
+        assert.equal(restoredDatabasePractice.reminderMinute, 15);
+        assert.equal(restoredStoredPractice.reminderEnabled, 1);
+        assert.equal(restoredStoredPractice.reminderHour, 7);
+        assert.equal(restoredStoredPractice.reminderMinute, 45);
+
+        assert.deepEqual(
+          await practiceReminderService.getPracticeReminderSettings(
+            databasePracticeId
+          ),
+          {
+            enabled: true,
+            hour: 6,
+            minute: 15,
+            scheduledNotifications: [],
+          },
+          "Backup restore also updates the native reminder store"
+        );
+        assert.deepEqual(
+          await practiceReminderService.getPracticeReminderSettings(
+            storedPracticeId
+          ),
+          {
+            enabled: true,
+            hour: 7,
+            minute: 45,
+            scheduledNotifications: [],
+          },
+          "Stored fallback reminders restore into the native reminder store"
+        );
+        assert.equal(
+          harnessState.refreshAllReminderCalls,
+          1,
+          "Backup restore queues a reminder refresh through the app wrapper"
+        );
       }
     );
   }

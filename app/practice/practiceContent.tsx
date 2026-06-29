@@ -183,9 +183,53 @@ export default function PracticeContent({
     } | null>(null);
     const scrollBottomPadding = Math.max(30, insets.bottom + 24);
 
+    const loadCalendarData = useCallback(() => {
+        const data = sessionService.getCalendarDailyData(practiceId);
+        setCalendarData(data);
+    }, [practiceId]);
+
+    const loadSessions = useCallback((effectiveTargetCount: number) => {
+        const totalResult = sessionService.getPracticeTotal(practiceId);
+        const nextTotal = totalResult.total;
+        setTotal(nextTotal);
+
+        void updateReachedState([
+            {
+                id: practiceId,
+                total: nextTotal,
+                targetCount: effectiveTargetCount,
+            }
+        ]);
+    }, [practiceId, updateReachedState]);
+
+    const loadPracticeData = useCallback(() => {
+        const practice = practiceService.getPractice(practiceId);
+
+        if (practice) {
+            setPracticeName(practice.name);
+            setImageKey(practice.imageKey ?? null);
+            setDailyTargetCount(
+                practice.dailyTargetCount == null
+                    ? ""
+                    : String(practice.dailyTargetCount)
+            );
+            setDefaultSessionCount(String(practice.defaultSessionCount ?? 108));
+            setTargetCount(practice.targetCount);
+            setReminderSettings(
+                getPracticeReminderSettingsFromPractice(practice)
+            );
+            loadSessions(practice.targetCount);
+        }
+    }, [loadSessions, practiceId]);
+
+    const schedulePracticeRefresh = useCallback(() => {
+        loadPracticeData();
+        loadCalendarData();
+    }, [loadCalendarData, loadPracticeData]);
+
     useEffect(() => {
         schedulePracticeRefresh();
-    }, [practiceId, t]);
+    }, [schedulePracticeRefresh]);
 
     useEffect(() => {
         if (!reminderSettings.enabled) return;
@@ -224,58 +268,13 @@ export default function PracticeContent({
         });
 
         return unsubscribe;
-    }, [practiceId, t]);
+    }, [schedulePracticeRefresh]);
 
     useFocusEffect(
         useCallback(() => {
             schedulePracticeRefresh();
-        }, [practiceId])
+        }, [schedulePracticeRefresh])
     );
-
-    function loadCalendarData() {
-        const data = sessionService.getCalendarDailyData(practiceId);
-        setCalendarData(data);
-    }
-
-    function schedulePracticeRefresh() {
-        loadPracticeData();
-        loadCalendarData();
-    }
-
-    function loadSessions(overrideTargetCount?: number) {
-        const totalResult = sessionService.getPracticeTotal(practiceId);
-        const nextTotal = totalResult.total;
-        setTotal(nextTotal);
-        const effectiveTargetCount = overrideTargetCount ?? targetCount;
-
-        void updateReachedState([
-            {
-                id: practiceId,
-                total: nextTotal,
-                targetCount: effectiveTargetCount,
-            }
-        ]);
-    }
-
-    function loadPracticeData() {
-        const practice = practiceService.getPractice(practiceId);
-
-        if (practice) {
-            setPracticeName(practice.name);
-            setImageKey(practice.imageKey ?? null);
-            setDailyTargetCount(
-                practice.dailyTargetCount == null
-                    ? ""
-                    : String(practice.dailyTargetCount)
-            );
-            setDefaultSessionCount(String(practice.defaultSessionCount ?? 108));
-            setTargetCount(practice.targetCount);
-            setReminderSettings(
-                getPracticeReminderSettingsFromPractice(practice)
-            );
-            loadSessions(practice.targetCount);
-        }
-    }
 
     const handleEdit = useCallback((date: string, newValue: number) => {
         if (!Number.isFinite(newValue)) return;
@@ -300,7 +299,7 @@ export default function PracticeContent({
         } catch (error: any) {
             alert(error.message);
         }
-    }, [practiceId, t]);
+    }, [practiceId, schedulePracticeRefresh, t]);
 
     function openCustomAmountModal() {
         setCustomAmount("");
@@ -381,7 +380,7 @@ export default function PracticeContent({
 
     const calendarStartDate = useMemo(
         () => appService.getCalendarStartDate(practiceId),
-        [practiceId, calendarData]
+        [practiceId]
     );
 
     function toggleMenu() {

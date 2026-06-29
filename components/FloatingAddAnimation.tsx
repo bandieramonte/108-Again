@@ -64,6 +64,8 @@ const FloatingAddAnimation = forwardRef<
     );
 });
 
+FloatingAddAnimation.displayName = "FloatingAddAnimation";
+
 export default FloatingAddAnimation;
 
 const styles = StyleSheet.create({

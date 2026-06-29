@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "baseUrl": "../..",
+    "jsx": "react-native",
     "module": "CommonJS",
     "moduleResolution": "Node",
     "outDir": "../.build",
@@ -17,6 +18,8 @@
     "skipLibCheck": true
   },
   "include": [
+    "../../app/+native-intent.tsx",
+    "../../constants/authFieldLimits.ts",
     "../../constants/defaultPractices.ts",
     "../../database/schema.ts",
     "../../database/sqliteTypes.ts",
@@ -27,10 +30,12 @@
     "../../repositories/sessionRepoFactory.ts",
     "../../services/appOperationEngine.ts",
     "../../services/appOperationRuntime.ts",
+    "../../services/authAccountActions.ts",
     "../../services/backupService.ts",
     "../../services/authSessionPolicy.ts",
     "../../services/appUpdatePolicy.ts",
     "../../services/lastPracticeScreenService.ts",
+    "../../services/practiceReminderService.ts",
     "../../services/syncCoordinator.ts",
     "../../services/syncEngine.ts",
     "../../types/sync.ts",
