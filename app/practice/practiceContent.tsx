@@ -21,11 +21,12 @@ import { useI18n } from "../../i18n";
 import { getPracticeDisplayName } from "../../i18n/practiceNames";
 import { createPracticeReminderText } from "../../i18n/reminderText";
 import * as appService from "../../services/appService";
-import type { PracticeReminderSettings } from "../../services/practiceReminderService";
 import * as practiceReminderRefreshService from "../../services/practiceReminderRefreshService";
+import type { PracticeReminderSettings } from "../../services/practiceReminderService";
 import * as practiceReminderService from "../../services/practiceReminderService";
 import * as practiceService from "../../services/practiceService";
 import * as sessionService from "../../services/sessionService";
+import { APP_SIDE_PADDING } from "../../styles/global";
 import { colors, containers } from "../../styles/theme";
 import { subscribeData } from "../../utils/events";
 import { digitsOnly, formatCountProgress, formatNumber, MAX_REPETITIONS_PER_DAY, validateNonNegativeInteger } from "../../utils/numberUtils";
@@ -89,8 +90,10 @@ export default function PracticeContent({
 
         return 1;
     }, [imageSource]);
-    const imageDisplayHeight = Math.min(width - 20, 500);
-    const imageDisplayWidth = imageDisplayHeight * imageRatio;
+    const availableContentWidth =
+        Math.max(width - APP_SIDE_PADDING * 2, 0);
+    const imageDisplayWidth = Math.min(availableContentWidth, 500);
+    const imageDisplayHeight = imageDisplayWidth / imageRatio;
     const [menuOpen, setMenuOpen] = useState(false);
     const rotateAnim = useRef(new Animated.Value(0)).current;
     const titleRowRef = useRef<View | null>(null);
@@ -1118,7 +1121,6 @@ const styles = StyleSheet.create({
     },
 
     contentBlock: {
-        paddingHorizontal: 20,
         zIndex: 1,
         elevation: 1,
         paddingBottom: 30,

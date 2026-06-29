@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput } from "react-native";
 import { useI18n } from "../i18n";
 import * as practiceService from "../services/practiceService";
+import { globalStyles } from "../styles/global";
 import { colors } from "../styles/theme";
 import { digitsOnly, MAX_PRACTICE_NAME, MAX_REPETITIONS_PER_DAY, MAX_TARGET_COUNT, validateNonNegativeInteger, validateRepetitionCount, validateTargetCount } from "../utils/numberUtils";
 
@@ -115,7 +116,10 @@ export default function EditPractice() {
             behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
             <ScrollView
-                contentContainerStyle={styles.container}
+                contentContainerStyle={[
+                    globalStyles.sidePadding,
+                    styles.container,
+                ]}
                 keyboardShouldPersistTaps="handled"
             >
                 <Text style={styles.title}>{t("form.editPracticeTitle")}</Text>
@@ -196,7 +200,6 @@ const styles = StyleSheet.create({
 
     container: {
         flex: 1,
-        padding: 20,
         marginTop: 60
     },
 

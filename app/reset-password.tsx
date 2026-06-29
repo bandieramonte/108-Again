@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { useI18n } from "../i18n";
 import * as authService from "../services/authService";
+import { globalStyles } from "../styles/global";
 
 export default function ResetPasswordScreen() {
     const { t } = useI18n();
@@ -92,7 +93,10 @@ export default function ResetPasswordScreen() {
             behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
             <ScrollView
-                contentContainerStyle={styles.container}
+                contentContainerStyle={[
+                    globalStyles.sidePadding,
+                    styles.container,
+                ]}
                 keyboardShouldPersistTaps="handled"
             >
                 <Text style={styles.title}>{t("auth.setNewPassword")}</Text>
@@ -153,7 +157,7 @@ export default function ResetPasswordScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 20,
+        paddingVertical: 14,
         backgroundColor: "white",
     },
 

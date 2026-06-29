@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { useI18n } from "../i18n";
 import * as authService from "../services/authService";
+import { globalStyles } from "../styles/global";
 
 export default function SignInScreen() {
     const { t } = useI18n();
@@ -94,7 +95,10 @@ export default function SignInScreen() {
             behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
             <ScrollView
-                contentContainerStyle={styles.container}
+                contentContainerStyle={[
+                    globalStyles.sidePadding,
+                    styles.container,
+                ]}
                 keyboardShouldPersistTaps="handled"
             >
                 <Text style={styles.title}>{t("menu.logIn")}</Text>
@@ -198,7 +202,7 @@ export default function SignInScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 20,
+        paddingVertical: 14,
         backgroundColor: "white",
     },
 

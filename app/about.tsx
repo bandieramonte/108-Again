@@ -2,6 +2,7 @@ import Constants from "expo-constants";
 import { Stack } from "expo-router";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useI18n } from "../i18n";
+import { globalStyles } from "../styles/global";
 
 export default function AboutScreen() {
     const { t } = useI18n();
@@ -11,7 +12,12 @@ export default function AboutScreen() {
         <>
             <Stack.Screen options={{ title: t("menu.about") }} />
 
-            <ScrollView contentContainerStyle={styles.container}>
+            <ScrollView
+                contentContainerStyle={[
+                    globalStyles.sidePadding,
+                    styles.container,
+                ]}
+            >
                 <Text style={styles.title}>108 Again</Text>
 
                 <Text style={styles.version}>
@@ -56,7 +62,7 @@ export default function AboutScreen() {
 
 const styles = StyleSheet.create({
     container: {
-        padding: 20,
+        paddingVertical: 14,
         maxWidth: 700,
         alignSelf: "center",
         width: "100%",

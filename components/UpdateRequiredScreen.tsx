@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useI18n } from "../i18n";
 import type { UpdateRequirement } from "../services/appUpdatePolicy";
+import { globalStyles } from "../styles/global";
 import { colors } from "../styles/theme";
 
 type RequiredUpdate = Extract<
@@ -44,7 +45,7 @@ export default function UpdateRequiredScreen({
     }, []);
 
     return (
-        <SafeAreaView style={styles.screen}>
+        <SafeAreaView style={[globalStyles.sidePadding, styles.screen]}>
             <View style={styles.card}>
                 <MaterialIcons
                     name={isMaintenance ? "build" : "system-update"}
@@ -107,7 +108,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.background,
         alignItems: "center",
         justifyContent: "center",
-        padding: 24,
+        paddingVertical: 17,
     },
     card: {
         width: "100%",

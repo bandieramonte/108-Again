@@ -15,6 +15,7 @@ import { useI18n } from "../i18n";
 import * as authService from "../services/authService";
 import { getIsOnline } from "../services/networkService";
 import * as syncService from "../services/syncService";
+import { globalStyles } from "../styles/global";
 import { subscribeAuth, subscribeSync } from "../utils/events";
 
 export default function AccountScreen() {
@@ -219,7 +220,7 @@ export default function AccountScreen() {
                 }}
             />
 
-            <View style={styles.container}>
+            <View style={[globalStyles.sidePadding, styles.container]}>
                 <Text style={styles.title}>{t("account.title")}</Text>
 
                 <View style={styles.card}>
@@ -325,7 +326,7 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 20,
+        paddingVertical: 14,
         backgroundColor: "white",
     },
 

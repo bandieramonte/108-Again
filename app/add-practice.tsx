@@ -19,6 +19,7 @@ import {
 import { useI18n } from "../i18n";
 import { getPracticeDisplayName } from "../i18n/practiceNames";
 import * as practiceService from "../services/practiceService";
+import { globalStyles } from "../styles/global";
 import { colors } from "../styles/theme";
 import {
     digitsOnly,
@@ -146,7 +147,10 @@ export default function AddPractice() {
             behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
             <ScrollView
-                contentContainerStyle={styles.container}
+                contentContainerStyle={[
+                    globalStyles.sidePadding,
+                    styles.container,
+                ]}
                 keyboardShouldPersistTaps="handled"
             >
 
@@ -393,7 +397,6 @@ const styles = StyleSheet.create({
 
     container: {
         flexGrow: 1,
-        padding: 20,
         paddingTop: 26,
         paddingBottom: 36,
     },
