@@ -127,15 +127,50 @@ export function createPracticeRepo(database: SqliteDatabase) {
         id: string,
         name: string,
         target: number,
-        syncMetadata : SyncMetadata
+        syncMetadata : SyncMetadata,
+        imageKey?: string | null
     ): void {
         if (syncMetadata.updatedAt == null && syncMetadata.syncStatus == null) {
+            if (imageKey === undefined) {
+                database.runSync(
+                    `UPDATE practices
+       SET name = ?, targetCount = ?
+       WHERE id = ?`,
+                    name,
+                    target,
+                    id
+                );
+                return;
+            }
+
             database.runSync(
                 `UPDATE practices
-       SET name = ?, targetCount = ?
+       SET name = ?, targetCount = ?, imageKey = ?
        WHERE id = ?`,
                 name,
                 target,
+                imageKey,
+                id
+            );
+            return;
+        }
+
+        if (imageKey === undefined) {
+            database.runSync(
+                `UPDATE practices
+     SET name = ?,
+         targetCount = ?,
+         userId = ?,
+         updatedAt = COALESCE(?, updatedAt),
+         syncStatus = COALESCE(?, syncStatus),
+         lastSyncedAt = ?
+     WHERE id = ?`,
+                name,
+                target,
+                syncMetadata.userId,
+                syncMetadata.updatedAt,
+                syncMetadata.syncStatus,
+                syncMetadata.lastSyncedAt,
                 id
             );
             return;
@@ -145,6 +180,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
             `UPDATE practices
      SET name = ?,
          targetCount = ?,
+         imageKey = ?,
          userId = ?,
          updatedAt = COALESCE(?, updatedAt),
          syncStatus = COALESCE(?, syncStatus),
@@ -152,6 +188,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
      WHERE id = ?`,
             name,
             target,
+            imageKey,
             syncMetadata.userId,
             syncMetadata.updatedAt,
             syncMetadata.syncStatus,

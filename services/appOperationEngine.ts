@@ -1,6 +1,10 @@
 import { DEFAULT_PRACTICES, SEEDED_IDS } from "../constants/defaultPractices";
 import { SyncMetadata } from "../types/sync";
 import { MAX_TARGET_COUNT } from "../utils/numberUtils";
+import {
+    getPracticeReminderBackupRowFromPractice,
+    isPracticeReminderEnabledValue,
+} from "../utils/practiceReminderState";
 
 export type OperationPracticeRow = {
     id: string;
@@ -54,7 +58,8 @@ type OperationPracticeRepo = {
         id: string,
         name: string,
         target: number,
-        syncMetadata: SyncMetadata
+        syncMetadata: SyncMetadata,
+        imageKey?: string | null
     ): void;
     updatePracticeDailyTargetCount(
         id: string,
@@ -290,30 +295,11 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         }
     }
 
-    function isReminderEnabled(value: unknown) {
-        return value === true || value === 1;
-    }
-
     function getPracticeReminderBackupRows(
         practices = deps.practiceRepo.getAllPractices()
     ) {
         return practices
-            .map(practice => {
-                const enabled = isReminderEnabled(practice.reminderEnabled);
-                const hour = practice.reminderHour ?? 20;
-                const minute = practice.reminderMinute ?? 0;
-
-                if (!enabled && hour === 20 && minute === 0) {
-                    return null;
-                }
-
-                return {
-                    practiceId: practice.id,
-                    enabled,
-                    hour,
-                    minute,
-                };
-            })
+            .map(getPracticeReminderBackupRowFromPractice)
             .filter((row): row is {
                 practiceId: string;
                 enabled: boolean;
@@ -482,12 +468,17 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         id: string,
         name: string,
         target: number,
-        newTotal: number
+        newTotal: number,
+        imageKey?: string | null
     ) {
         if (newTotal > MAX_TARGET_COUNT) {
             throw new Error(
                 `Total count cannot exceed ${MAX_TARGET_COUNT.toLocaleString()}`
             );
+        }
+
+        if (imageKey !== undefined && SEEDED_IDS.has(id)) {
+            throw new Error("Default practice images cannot be changed.");
         }
 
         const currentTotal = deps.sessionRepo.getPracticeTotal(id).total;
@@ -498,7 +489,8 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
             id,
             name,
             target,
-            syncMetadata
+            syncMetadata,
+            imageKey
         );
 
         if (difference !== 0) {
@@ -583,7 +575,9 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                                 practice.defaultSessionCount ?? 108,
                             totalOffset: practice.totalOffset ?? 0,
                             reminderEnabled:
-                                isReminderEnabled(practice.reminderEnabled),
+                                isPracticeReminderEnabledValue(
+                                    practice.reminderEnabled
+                                ),
                             reminderHour: practice.reminderHour ?? 20,
                             reminderMinute: practice.reminderMinute ?? 0,
                         })
@@ -615,6 +609,8 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
             total: totalResult.total,
             dailyTargetCount: practice.dailyTargetCount ?? null,
             defaultSessionCount: practice.defaultSessionCount ?? 108,
+            imageKey: practice.imageKey ?? null,
+            isSeedPractice: SEEDED_IDS.has(id),
         };
     }
 
@@ -892,7 +888,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                                         practice.defaultSessionCount ?? 108,
                                     totalOffset: practice.totalOffset ?? 0,
                                     reminderEnabled:
-                                        isReminderEnabled(
+                                        isPracticeReminderEnabledValue(
                                             practice.reminderEnabled
                                         ),
                                     reminderHour: practice.reminderHour ?? 20,

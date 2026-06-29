@@ -63,6 +63,8 @@ const { formatMonthDayYear } =
   require("../.build/utils/dateUtils.js");
 const { formatCountProgress } =
   require("../.build/utils/numberUtils.js");
+const { getPracticeReminderSettingsFromPractice } =
+  require("../.build/utils/practiceReminderState.js");
 const {
   buildReminderTimeOptions,
   formatReminderTimeForLocale,
@@ -581,6 +583,16 @@ await test(
     assert.equal(restoredPractice.reminderEnabled, 1);
     assert.equal(restoredPractice.reminderHour, 7);
     assert.equal(restoredPractice.reminderMinute, 45);
+    assert.deepEqual(
+      getPracticeReminderSettingsFromPractice(restoredPractice),
+      {
+        enabled: true,
+        hour: 7,
+        minute: 45,
+        scheduledNotifications: [],
+      },
+      "Detail reminder state follows imported practice reminder columns"
+    );
 
     const restoredBackup = destination.operations.getBackupData();
     assert.deepEqual(
@@ -661,6 +673,58 @@ await test(
 );
 
 await test(
+  "custom practice images can be edited while seed images stay fixed",
+  async () => {
+    const device = makeLocalDevice();
+    const practiceId = device.operations.createPractice(
+      "Editable Image Practice",
+      10000,
+      null,
+      108,
+      "green-tara"
+    );
+
+    let editData = device.operations.getPracticeEditData(practiceId);
+    assert.equal(editData.imageKey, "green-tara");
+    assert.equal(editData.isSeedPractice, false);
+
+    device.operations.updatePractice(
+      practiceId,
+      "Editable Image Practice",
+      10000,
+      0,
+      "white-liberatrice"
+    );
+
+    assert.equal(
+      device.practiceRepo.getPracticeById(practiceId).imageKey,
+      "white-liberatrice"
+    );
+
+    await device.operations.restoreDefaults();
+
+    const seedPractice = DEFAULT_PRACTICES[0];
+    editData = device.operations.getPracticeEditData(seedPractice.id);
+    assert.equal(editData.imageKey, seedPractice.imageKey);
+    assert.equal(editData.isSeedPractice, true);
+    assert.throws(
+      () => device.operations.updatePractice(
+        seedPractice.id,
+        seedPractice.name,
+        seedPractice.targetCount,
+        0,
+        "green-tara"
+      ),
+      /Default practice images cannot be changed/
+    );
+    assert.equal(
+      device.practiceRepo.getPracticeById(seedPractice.id).imageKey,
+      seedPractice.imageKey
+    );
+  }
+);
+
+await test(
   "sync pushes and pulls practice reminder schedules",
   async () => {
     const userId = "reminder-sync-user";
@@ -720,6 +784,16 @@ await test(
     assert.equal(pulledPractice.reminderMinute, 15);
     assert.equal(pulledPractice.syncStatus, "synced");
     assert.equal(pulledPractice.userId, userId);
+    assert.deepEqual(
+      getPracticeReminderSettingsFromPractice(pulledPractice),
+      {
+        enabled: true,
+        hour: 6,
+        minute: 15,
+        scheduledNotifications: [],
+      },
+      "Detail reminder state follows synced practice reminder columns"
+    );
   }
 );
 

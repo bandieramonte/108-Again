@@ -43,13 +43,15 @@ export function updatePractice(
     id: string,
     name: string,
     target: number,
-    newTotal: number
+    newTotal: number,
+    imageKey?: string | null
 ) {
     getAppOperationEngine().updatePractice(
         id,
         name,
         target,
-        newTotal
+        newTotal,
+        imageKey
     );
 }
 

@@ -5,6 +5,7 @@ import { createPracticeReminderText } from "../i18n/reminderText";
 import * as appMetaRepo from "../repositories/appMetaRepo";
 import * as practiceRepo from "../repositories/practiceRepo";
 import * as sessionRepo from "../repositories/sessionRepo";
+import { getPracticeReminderBackupRowFromPractice } from "../utils/practiceReminderState";
 import * as practiceReminderService from "./practiceReminderService";
 import type {
     PracticeReminderSettings,
@@ -50,35 +51,10 @@ function getTodayCount(practiceId: string) {
     return todayRow?.total ?? 0;
 }
 
-function isReminderEnabled(value: unknown) {
-    return value === true || value === 1;
-}
-
-function getReminderRowFromPractice(
-    practice: ReturnType<typeof practiceRepo.getPracticeById>
-) {
-    if (!practice) return null;
-
-    const enabled = isReminderEnabled(practice.reminderEnabled);
-    const hour = practice.reminderHour ?? 20;
-    const minute = practice.reminderMinute ?? 0;
-
-    if (!enabled && hour === 20 && minute === 0) {
-        return null;
-    }
-
-    return {
-        practiceId: practice.id,
-        enabled,
-        hour,
-        minute,
-    };
-}
-
 function getReminderRowsFromPracticeRows() {
     return practiceRepo
         .getAllPractices()
-        .map(getReminderRowFromPractice)
+        .map(getPracticeReminderBackupRowFromPractice)
         .filter((row): row is {
             practiceId: string;
             enabled: boolean;
@@ -103,7 +79,7 @@ async function syncStoredReminderSettingsFromPractice(
 
     await practiceReminderService.restorePracticeReminderBackupRow(
         practice.id,
-        getReminderRowFromPractice(practice)
+        getPracticeReminderBackupRowFromPractice(practice)
     );
 }
 

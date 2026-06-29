@@ -35,6 +35,7 @@
     "../../services/syncEngine.ts",
     "../../types/sync.ts",
     "../../utils/dateUtils.ts",
+    "../../utils/practiceReminderState.ts",
     "../../utils/reminderTime.ts",
     "../../utils/numberUtils.ts"
   ]

@@ -32,22 +32,8 @@ import { APP_SIDE_PADDING } from "../../styles/global";
 import { colors, containers } from "../../styles/theme";
 import { subscribeData } from "../../utils/events";
 import { digitsOnly, formatCountProgress, formatNumber, MAX_REPETITIONS_PER_DAY, validateNonNegativeInteger } from "../../utils/numberUtils";
+import { getPracticeReminderSettingsFromPractice } from "../../utils/practiceReminderState";
 import { formatReminderTimeForLocale } from "../../utils/reminderTime";
-
-function isReminderEnabled(value: unknown) {
-    return value === true || value === 1;
-}
-
-function getReminderSettingsFromPractice(
-    practice: ReturnType<typeof practiceService.getPractice>
-): PracticeReminderSettings {
-    return {
-        enabled: isReminderEnabled(practice?.reminderEnabled),
-        hour: practice?.reminderHour ?? 20,
-        minute: practice?.reminderMinute ?? 0,
-        scheduledNotifications: [],
-    };
-}
 
 export default function PracticeContent({
     practiceId,
@@ -66,7 +52,7 @@ export default function PracticeContent({
     const initialPractice = practiceService.getPractice(practiceId);
     const [reminderSettings, setReminderSettings] =
         useState<PracticeReminderSettings>(() =>
-            getReminderSettingsFromPractice(initialPractice)
+            getPracticeReminderSettingsFromPractice(initialPractice)
         );
 
     const [practiceName, setPracticeName] = useState(initialPractice?.name ?? "");
@@ -215,7 +201,7 @@ export default function PracticeContent({
             )
             .then(() => {
                 setReminderSettings(
-                    getReminderSettingsFromPractice(
+                    getPracticeReminderSettingsFromPractice(
                         practiceService.getPractice(practiceId)
                     )
                 );
@@ -285,7 +271,9 @@ export default function PracticeContent({
             );
             setDefaultSessionCount(String(practice.defaultSessionCount ?? 108));
             setTargetCount(practice.targetCount);
-            setReminderSettings(getReminderSettingsFromPractice(practice));
+            setReminderSettings(
+                getPracticeReminderSettingsFromPractice(practice)
+            );
             loadSessions(practice.targetCount);
         }
     }

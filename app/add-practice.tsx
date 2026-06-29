@@ -11,11 +11,11 @@ import {
     TextInput,
     View,
 } from "react-native";
+import PracticeImagePicker, {
+    CUSTOM_PRACTICE_IMAGE_FALLBACK,
+} from "../components/PracticeImagePicker";
 import { DEFAULT_PRACTICES } from "../constants/defaultPractices";
-import {
-    extraPracticeImageOptions,
-    practiceImages,
-} from "../constants/practiceImages";
+import { practiceImages } from "../constants/practiceImages";
 import { useI18n } from "../i18n";
 import { getPracticeDisplayName } from "../i18n/practiceNames";
 import * as practiceService from "../services/practiceService";
@@ -30,8 +30,6 @@ import {
     validateTargetCount,
 } from "../utils/numberUtils";
 
-const CUSTOM_IMAGE_FALLBACK = "generic";
-
 export default function AddPractice() {
 
     const router = useRouter();
@@ -41,7 +39,8 @@ export default function AddPractice() {
     const [target, setTarget] = useState("");
     const [defaultSession, setDefaultSession] = useState("108");
     const [selectedSeedId, setSelectedSeedId] = useState<string | null>(null);
-    const [customImageKey, setCustomImageKey] = useState(CUSTOM_IMAGE_FALLBACK);
+    const [customImageKey, setCustomImageKey] =
+        useState(CUSTOM_PRACTICE_IMAGE_FALLBACK);
 
     const activePracticeIds = new Set(
         practiceService
@@ -149,19 +148,21 @@ export default function AddPractice() {
             <ScrollView
                 contentContainerStyle={[
                     globalStyles.sidePadding,
-                    styles.container,
+                    globalStyles.formScreen,
                 ]}
                 keyboardShouldPersistTaps="handled"
             >
 
-                <Text style={styles.title}>{t("form.addPracticeTitle")}</Text>
+                <Text style={globalStyles.formTitle}>
+                    {t("form.addPracticeTitle")}
+                </Text>
 
                 {missingSeedPractices.length > 0 && (
-                    <View style={styles.sectionCard}>
-                        <Text style={styles.sectionTitle}>
+                    <View style={globalStyles.formSectionCard}>
+                        <Text style={globalStyles.formSectionTitle}>
                             {t("addPractice.restoreSeedPractice")}
                         </Text>
-                        <Text style={styles.sectionDescription}>
+                        <Text style={globalStyles.formSectionDescription}>
                             {t("addPractice.seedPracticeDescription")}
                         </Text>
 
@@ -181,7 +182,8 @@ export default function AddPractice() {
                                         style={({ pressed }) => [
                                             styles.seedOption,
                                             selected && styles.selectedOption,
-                                            pressed && styles.optionPressed,
+                                            pressed &&
+                                                globalStyles.formOptionPressed,
                                         ]}
                                         onPress={() => selectSeedPractice(seedPractice)}
                                         accessibilityRole="button"
@@ -192,7 +194,7 @@ export default function AddPractice() {
                                                 seedPractice.imageKey &&
                                                     practiceImages[seedPractice.imageKey]
                                                     ? practiceImages[seedPractice.imageKey]
-                                                    : practiceImages[CUSTOM_IMAGE_FALLBACK]
+                                                    : practiceImages[CUSTOM_PRACTICE_IMAGE_FALLBACK]
                                             }
                                             style={styles.seedImage}
                                             resizeMode="contain"
@@ -210,13 +212,13 @@ export default function AddPractice() {
                     </View>
                 )}
 
-                <View style={styles.sectionCard}>
+                <View style={globalStyles.formSectionCard}>
                     {!isSeedMode ? (
                         <View style={styles.sectionHeaderText}>
-                            <Text style={styles.sectionTitle}>
+                            <Text style={globalStyles.formSectionTitle}>
                                 {t("addPractice.customPractice")}
                             </Text>
-                            <Text style={styles.sectionDescription}>
+                            <Text style={globalStyles.formSectionDescription}>
                                 {t("addPractice.customPracticeDescription")}
                             </Text>
                         </View>
@@ -225,7 +227,7 @@ export default function AddPractice() {
                             <Pressable
                                 style={({ pressed }) => [
                                     styles.customModeButton,
-                                    pressed && styles.optionPressed,
+                                    pressed && globalStyles.formOptionPressed,
                                 ]}
                                 onPress={selectCustomPractice}
                                 accessibilityRole="button"
@@ -245,7 +247,7 @@ export default function AddPractice() {
                                     selectedSeedPractice.imageKey &&
                                         practiceImages[selectedSeedPractice.imageKey]
                                         ? practiceImages[selectedSeedPractice.imageKey]
-                                        : practiceImages[CUSTOM_IMAGE_FALLBACK]
+                                        : practiceImages[CUSTOM_PRACTICE_IMAGE_FALLBACK]
                                 }
                                 style={styles.fixedSeedImage}
                                 resizeMode="contain"
@@ -265,7 +267,7 @@ export default function AddPractice() {
                         </View>
                     ) : null}
 
-                    <Text style={styles.inputLabel}>
+                    <Text style={globalStyles.formInputLabel}>
                         {t("form.practiceName")}
                     </Text>
                     <TextInput
@@ -276,12 +278,12 @@ export default function AddPractice() {
                         maxLength={25}
                         editable={!isSeedMode}
                         style={[
-                            styles.input,
-                            isSeedMode && styles.readOnlyInput,
+                            globalStyles.formInput,
+                            isSeedMode && globalStyles.formReadOnlyInput,
                         ]}
                     />
 
-                    <Text style={styles.inputLabel}>
+                    <Text style={globalStyles.formInputLabel}>
                         {t("form.targetCount")}
                     </Text>
                     <TextInput
@@ -294,10 +296,10 @@ export default function AddPractice() {
                             setTarget(clean);
                         }}
                         keyboardType="numeric"
-                        style={styles.input}
+                        style={globalStyles.formInput}
                     />
 
-                    <Text style={styles.inputLabel}>
+                    <Text style={globalStyles.formInputLabel}>
                         {t("form.defaultSessionCount")}
                     </Text>
                     <TextInput
@@ -310,79 +312,23 @@ export default function AddPractice() {
                             setDefaultSession(clean);
                         }}
                         keyboardType="numeric"
-                        style={styles.input}
+                        style={globalStyles.formInput}
                     />
 
                     {!isSeedMode && (
-                        <View style={styles.imagePicker}>
-                            <Text style={styles.imagePickerTitle}>
-                                {t("addPractice.optionalImage")}
-                            </Text>
-
-                            <View style={styles.imageOptionGrid}>
-                                <Pressable
-                                    style={({ pressed }) => [
-                                        styles.imageOption,
-                                        customImageKey === CUSTOM_IMAGE_FALLBACK &&
-                                        styles.selectedImageOption,
-                                        pressed && styles.optionPressed,
-                                    ]}
-                                    onPress={() => setCustomImageKey(CUSTOM_IMAGE_FALLBACK)}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={t("practiceImage.generic")}
-                                >
-                                    <Image
-                                        source={practiceImages[CUSTOM_IMAGE_FALLBACK]}
-                                        style={styles.imageOptionImage}
-                                        resizeMode="contain"
-                                    />
-                                    <Text
-                                        style={styles.imageOptionText}
-                                        numberOfLines={2}
-                                    >
-                                        {t("practiceImage.generic")}
-                                    </Text>
-                                </Pressable>
-
-                                {extraPracticeImageOptions.map(option => {
-                                    const selected = customImageKey === option.key;
-
-                                    return (
-                                        <Pressable
-                                            key={option.key}
-                                            style={({ pressed }) => [
-                                                styles.imageOption,
-                                                selected && styles.selectedImageOption,
-                                                pressed && styles.optionPressed,
-                                            ]}
-                                            onPress={() => setCustomImageKey(option.key)}
-                                            accessibilityRole="button"
-                                            accessibilityLabel={t(option.labelKey)}
-                                        >
-                                            <Image
-                                                source={practiceImages[option.key]}
-                                                style={styles.imageOptionImage}
-                                                resizeMode="contain"
-                                            />
-                                            <Text
-                                                style={styles.imageOptionText}
-                                                numberOfLines={2}
-                                            >
-                                                {t(option.labelKey)}
-                                            </Text>
-                                        </Pressable>
-                                    );
-                                })}
-                            </View>
-                        </View>
+                        <PracticeImagePicker
+                            selectedImageKey={customImageKey}
+                            title={t("addPractice.optionalImage")}
+                            onSelect={setCustomImageKey}
+                        />
                     )}
                 </View>
 
                 <Pressable
-                    style={styles.saveButton}
+                    style={globalStyles.formSaveButton}
                     onPress={savePractice}
                 >
-                    <Text style={styles.saveButtonText}>
+                    <Text style={globalStyles.formSaveButtonText}>
                         {t("common.save")}
                     </Text>
                 </Pressable>
@@ -394,29 +340,6 @@ export default function AddPractice() {
 }
 
 const styles = StyleSheet.create({
-
-    container: {
-        flexGrow: 1,
-        paddingTop: 26,
-        paddingBottom: 36,
-    },
-
-    title: {
-        fontSize: 24,
-        fontWeight: "700",
-        color: "#111",
-        marginBottom: 20,
-    },
-
-    sectionCard: {
-        borderWidth: 1,
-        borderColor: "#E1E7F5",
-        backgroundColor: "#FAFBFF",
-        borderRadius: 18,
-        padding: 14,
-        marginBottom: 18,
-    },
-
     customModeRow: {
         flexDirection: "row",
         justifyContent: "flex-end",
@@ -425,20 +348,6 @@ const styles = StyleSheet.create({
 
     sectionHeaderText: {
         flex: 1,
-    },
-
-    sectionTitle: {
-        fontSize: 17,
-        fontWeight: "700",
-        color: "#111",
-        marginBottom: 4,
-    },
-
-    sectionDescription: {
-        fontSize: 13,
-        color: "#667085",
-        marginBottom: 12,
-        lineHeight: 18,
     },
 
     seedGrid: {
@@ -463,10 +372,6 @@ const styles = StyleSheet.create({
     selectedOption: {
         borderColor: colors.primary,
         backgroundColor: "#EEF2FF",
-    },
-
-    optionPressed: {
-        opacity: 0.72,
     },
 
     seedImage: {
@@ -531,97 +436,5 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: "#667085",
     },
-
-    input: {
-        borderWidth: 1,
-        borderColor: "#D0D5DD",
-        padding: 11,
-        marginBottom: 12,
-        color: "black",
-        borderRadius: 10,
-        backgroundColor: "white",
-    },
-
-    inputLabel: {
-        fontSize: 13,
-        fontWeight: "700",
-        color: "#344054",
-        marginBottom: 6,
-    },
-
-    readOnlyInput: {
-        backgroundColor: "#F2F4F7",
-        color: "#667085",
-    },
-
-    imagePicker: {
-        marginTop: 4,
-    },
-
-    imagePickerTitle: {
-        fontSize: 15,
-        fontWeight: "700",
-        color: "#111",
-        marginBottom: 3,
-    },
-
-    imagePickerDescription: {
-        fontSize: 13,
-        color: "#667085",
-        marginBottom: 10,
-    },
-
-    imageOptionGrid: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        gap: 10,
-    },
-
-    imageOption: {
-        width: "47%",
-        minWidth: 120,
-        flexGrow: 1,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 9,
-        borderWidth: 1,
-        borderColor: "#E1E7F5",
-        borderRadius: 14,
-        backgroundColor: "white",
-        padding: 9,
-    },
-
-    selectedImageOption: {
-        borderColor: colors.primary,
-        backgroundColor: "#EEF2FF",
-    },
-
-    imageOptionImage: {
-        width: 42,
-        height: 42,
-        borderRadius: 9,
-    },
-
-    imageOptionText: {
-        flex: 1,
-        minWidth: 0,
-        color: "#111",
-        fontSize: 13,
-        fontWeight: "600",
-    },
-
-    saveButton: {
-        backgroundColor: colors.primary,
-        paddingVertical: 12,
-        borderRadius: 10,
-        alignItems: "center",
-        marginTop: 2,
-    },
-
-    saveButtonText: {
-        color: "white",
-        fontSize: 16,
-        fontWeight: "600",
-    }
 
 });
