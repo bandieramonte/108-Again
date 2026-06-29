@@ -107,6 +107,11 @@ export async function importBackup(onComplete?: () => void) {
                             defaultSessionCount:
                                 p.defaultSessionCount ?? 108,
                             totalOffset: p.totalOffset ?? 0,
+                            reminderEnabled:
+                                p.reminderEnabled === true ||
+                                p.reminderEnabled === 1,
+                            reminderHour: p.reminderHour ?? 20,
+                            reminderMinute: p.reminderMinute ?? 0,
                         })
                     );
                 }

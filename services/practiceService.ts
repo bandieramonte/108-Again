@@ -93,6 +93,20 @@ export function updatePracticeDefaultSessionCount(
     );
 }
 
+export function updatePracticeReminderSettings(
+    id: string,
+    enabled: boolean,
+    hour: number,
+    minute: number
+) {
+    getAppOperationEngine().updatePracticeReminderSettings(
+        id,
+        enabled,
+        hour,
+        minute
+    );
+}
+
 export function getExpectedTargetDate(
   targetCount: number,
   total: number,

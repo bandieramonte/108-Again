@@ -21,6 +21,9 @@ export type RemotePracticeRow = {
     daily_target_count: number | null;
     default_session_count: number | null;
     total_offset: number;
+    reminder_enabled?: boolean | null;
+    reminder_hour?: number | null;
+    reminder_minute?: number | null;
     updated_at: string;
     deleted_at: string | null;
 };
@@ -44,6 +47,9 @@ export type LocalPracticeRow = {
     dailyTargetCount?: number | null;
     defaultSessionCount?: number | null;
     totalOffset?: number;
+    reminderEnabled?: number | boolean | null;
+    reminderHour?: number | null;
+    reminderMinute?: number | null;
     userId?: string | null;
     updatedAt?: number | null;
     syncStatus?: string | null;
@@ -195,7 +201,11 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             (row.defaultSessionCount ?? 108) ===
                 (defaultPractice.defaultSessionCount ?? 108) &&
             (row.totalOffset ?? 0) ===
-                (defaultPractice.totalOffset ?? 0)
+                (defaultPractice.totalOffset ?? 0) &&
+            (row.reminderEnabled === true || row.reminderEnabled === 1) ===
+                false &&
+            (row.reminderHour ?? 20) === 20 &&
+            (row.reminderMinute ?? 0) === 0
         );
     }
 
@@ -472,6 +482,11 @@ export function createSyncEngine(deps: SyncEngineDeps) {
                 daily_target_count: row.dailyTargetCount ?? null,
                 default_session_count: defaultSessionCount,
                 total_offset: row.totalOffset ?? 0,
+                reminder_enabled:
+                    row.reminderEnabled === true ||
+                    row.reminderEnabled === 1,
+                reminder_hour: row.reminderHour ?? 20,
+                reminder_minute: row.reminderMinute ?? 0,
                 updated_at: new Date(row.updatedAt ?? now()).toISOString(),
                 deleted_at: null,
             };
@@ -651,6 +666,9 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             daily_target_count: parsed.dailyTargetCount ?? null,
             default_session_count: defaultSessionCount,
             total_offset: parsed.totalOffset ?? 0,
+            reminder_enabled: parsed.reminderEnabled === true,
+            reminder_hour: parsed.reminderHour ?? 20,
+            reminder_minute: parsed.reminderMinute ?? 0,
             updated_at: deletedAt,
             deleted_at: deletedAt,
         };

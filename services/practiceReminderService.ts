@@ -439,6 +439,22 @@ export async function restorePracticeReminderBackupData(
     );
 }
 
+export async function restorePracticeReminderBackupRow(
+    practiceId: string,
+    row: PracticeReminderBackupRow | null
+) {
+    await clearPracticeReminderSettings(practiceId);
+
+    if (!row) return;
+
+    await saveSettings(practiceId, {
+        enabled: row.enabled,
+        hour: row.hour,
+        minute: row.minute,
+        scheduledNotifications: [],
+    });
+}
+
 export function subscribePracticeReminderResponses(
     onPracticeReminder: PracticeReminderResponseHandler
 ) {

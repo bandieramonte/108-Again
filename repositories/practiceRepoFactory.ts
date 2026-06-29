@@ -10,6 +10,9 @@ export type PracticeRow = {
     dailyTargetCount?: number | null;
     defaultSessionCount?: number | null;
     totalOffset?: number;
+    reminderEnabled?: number | boolean | null;
+    reminderHour?: number | null;
+    reminderMinute?: number | null;
     userId?: string | null;
     updatedAt?: number | null;
     syncStatus?: SyncStatus;
@@ -32,6 +35,9 @@ export function createPracticeRepo(database: SqliteDatabase) {
       dailyTargetCount,
       defaultSessionCount,
       totalOffset,
+      reminderEnabled,
+      reminderHour,
+      reminderMinute,
       userId,
       updatedAt,
       syncStatus,
@@ -55,6 +61,9 @@ export function createPracticeRepo(database: SqliteDatabase) {
       dailyTargetCount,
       defaultSessionCount,
       totalOffset,
+      reminderEnabled,
+      reminderHour,
+      reminderMinute,
       userId,
       updatedAt,
       syncStatus,
@@ -74,6 +83,9 @@ export function createPracticeRepo(database: SqliteDatabase) {
         dailyTargetCount: number | null = null,
         defaultSessionCount: number = 108,
         totalOffset: number = 0,
+        reminderEnabled: boolean | number = false,
+        reminderHour: number = 20,
+        reminderMinute: number = 0,
     ): void {
         database.runSync(
             `INSERT INTO practices (
@@ -85,11 +97,14 @@ export function createPracticeRepo(database: SqliteDatabase) {
       dailyTargetCount,
       defaultSessionCount,
       totalOffset,
+      reminderEnabled,
+      reminderHour,
+      reminderMinute,
       userId,
       updatedAt,
       syncStatus,
       lastSyncedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             id,
             name,
             target,
@@ -98,6 +113,9 @@ export function createPracticeRepo(database: SqliteDatabase) {
             dailyTargetCount,
             defaultSessionCount,
             totalOffset,
+            reminderEnabled ? 1 : 0,
+            reminderHour,
+            reminderMinute,
             syncMetadata.userId,
             syncMetadata.updatedAt,
             syncMetadata.syncStatus,
@@ -208,6 +226,49 @@ export function createPracticeRepo(database: SqliteDatabase) {
         );
     }
 
+    function updatePracticeReminderSettings(
+        id: string,
+        enabled: boolean,
+        hour: number,
+        minute: number,
+        syncMetadata: SyncMetadata
+    ): void {
+        if (syncMetadata.updatedAt == null && syncMetadata.syncStatus == null) {
+            database.runSync(
+                `UPDATE practices
+       SET reminderEnabled = ?,
+           reminderHour = ?,
+           reminderMinute = ?
+       WHERE id = ?`,
+                enabled ? 1 : 0,
+                hour,
+                minute,
+                id
+            );
+            return;
+        }
+
+        database.runSync(
+            `UPDATE practices
+     SET reminderEnabled = ?,
+         reminderHour = ?,
+         reminderMinute = ?,
+         userId = ?,
+         updatedAt = COALESCE(?, updatedAt),
+         syncStatus = COALESCE(?, syncStatus),
+         lastSyncedAt = ?
+     WHERE id = ?`,
+            enabled ? 1 : 0,
+            hour,
+            minute,
+            syncMetadata.userId,
+            syncMetadata.updatedAt,
+            syncMetadata.syncStatus,
+            syncMetadata.lastSyncedAt,
+            id
+        );
+    }
+
     function updatePracticeOrder(
         id: string,
         orderIndex: number,
@@ -263,6 +324,9 @@ export function createPracticeRepo(database: SqliteDatabase) {
       dailyTargetCount,
       defaultSessionCount,
       totalOffset,
+      reminderEnabled,
+      reminderHour,
+      reminderMinute,
       userId,
       updatedAt,
       syncStatus,
@@ -324,6 +388,9 @@ export function createPracticeRepo(database: SqliteDatabase) {
         daily_target_count: number | null;
         default_session_count: number | null;
         total_offset: number;
+        reminder_enabled?: boolean | null;
+        reminder_hour?: number | null;
+        reminder_minute?: number | null;
         updated_at: string;
         deleted_at: string | null;
     }) {
@@ -343,12 +410,15 @@ export function createPracticeRepo(database: SqliteDatabase) {
         dailyTargetCount,
         defaultSessionCount,
         totalOffset,
+        reminderEnabled,
+        reminderHour,
+        reminderMinute,
         userId,
         updatedAt,
         syncStatus,
         lastSyncedAt
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
       ON CONFLICT(id) DO UPDATE SET
         name = excluded.name,
         targetCount = excluded.targetCount,
@@ -357,6 +427,9 @@ export function createPracticeRepo(database: SqliteDatabase) {
         dailyTargetCount = excluded.dailyTargetCount,
         defaultSessionCount = excluded.defaultSessionCount,
         totalOffset = excluded.totalOffset,
+        reminderEnabled = excluded.reminderEnabled,
+        reminderHour = excluded.reminderHour,
+        reminderMinute = excluded.reminderMinute,
         userId = excluded.userId,
         updatedAt = excluded.updatedAt,
         syncStatus = 'synced',
@@ -370,6 +443,9 @@ export function createPracticeRepo(database: SqliteDatabase) {
             row.daily_target_count,
             row.default_session_count ?? row.default_add_count ?? 108,
             row.total_offset ?? 0,
+            row.reminder_enabled ? 1 : 0,
+            row.reminder_hour ?? 20,
+            row.reminder_minute ?? 0,
             row.user_id,
             new Date(row.updated_at).getTime(),
             Date.now()
@@ -460,6 +536,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
         updatePractice,
         updatePracticeDailyTargetCount,
         updatePracticeDefaultSessionCount,
+        updatePracticeReminderSettings,
         updatePracticeOrder,
         updatePracticeTotalOffset,
         upsertPracticeFromRemote,

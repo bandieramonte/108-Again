@@ -44,7 +44,10 @@ export function initializeDatabaseSchema(db: SqliteDatabase) {
       imageKey TEXT,
       dailyTargetCount INTEGER,
       defaultSessionCount INTEGER,
-      totalOffset INTEGER
+      totalOffset INTEGER,
+      reminderEnabled INTEGER,
+      reminderHour INTEGER,
+      reminderMinute INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
@@ -86,6 +89,9 @@ export function initializeDatabaseSchema(db: SqliteDatabase) {
   addColumnIfMissing(db, "practices", "dailyTargetCount", "dailyTargetCount INTEGER");
   addColumnIfMissing(db, "practices", "defaultSessionCount", "defaultSessionCount INTEGER");
   addColumnIfMissing(db, "practices", "totalOffset", "totalOffset INTEGER");
+  addColumnIfMissing(db, "practices", "reminderEnabled", "reminderEnabled INTEGER DEFAULT 0");
+  addColumnIfMissing(db, "practices", "reminderHour", "reminderHour INTEGER DEFAULT 20");
+  addColumnIfMissing(db, "practices", "reminderMinute", "reminderMinute INTEGER DEFAULT 0");
   addColumnIfMissing(db, "practices", "userId", "userId TEXT");
   addColumnIfMissing(db, "practices", "updatedAt", "updatedAt INTEGER");
   addColumnIfMissing(db, "practices", "syncStatus", "syncStatus TEXT DEFAULT 'synced'");
@@ -103,6 +109,14 @@ export function initializeDatabaseSchema(db: SqliteDatabase) {
     UPDATE practices
     SET defaultSessionCount = COALESCE(defaultSessionCount, 108)
     WHERE defaultSessionCount IS NULL;
+  `);
+
+  db.execSync(`
+    UPDATE practices
+    SET
+      reminderEnabled = COALESCE(reminderEnabled, 0),
+      reminderHour = COALESCE(reminderHour, 20),
+      reminderMinute = COALESCE(reminderMinute, 0);
   `);
 
   const optionalDailyTargetMigration =

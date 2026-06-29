@@ -56,6 +56,8 @@ export async function initializeApp() {
         seed.seedPractices();
     }
 
+    await practiceReminderRefreshService
+        .migrateStoredPracticeReminderSettingsToDatabase();
     practiceReminderRefreshService.queueRefreshAllPracticeReminders();
 }
 

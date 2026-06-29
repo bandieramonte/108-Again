@@ -1,14 +1,21 @@
-import { useEffect, useState } from "react";
+import * as Localization from "expo-localization";
+import { useEffect, useRef, useState } from "react";
 import {
     Modal,
     Pressable,
+    ScrollView,
     StyleSheet,
     Text,
-    TextInput,
     View,
 } from "react-native";
 import { useI18n } from "../i18n";
 import { colors } from "../styles/theme";
+import {
+    buildReminderTimeOptions,
+    formatReminderTimeForLocale,
+    reminderTimeMatches,
+    type ReminderTimeOption,
+} from "../utils/reminderTime";
 
 type Props = {
     visible: boolean;
@@ -21,21 +28,6 @@ type Props = {
     onSave: (hour: number, minute: number) => void;
 };
 
-function formatTime(hour: number, minute: number) {
-    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-}
-
-function parseTime(value: string) {
-    const match = value.trim().match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
-
-    if (!match) return null;
-
-    return {
-        hour: Number(match[1]),
-        minute: Number(match[2]),
-    };
-}
-
 export default function PracticeReminderEditor({
     visible,
     enabled,
@@ -46,24 +38,53 @@ export default function PracticeReminderEditor({
     onDisable,
     onSave,
 }: Props) {
-    const { t } = useI18n();
-    const [time, setTime] = useState(formatTime(initialHour, initialMinute));
-
+    const { locale, t } = useI18n();
+    const timeLocale =
+        Localization.getLocales()[0]?.languageTag ?? locale;
+    const scrollRef = useRef<ScrollView | null>(null);
+    const [timeOptions, setTimeOptions] =
+        useState<ReminderTimeOption[]>(() => buildReminderTimeOptions());
+    const [selectedTime, setSelectedTime] = useState({
+        hour: initialHour,
+        minute: initialMinute,
+    });
     useEffect(() => {
         if (!visible) return;
 
-        setTime(formatTime(initialHour, initialMinute));
-    }, [visible, initialHour, initialMinute]);
+        const nextOptions = buildReminderTimeOptions();
+        const savedOption = enabled
+            ? nextOptions.find(option =>
+                reminderTimeMatches(option, initialHour, initialMinute)
+            )
+            : null;
+        const nextSelected = savedOption ?? {
+            hour: nextOptions[0].hour,
+            minute: nextOptions[0].minute,
+        };
+
+        setTimeOptions(nextOptions);
+        setSelectedTime(nextSelected);
+
+        const nextSelectedIndex = nextOptions.findIndex(option =>
+            reminderTimeMatches(
+                option,
+                nextSelected.hour,
+                nextSelected.minute
+            )
+        );
+
+        setTimeout(() => {
+            if (nextSelectedIndex < 0) return;
+
+            scrollRef.current?.scrollTo({
+                animated: false,
+                y: Math.max(0, nextSelectedIndex * 44 - 44),
+            });
+        }, 0);
+    }, [visible, enabled, initialHour, initialMinute]);
 
     function save() {
-        const parsed = parseTime(time);
-
-        if (!parsed) {
-            alert(t("reminderEditor.invalidTime"));
-            return;
-        }
-
-        onSave(parsed.hour, parsed.minute);
+        onSave(selectedTime.hour, selectedTime.minute);
     }
 
     return (
@@ -97,18 +118,50 @@ export default function PracticeReminderEditor({
                         {t("reminderEditor.reminderTime")}
                     </Text>
 
-                    <TextInput
-                        value={time}
-                        onChangeText={setTime}
-                        keyboardType="numbers-and-punctuation"
-                        returnKeyType="done"
-                        onSubmitEditing={save}
-                        placeholder="20:00"
-                        placeholderTextColor="#999"
-                        style={styles.input}
-                        maxLength={5}
-                        autoFocus
-                    />
+                    <ScrollView
+                        ref={scrollRef}
+                        style={styles.timeList}
+                        contentContainerStyle={styles.timeListContent}
+                    >
+                        {timeOptions.map(option => {
+                            const selected =
+                                reminderTimeMatches(
+                                    option,
+                                    selectedTime.hour,
+                                    selectedTime.minute
+                                );
+
+                            return (
+                                <Pressable
+                                    key={option.key}
+                                    style={[
+                                        styles.timeOption,
+                                        selected && styles.timeOptionSelected,
+                                    ]}
+                                    accessibilityRole="button"
+                                    accessibilityState={{ selected }}
+                                    onPress={() => setSelectedTime({
+                                        hour: option.hour,
+                                        minute: option.minute,
+                                    })}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.timeOptionText,
+                                            selected &&
+                                                styles.timeOptionTextSelected,
+                                        ]}
+                                    >
+                                        {formatReminderTimeForLocale(
+                                            option.hour,
+                                            option.minute,
+                                            timeLocale
+                                        )}
+                                    </Text>
+                                </Pressable>
+                            );
+                        })}
+                    </ScrollView>
 
                     <View style={styles.actions}>
                         {enabled && (
@@ -192,15 +245,37 @@ const styles = StyleSheet.create({
         marginBottom: 6,
     },
 
-    input: {
+    timeList: {
         borderWidth: 1,
         borderColor: "#ddd",
         borderRadius: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        fontSize: 16,
-        color: "#111",
+        maxHeight: 224,
         marginBottom: 18,
+    },
+
+    timeListContent: {
+        padding: 4,
+    },
+
+    timeOption: {
+        minHeight: 44,
+        borderRadius: 6,
+        justifyContent: "center",
+        paddingHorizontal: 12,
+    },
+
+    timeOptionSelected: {
+        backgroundColor: colors.primary,
+    },
+
+    timeOptionText: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#111",
+    },
+
+    timeOptionTextSelected: {
+        color: "white",
     },
 
     actions: {

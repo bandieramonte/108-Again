@@ -45,14 +45,39 @@ function getPracticeReminderRefreshService() {
     return require("./practiceReminderRefreshService");
 }
 
+function mergePracticeReminderRows(
+    rows: any[],
+    fallbackRows: any[]
+) {
+    const byPracticeId = new Map<string, any>();
+
+    for (const row of fallbackRows) {
+        if (row?.practiceId) {
+            byPracticeId.set(row.practiceId, row);
+        }
+    }
+
+    for (const row of rows) {
+        if (row?.practiceId) {
+            byPracticeId.set(row.practiceId, row);
+        }
+    }
+
+    return Array.from(byPracticeId.values());
+}
+
 export async function getBackupData() {
     const data = getAppOperationEngine().getBackupData();
     const practiceReminderService = getPracticeReminderService();
+    const storedPracticeReminders =
+        await practiceReminderService.getPracticeReminderBackupData();
 
     return {
         ...data,
-        practiceReminders:
-            await practiceReminderService.getPracticeReminderBackupData(),
+        practiceReminders: mergePracticeReminderRows(
+            data.practiceReminders ?? [],
+            storedPracticeReminders
+        ),
     };
 }
 

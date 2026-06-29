@@ -55,12 +55,20 @@ const { createLastPracticeScreenService } =
   require("../.build/services/lastPracticeScreenService.js");
 const { createSyncCoordinator } =
   require("../.build/services/syncCoordinator.js");
+const { createSyncEngine } =
+  require("../.build/services/syncEngine.js");
 const { detectSupportedLanguageFromLocale } =
   require("../.build/i18n/languageDetection.js");
 const { formatMonthDayYear } =
   require("../.build/utils/dateUtils.js");
 const { formatCountProgress } =
   require("../.build/utils/numberUtils.js");
+const {
+  buildReminderTimeOptions,
+  formatReminderTimeForLocale,
+  roundUpToNextHalfHour,
+} =
+  require("../.build/utils/reminderTime.js");
 
 Module._load = originalLoad;
 
@@ -88,7 +96,7 @@ function createBetterSqliteDatabase() {
   };
 }
 
-function makeLocalDevice() {
+function makeLocalDevice(currentUserId = null, now = () => Date.now()) {
   const database = createBetterSqliteDatabase();
   initializeDatabaseSchema(database);
 
@@ -104,8 +112,8 @@ function makeLocalDevice() {
     enqueueWrite: async (fn) => {
       await fn();
     },
-    getCurrentUserId: () => null,
-    now: () => Date.now(),
+    getCurrentUserId: () => currentUserId,
+    now,
     practiceRepo,
     randomUUID,
     requestSync: () => {},
@@ -124,11 +132,106 @@ function makeLocalDevice() {
   });
 
   return {
+    appMetaRepo,
+    deletedRecordRepo,
     operations,
     practiceExists: (practiceId) =>
       !!practiceRepo.getPracticeById(practiceId),
     practiceRepo,
+    sessionRepo,
   };
+}
+
+function cloneRow(row) {
+  return { ...row };
+}
+
+function createMemorySyncRemote() {
+  const practices = new Map();
+  const sessions = new Map();
+
+  function getUserRows(store, userId) {
+    return Array.from(store.values())
+      .filter((row) => row.user_id === userId)
+      .map(cloneRow);
+  }
+
+  function getRowsById(store, userId, ids) {
+    const rows = new Map();
+
+    for (const id of ids) {
+      const row = store.get(id);
+
+      if (row?.user_id === userId) {
+        rows.set(id, cloneRow(row));
+      }
+    }
+
+    return rows;
+  }
+
+  function softDeleteStore(store, userId, deletedAt) {
+    const deletedAtIso = new Date(deletedAt).toISOString();
+
+    for (const [id, row] of store) {
+      if (row.user_id !== userId) continue;
+
+      store.set(id, {
+        ...row,
+        updated_at: deletedAtIso,
+        deleted_at: deletedAtIso,
+      });
+    }
+  }
+
+  return {
+    getPractice: (id) => {
+      const row = practices.get(id);
+      return row ? cloneRow(row) : null;
+    },
+    async getPracticesById(userId, ids) {
+      return getRowsById(practices, userId, ids);
+    },
+    async getSessionsById(userId, ids) {
+      return getRowsById(sessions, userId, ids);
+    },
+    async pullPractices(userId) {
+      return getUserRows(practices, userId);
+    },
+    async pullSessions(userId) {
+      return getUserRows(sessions, userId);
+    },
+    async softDeleteUserData(userId, deletedAt) {
+      softDeleteStore(practices, userId, deletedAt);
+      softDeleteStore(sessions, userId, deletedAt);
+    },
+    async upsertPractices(rows) {
+      for (const row of rows) {
+        practices.set(row.id, cloneRow(row));
+      }
+    },
+    async upsertSessions(rows) {
+      for (const row of rows) {
+        sessions.set(row.id, cloneRow(row));
+      }
+    },
+  };
+}
+
+function createSyncEngineForDevice(device, remote, now = () => Date.now()) {
+  return createSyncEngine({
+    appMetaRepo: device.appMetaRepo,
+    deletedRecordRepo: device.deletedRecordRepo,
+    logger: {
+      error: () => {},
+      log: () => {},
+      warn: () => {},
+    },
+    now,
+    practiceRepo: device.practiceRepo,
+    remote,
+    sessionRepo: device.sessionRepo,
+  });
 }
 
 let testIndex = 0;
@@ -439,6 +542,62 @@ await test(
 );
 
 await test(
+  "backup round trips practice reminder schedules",
+  async () => {
+    const source = makeLocalDevice();
+    const practiceId = source.operations.createPractice(
+      "Backup Reminder Practice",
+      10000,
+      500,
+      108
+    );
+
+    source.operations.updatePracticeReminderSettings(
+      practiceId,
+      true,
+      7,
+      45
+    );
+
+    const backup = source.operations.getBackupData();
+    const exportedReminder = backup.practiceReminders.find(
+      (reminder) => reminder.practiceId === practiceId
+    );
+
+    assert.deepEqual(exportedReminder, {
+      practiceId,
+      enabled: true,
+      hour: 7,
+      minute: 45,
+    });
+    assert.doesNotThrow(() => validateBackup(backup));
+
+    const destination = makeLocalDevice();
+    await destination.operations.restoreBackupData(backup);
+
+    const restoredPractice = destination.practiceRepo.getPracticeById(
+      practiceId
+    );
+    assert.equal(restoredPractice.reminderEnabled, 1);
+    assert.equal(restoredPractice.reminderHour, 7);
+    assert.equal(restoredPractice.reminderMinute, 45);
+
+    const restoredBackup = destination.operations.getBackupData();
+    assert.deepEqual(
+      restoredBackup.practiceReminders.find(
+        (reminder) => reminder.practiceId === practiceId
+      ),
+      {
+        practiceId,
+        enabled: true,
+        hour: 7,
+        minute: 45,
+      }
+    );
+  }
+);
+
+await test(
   "custom practice images and reordered cards round trip through backup",
   async () => {
     const source = makeLocalDevice();
@@ -498,6 +657,69 @@ await test(
       destination.practiceRepo.getPracticeById(secondPracticeId).imageKey,
       "loving-eyes"
     );
+  }
+);
+
+await test(
+  "sync pushes and pulls practice reminder schedules",
+  async () => {
+    const userId = "reminder-sync-user";
+    const remote = createMemorySyncRemote();
+    const sourceTimes = [
+      Date.parse("2026-06-01T08:00:00.000Z"),
+      Date.parse("2026-06-01T08:01:00.000Z"),
+    ];
+    let sourceTimeIndex = 0;
+    const source = makeLocalDevice(userId, () => {
+      const time =
+        sourceTimes[Math.min(sourceTimeIndex, sourceTimes.length - 1)];
+      sourceTimeIndex += 1;
+      return time;
+    });
+    const practiceId = source.operations.createPractice(
+      "Sync Reminder Practice",
+      10000,
+      500,
+      108
+    );
+
+    source.operations.updatePracticeReminderSettings(
+      practiceId,
+      true,
+      6,
+      15
+    );
+
+    const sourceEngine = createSyncEngineForDevice(
+      source,
+      remote,
+      () => Date.parse("2026-06-01T08:02:00.000Z")
+    );
+
+    await sourceEngine.executeSync(userId, "merge_local");
+
+    const remotePractice = remote.getPractice(practiceId);
+    assert.equal(remotePractice.reminder_enabled, true);
+    assert.equal(remotePractice.reminder_hour, 6);
+    assert.equal(remotePractice.reminder_minute, 15);
+
+    const destination = makeLocalDevice(userId);
+    const destinationEngine = createSyncEngineForDevice(
+      destination,
+      remote,
+      () => Date.parse("2026-06-01T08:03:00.000Z")
+    );
+
+    await destinationEngine.executeSync(userId, "remote_overwrite_local");
+
+    const pulledPractice = destination.practiceRepo.getPracticeById(
+      practiceId
+    );
+    assert.equal(pulledPractice.reminderEnabled, 1);
+    assert.equal(pulledPractice.reminderHour, 6);
+    assert.equal(pulledPractice.reminderMinute, 15);
+    assert.equal(pulledPractice.syncStatus, "synced");
+    assert.equal(pulledPractice.userId, userId);
   }
 );
 
@@ -788,6 +1010,47 @@ await test(
     assert.equal(
       formatMonthDayYear(date, "es-ES"),
       "enero 13, 2027"
+    );
+  }
+);
+
+await test(
+  "reminder time picker starts at the next localized half-hour slot",
+  () => {
+    assert.deepEqual(
+      roundUpToNextHalfHour(new Date(2026, 0, 1, 13, 0, 0, 0)),
+      { hour: 13, minute: 0 }
+    );
+    assert.deepEqual(
+      roundUpToNextHalfHour(new Date(2026, 0, 1, 13, 0, 1, 0)),
+      { hour: 13, minute: 30 }
+    );
+    assert.deepEqual(
+      roundUpToNextHalfHour(new Date(2026, 0, 1, 23, 45, 0, 0)),
+      { hour: 0, minute: 0 }
+    );
+
+    const options = buildReminderTimeOptions(
+      new Date(2026, 0, 1, 13, 11, 0, 0),
+      3
+    );
+
+    assert.deepEqual(
+      options.map(({ hour, minute }) => ({ hour, minute })),
+      [
+        { hour: 13, minute: 30 },
+        { hour: 14, minute: 0 },
+        { hour: 14, minute: 30 },
+      ]
+    );
+
+    assert.match(
+      formatReminderTimeForLocale(19, 0, "en-US"),
+      /^7:00\s?PM$/i
+    );
+    assert.equal(
+      formatReminderTimeForLocale(19, 0, "es-ES"),
+      "19:00"
     );
   }
 );

@@ -1,5 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
+import * as Localization from "expo-localization";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -31,6 +32,22 @@ import { APP_SIDE_PADDING } from "../../styles/global";
 import { colors, containers } from "../../styles/theme";
 import { subscribeData } from "../../utils/events";
 import { digitsOnly, formatCountProgress, formatNumber, MAX_REPETITIONS_PER_DAY, validateNonNegativeInteger } from "../../utils/numberUtils";
+import { formatReminderTimeForLocale } from "../../utils/reminderTime";
+
+function isReminderEnabled(value: unknown) {
+    return value === true || value === 1;
+}
+
+function getReminderSettingsFromPractice(
+    practice: ReturnType<typeof practiceService.getPractice>
+): PracticeReminderSettings {
+    return {
+        enabled: isReminderEnabled(practice?.reminderEnabled),
+        hour: practice?.reminderHour ?? 20,
+        minute: practice?.reminderMinute ?? 0,
+        scheduledNotifications: [],
+    };
+}
 
 export default function PracticeContent({
     practiceId,
@@ -46,9 +63,11 @@ export default function PracticeContent({
     const [progressEditOpen, setProgressEditOpen] = useState(false);
     const [targetEditOpen, setTargetEditOpen] = useState(false);
     const [reminderOpen, setReminderOpen] = useState(false);
-    const [reminderSettings, setReminderSettings] =
-        useState<PracticeReminderSettings | null>(null);
     const initialPractice = practiceService.getPractice(practiceId);
+    const [reminderSettings, setReminderSettings] =
+        useState<PracticeReminderSettings>(() =>
+            getReminderSettingsFromPractice(initialPractice)
+        );
 
     const [practiceName, setPracticeName] = useState(initialPractice?.name ?? "");
     const displayPracticeName =
@@ -57,6 +76,8 @@ export default function PracticeContent({
         () => createPracticeReminderText(t),
         [t]
     );
+    const timeLocale =
+        Localization.getLocales()[0]?.languageTag ?? locale;
     const [total, setTotal] = useState(() =>
         sessionService.getPracticeTotal(practiceId).total
     );
@@ -121,14 +142,15 @@ export default function PracticeContent({
     const todayCount = useMemo(() => {
         return calendarData.find(day => day.date === todayDate)?.count ?? 0;
     }, [calendarData, todayDate]);
-    const reminderEnabled = reminderSettings?.enabled === true;
-    const reminderHour = reminderSettings?.hour ?? 20;
-    const reminderMinute = reminderSettings?.minute ?? 0;
+    const reminderEnabled = reminderSettings.enabled === true;
+    const reminderHour = reminderSettings.hour;
+    const reminderMinute = reminderSettings.minute;
     const reminderSummary = reminderEnabled
         ? t("practice.reminderAt", {
-            time: practiceReminderService.formatReminderTime(
+            time: formatReminderTimeForLocale(
                 reminderHour,
-                reminderMinute
+                reminderMinute,
+                timeLocale
             ),
         })
         : t("practice.reminderOff");
@@ -181,23 +203,7 @@ export default function PracticeContent({
     }, [practiceId, t]);
 
     useEffect(() => {
-        let active = true;
-
-        void practiceReminderService
-            .getPracticeReminderSettings(practiceId)
-            .then(settings => {
-                if (active) {
-                    setReminderSettings(settings);
-                }
-            });
-
-        return () => {
-            active = false;
-        };
-    }, [practiceId, t]);
-
-    useEffect(() => {
-        if (!reminderSettings?.enabled) return;
+        if (!reminderSettings.enabled) return;
 
         void practiceReminderRefreshService
             .refreshReminderForPractice(
@@ -207,7 +213,13 @@ export default function PracticeContent({
                     t,
                 }
             )
-            .then(setReminderSettings)
+            .then(() => {
+                setReminderSettings(
+                    getReminderSettingsFromPractice(
+                        practiceService.getPractice(practiceId)
+                    )
+                );
+            })
             .catch(error => {
                 console.warn("Failed to refresh practice reminder", error);
             });
@@ -218,7 +230,7 @@ export default function PracticeContent({
         t,
         todayCount,
         effectiveDailyTargetCount,
-        reminderSettings?.enabled,
+        reminderSettings.enabled,
     ]);
 
     useEffect(() => {
@@ -273,6 +285,7 @@ export default function PracticeContent({
             );
             setDefaultSessionCount(String(practice.defaultSessionCount ?? 108));
             setTargetCount(practice.targetCount);
+            setReminderSettings(getReminderSettingsFromPractice(practice));
             loadSessions(practice.targetCount);
         }
     }
@@ -465,6 +478,12 @@ export default function PracticeContent({
                 });
 
             setReminderSettings(settings);
+            practiceService.updatePracticeReminderSettings(
+                practiceId,
+                settings.enabled,
+                settings.hour,
+                settings.minute
+            );
             setReminderOpen(false);
         } catch (error: any) {
             alert(error.message);
@@ -479,6 +498,12 @@ export default function PracticeContent({
                 );
 
             setReminderSettings(settings);
+            practiceService.updatePracticeReminderSettings(
+                practiceId,
+                settings.enabled,
+                settings.hour,
+                settings.minute
+            );
             setReminderOpen(false);
         } catch (error: any) {
             alert(error.message);

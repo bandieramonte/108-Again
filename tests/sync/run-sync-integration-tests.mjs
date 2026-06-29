@@ -633,6 +633,10 @@ function localPracticeTotal(device, practiceId) {
   return device.sessionRepo.getPracticeTotal(practiceId).total;
 }
 
+function isPracticeReminderEnabled(practice) {
+  return practice.reminderEnabled === true || practice.reminderEnabled === 1;
+}
+
 function activeLocalPractices(device) {
   return device.practiceRepo.getAllPractices()
     .sort((a, b) => a.orderIndex - b.orderIndex);
@@ -647,6 +651,9 @@ function captureExpectedLocalState(device) {
         name: practice.name,
         dailyTargetCount: practice.dailyTargetCount ?? null,
         defaultSessionCount: practice.defaultSessionCount ?? 108,
+        reminderEnabled: isPracticeReminderEnabled(practice),
+        reminderHour: practice.reminderHour ?? 20,
+        reminderMinute: practice.reminderMinute ?? 0,
         total: localPracticeTotal(device, practice.id),
       },
     ])
@@ -688,6 +695,21 @@ function assertRemoteMatchesExpected(snapshot, expected, label) {
       remotePractice.default_session_count,
       expectedPractice.defaultSessionCount,
       `${label}: remote default session count for ${expectedPractice.name}`
+    );
+    assert.equal(
+      remotePractice.reminder_enabled,
+      expectedPractice.reminderEnabled,
+      `${label}: remote reminder enabled for ${expectedPractice.name}`
+    );
+    assert.equal(
+      remotePractice.reminder_hour,
+      expectedPractice.reminderHour,
+      `${label}: remote reminder hour for ${expectedPractice.name}`
+    );
+    assert.equal(
+      remotePractice.reminder_minute,
+      expectedPractice.reminderMinute,
+      `${label}: remote reminder minute for ${expectedPractice.name}`
     );
     assert.equal(
       remotePracticeTotal(snapshot, practiceId),
@@ -850,6 +872,21 @@ function assertDeviceMatchesExpected(device, expected, label) {
       localPractice.defaultSessionCount,
       expectedPractice.defaultSessionCount,
       `${label}: local default session count for ${expectedPractice.name}`
+    );
+    assert.equal(
+      isPracticeReminderEnabled(localPractice),
+      expectedPractice.reminderEnabled,
+      `${label}: local reminder enabled for ${expectedPractice.name}`
+    );
+    assert.equal(
+      localPractice.reminderHour ?? 20,
+      expectedPractice.reminderHour,
+      `${label}: local reminder hour for ${expectedPractice.name}`
+    );
+    assert.equal(
+      localPractice.reminderMinute ?? 0,
+      expectedPractice.reminderMinute,
+      `${label}: local reminder minute for ${expectedPractice.name}`
     );
     assert.equal(
       localPracticeTotal(device, practiceId),
@@ -1035,6 +1072,12 @@ async function runDeviceAToDeviceBSupabaseSyncTest() {
     null,
     500
   );
+  deviceA.operations.updatePracticeReminderSettings(
+    practiceId,
+    true,
+    8,
+    30
+  );
   const days = testDays();
 
   deviceA.operations.addSession(practiceId, SESSION_COUNT);
@@ -1056,10 +1099,27 @@ async function runDeviceAToDeviceBSupabaseSyncTest() {
   );
 
   await deviceA.sync("merge_local");
+
+  const remoteSnapshot = await pullRemoteSnapshot(
+    createSupabaseSyncRemote(() => deviceAClient),
+    userA.id
+  );
+  const remotePractice = activeRemotePracticeById(
+    remoteSnapshot,
+    practiceId
+  );
+  assert.ok(remotePractice, "Remote has testPractice1 after Device A sync");
+  assert.equal(remotePractice.reminder_enabled, true);
+  assert.equal(remotePractice.reminder_hour, 8);
+  assert.equal(remotePractice.reminder_minute, 30);
+
   await deviceB.sync("remote_overwrite_local");
 
   const syncedPractice = findPracticeByName(deviceB, TEST_PRACTICE_NAME);
   assert.ok(syncedPractice, "Device B has testPractice1 after manual sync");
+  assert.equal(isPracticeReminderEnabled(syncedPractice), true);
+  assert.equal(syncedPractice.reminderHour, 8);
+  assert.equal(syncedPractice.reminderMinute, 30);
 
   const sessionTotals = sessionTotalsByDay(deviceB, syncedPractice.id);
   assert.equal(sessionTotals.get(days.today), 500, "Device B has today's 500 session");

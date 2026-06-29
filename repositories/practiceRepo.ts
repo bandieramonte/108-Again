@@ -26,6 +26,7 @@ export const {
     updatePractice,
     updatePracticeDailyTargetCount,
     updatePracticeDefaultSessionCount,
+    updatePracticeReminderSettings,
     updatePracticeOrder,
     updatePracticeTotalOffset,
     upsertPracticeFromRemote,
