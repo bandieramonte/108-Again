@@ -14,9 +14,12 @@ import {
     TextInput,
     View,
 } from "react-native";
+import { useI18n } from "../i18n";
 import * as authService from "../services/authService";
+import { globalStyles } from "../styles/global";
 
 export default function SignUpScreen() {
+    const { t } = useI18n();
     const [firstName, setFirstName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -32,16 +35,19 @@ export default function SignUpScreen() {
 
             if (result?.needsEmailConfirmation) {
                 Alert.alert(
-                    "Confirm your email",
-                    "Please check your email and confirm your account before signing in.",
-                    [{ text: "OK", onPress: () => router.replace("/sign-in") }]
+                    t("auth.confirmEmailTitle"),
+                    t("auth.confirmEmailMessage"),
+                    [{ text: t("common.ok"), onPress: () => router.replace("/sign-in") }]
                 );
                 return;
             }
 
             router.replace("/");
         } catch (error: any) {
-            Alert.alert("Account creation failed", error?.message ?? "Unknown error");
+            Alert.alert(
+                t("auth.accountCreationFailed"),
+                error?.message ?? t("common.unknownError")
+            );
         } finally {
             setSubmitting(false);
         }
@@ -53,12 +59,15 @@ export default function SignUpScreen() {
             behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
             <ScrollView
-                contentContainerStyle={styles.container}
+                contentContainerStyle={[
+                    globalStyles.sidePadding,
+                    styles.container,
+                ]}
                 keyboardShouldPersistTaps="handled"
             >
-                <Text style={styles.title}>Create Account</Text>
+                <Text style={styles.title}>{t("menu.createAccount")}</Text>
 
-                <Text style={styles.label}>First name</Text>
+                <Text style={styles.label}>{t("account.firstName")}</Text>
                 <TextInput
                     value={firstName}
                     onChangeText={setFirstName}
@@ -66,10 +75,10 @@ export default function SignUpScreen() {
                     autoCapitalize="words"
                     autoCorrect={false}
                     style={styles.input}
-                    placeholder="Enter your first name"
+                    placeholder={t("auth.firstNamePlaceholder")}
                 />
 
-                <Text style={styles.label}>Email</Text>
+                <Text style={styles.label}>{t("account.email")}</Text>
                 <TextInput
                     value={email}
                     onChangeText={setEmail}
@@ -78,10 +87,10 @@ export default function SignUpScreen() {
                     autoCorrect={false}
                     keyboardType="email-address"
                     style={styles.input}
-                    placeholder="Enter your email"
+                    placeholder={t("auth.emailPlaceholder")}
                 />
 
-                <Text style={styles.label}>Password</Text>
+                <Text style={styles.label}>{t("auth.password")}</Text>
                 <View style={styles.passwordContainer}>
                     <TextInput
                         value={password}
@@ -89,7 +98,7 @@ export default function SignUpScreen() {
                         maxLength={AUTH_FIELD_LIMITS.password}
                         secureTextEntry={!showPassword}
                         style={styles.passwordInput}
-                        placeholder="Create a password"
+                        placeholder={t("auth.createPasswordPlaceholder")}
                     />
 
                     <Pressable
@@ -116,7 +125,9 @@ export default function SignUpScreen() {
                     {submitting ? (
                         <ActivityIndicator />
                     ) : (
-                        <Text style={styles.buttonText}>Create Account</Text>
+                        <Text style={styles.buttonText}>
+                            {t("menu.createAccount")}
+                        </Text>
                     )}
                 </Pressable>
 
@@ -124,7 +135,9 @@ export default function SignUpScreen() {
                     onPress={() => router.push("/sign-in")}
                     style={styles.linkButton}
                 >
-                    <Text style={styles.linkText}>Already have an account? Log In</Text>
+                    <Text style={styles.linkText}>
+                        {t("auth.haveAccount")}
+                    </Text>
                 </Pressable>
             </ScrollView>
         </KeyboardAvoidingView>
@@ -134,7 +147,7 @@ export default function SignUpScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 20,
+        paddingVertical: 14,
         backgroundColor: "white",
     },
 

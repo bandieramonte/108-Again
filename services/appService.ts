@@ -1,4 +1,5 @@
 import { getAppOperationEngine } from "./appOperationRuntime";
+import * as practiceReminderRefreshService from "./practiceReminderRefreshService";
 
 const INACTIVE_THRESHOLD = 10 * 60 * 1000; //10 minutes
 const RESUME_SESSION_TIMEOUT = 5000;
@@ -55,6 +56,9 @@ export async function initializeApp() {
         seed.seedPractices();
     }
 
+    await practiceReminderRefreshService
+        .migrateStoredPracticeReminderSettingsToDatabase();
+    practiceReminderRefreshService.queueRefreshAllPracticeReminders();
 }
 
 export async function restoreDefaults() {
@@ -121,6 +125,8 @@ export async function handleAppResume() {
     backgroundedAt = null;
 
     console.log(inactiveMs);
+
+    practiceReminderRefreshService.queueRefreshAllPracticeReminders();
 
     if (inactiveMs < INACTIVE_THRESHOLD) {
         return;

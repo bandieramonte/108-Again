@@ -1,40 +1,81 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import * as Localization from "expo-localization";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Alert, Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CelebrationOverlay from "../../components/CelebrationOverlay";
+import DailyGoalProgress from "../../components/DailyGoalProgress";
+import DailyTargetEditor from "../../components/DailyTargetEditor";
+import EnableDailyTargetButton from "../../components/EnableDailyTargetButton";
 import FloatingAddAnimation, { FloatingAddAnimationRef } from "../../components/FloatingAddAnimation";
-import PracticeCalendar from "../../components/PracticeCalendar";
-import PracticeDropdownMenu from "../../components/PracticeDropdownMenu";
-import PracticeHistoryModal from "../../components/PracticeHistoryModal";
+import PracticeActionsMenu, {
+    type PracticeMenuAnchor,
+} from "../../components/PracticeActionsMenu";
+import PracticeCalendarModal from "../../components/PracticeCalendarModal";
+import PracticeProgressEditor from "../../components/PracticeProgressEditor";
+import PracticeReminderEditor from "../../components/PracticeReminderEditor";
 import QuickAddEditor from "../../components/QuickAddEditor";
 import TargetDateEditor from "../../components/TargetDateEditor";
 import { practiceImages } from "../../constants/practiceImages";
 import { useReachedCelebration } from "../../hooks/useReachedCelebration";
+import { useI18n } from "../../i18n";
+import { getPracticeDisplayName } from "../../i18n/practiceNames";
+import { createPracticeReminderText } from "../../i18n/reminderText";
 import * as appService from "../../services/appService";
+import * as practiceReminderRefreshService from "../../services/practiceReminderRefreshService";
+import type { PracticeReminderSettings } from "../../services/practiceReminderService";
+import * as practiceReminderService from "../../services/practiceReminderService";
 import * as practiceService from "../../services/practiceService";
 import * as sessionService from "../../services/sessionService";
+import { APP_SIDE_PADDING } from "../../styles/global";
 import { colors, containers } from "../../styles/theme";
 import { subscribeData } from "../../utils/events";
-import { digitsOnly, formatNumber, MAX_REPETITIONS_PER_DAY, validateNonNegativeInteger } from "../../utils/numberUtils";
+import { digitsOnly, formatCountProgress, formatNumber, MAX_REPETITIONS_PER_DAY, validateNonNegativeInteger } from "../../utils/numberUtils";
+import { getPracticeReminderSettingsFromPractice } from "../../utils/practiceReminderState";
+import { formatReminderTimeForLocale } from "../../utils/reminderTime";
 
-const isSmallScreen = Dimensions.get("window").width < 360;
-
-export default function PracticeContent({ practiceId }: { practiceId: string }) {
+export default function PracticeContent({
+    practiceId,
+    openCalendarInitially = false,
+}: {
+    practiceId: string;
+    openCalendarInitially?: boolean;
+}) {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { locale, t } = useI18n();
     const [quickAddOpen, setQuickAddOpen] = useState(false);
+    const [progressEditOpen, setProgressEditOpen] = useState(false);
     const [targetEditOpen, setTargetEditOpen] = useState(false);
+    const [reminderOpen, setReminderOpen] = useState(false);
     const initialPractice = practiceService.getPractice(practiceId);
+    const [reminderSettings, setReminderSettings] =
+        useState<PracticeReminderSettings>(() =>
+            getPracticeReminderSettingsFromPractice(initialPractice)
+        );
 
     const [practiceName, setPracticeName] = useState(initialPractice?.name ?? "");
+    const displayPracticeName =
+        getPracticeDisplayName(practiceId, practiceName, t);
+    const reminderText = useMemo(
+        () => createPracticeReminderText(t),
+        [t]
+    );
+    const timeLocale =
+        Localization.getLocales()[0]?.languageTag ?? locale;
     const [total, setTotal] = useState(() =>
         sessionService.getPracticeTotal(practiceId).total
     );
     const [imageKey, setImageKey] = useState<string | null>(initialPractice?.imageKey ?? null);
-    const [defaultAddCount, setDefaultAddCount] = useState(
-        String(initialPractice?.defaultAddCount ?? 108)
+    const [dailyTargetCount, setDailyTargetCount] = useState(
+        initialPractice?.dailyTargetCount == null
+            ? ""
+            : String(initialPractice.dailyTargetCount)
+    );
+    const [dailyTargetOpen, setDailyTargetOpen] = useState(false);
+    const [defaultSessionCount, setDefaultSessionCount] = useState(
+        String(initialPractice?.defaultSessionCount ?? 108)
     );
     const [targetCount, setTargetCount] = useState(initialPractice?.targetCount ?? 0);
     const [calendarData, setCalendarData] = useState<
@@ -58,10 +99,14 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
 
         return 1;
     }, [imageSource]);
+    const availableContentWidth =
+        Math.max(width - APP_SIDE_PADDING * 2, 0);
+    const imageDisplayWidth = Math.min(availableContentWidth, 500);
+    const imageDisplayHeight = imageDisplayWidth / imageRatio;
     const [menuOpen, setMenuOpen] = useState(false);
     const rotateAnim = useRef(new Animated.Value(0)).current;
     const titleRowRef = useRef<View | null>(null);
-    const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+    const [menuAnchor, setMenuAnchor] = useState<PracticeMenuAnchor | null>(null);
     const {
         celebrationFade,
         sparkle1,
@@ -72,88 +117,81 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
     } = useReachedCelebration();
 
     const [infoOpen, setInfoOpen] = useState(false);
+    const effectiveDailyTargetCount =
+        dailyTargetCount.trim()
+            ? Number(dailyTargetCount)
+            : null;
+    const hasDailyTarget =
+        effectiveDailyTargetCount != null &&
+        effectiveDailyTargetCount > 0;
+    const todayDate = formatDateKey(new Date());
+    const todayCount = useMemo(() => {
+        return calendarData.find(day => day.date === todayDate)?.count ?? 0;
+    }, [calendarData, todayDate]);
+    const reminderEnabled = reminderSettings.enabled === true;
+    const reminderHour = reminderSettings.hour;
+    const reminderMinute = reminderSettings.minute;
+    const reminderSummary = reminderEnabled
+        ? t("practice.reminderAt", {
+            time: formatReminderTimeForLocale(
+                reminderHour,
+                reminderMinute,
+                timeLocale
+            ),
+        })
+        : t("practice.reminderOff");
     const calendarEndDate = useMemo(() => {
         return (
             practiceService.getExpectedTargetDate(
                 targetCount,
                 total,
-                Number(defaultAddCount)
+                effectiveDailyTargetCount
             ) ?? new Date()
         );
-    }, [targetCount, total, defaultAddCount]);
+    }, [targetCount, total, effectiveDailyTargetCount]);
 
     const targetDate = useMemo(() => {
         return practiceService.getExpectedTargetDate(
             targetCount,
             total,
-            Number(defaultAddCount)
+            effectiveDailyTargetCount
         );
-    }, [targetCount, total, defaultAddCount]);
+    }, [targetCount, total, effectiveDailyTargetCount]);
 
     const formattedTargetDate = useMemo(() => {
         if (targetCount > 0 && total >= targetCount) {
-            return "Reached!";
+            return t("practice.reached");
         }
 
-        if (!targetDate) return "No estimate";
+        if (!effectiveDailyTargetCount) return t("practice.setDailyTargetFirst");
+        if (!targetDate) return t("practice.noEstimate");
 
-        return targetDate.toLocaleDateString("en-US", {
+        return targetDate.toLocaleDateString(locale, {
             month: "long",
             day: "2-digit",
             year: "numeric"
         });
-    }, [targetDate, total, targetCount]);
+    }, [effectiveDailyTargetCount, locale, targetDate, total, targetCount, t]);
     const [customAmount, setCustomAmount] = useState("");
     const [customAmountOpen, setCustomAmountOpen] = useState(false);
     const dailyAnimRef = useRef<FloatingAddAnimationRef>(null);
     const customAnimRef = useRef<FloatingAddAnimationRef>(null);
-    const [calendarOpen, setCalendarOpen] = useState(false);
-    const [calendarInfoOpen, setCalendarInfoOpen] = useState(false);
-    const [historyOpen, setHistoryOpen] = useState(false);
+    const [calendarOpen, setCalendarOpen] = useState(openCalendarInitially);
     const [dateAdjustedInfo, setDateAdjustedInfo] = useState<{
         selected: Date;
         actual: Date;
     } | null>(null);
-    const calendarButtonBottom = Math.max(
-        20,
-        insets.bottom + 12
-    );
-    const scrollBottomPadding =
-        calendarButtonBottom + 76;
+    const scrollBottomPadding = Math.max(30, insets.bottom + 24);
 
-    useEffect(() => {
-        schedulePracticeRefresh();
-    }, [practiceId]);
-
-    useEffect(() => {
-        const unsubscribe = subscribeData(() => {
-            schedulePracticeRefresh();
-        });
-
-        return unsubscribe;
-    }, [practiceId]);
-
-    useFocusEffect(
-        useCallback(() => {
-            schedulePracticeRefresh();
-        }, [practiceId])
-    );
-
-    function loadCalendarData() {
+    const loadCalendarData = useCallback(() => {
         const data = sessionService.getCalendarDailyData(practiceId);
         setCalendarData(data);
-    }
+    }, [practiceId]);
 
-    function schedulePracticeRefresh() {
-        loadPracticeData();
-        loadCalendarData();
-    }
-
-    function loadSessions(overrideTargetCount?: number) {
+    const loadSessions = useCallback((effectiveTargetCount: number) => {
         const totalResult = sessionService.getPracticeTotal(practiceId);
         const nextTotal = totalResult.total;
         setTotal(nextTotal);
-        const effectiveTargetCount = overrideTargetCount ?? targetCount;
 
         void updateReachedState([
             {
@@ -162,52 +200,92 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                 targetCount: effectiveTargetCount,
             }
         ]);
-    }
+    }, [practiceId, updateReachedState]);
 
-    function loadPracticeData() {
+    const loadPracticeData = useCallback(() => {
         const practice = practiceService.getPractice(practiceId);
 
         if (practice) {
             setPracticeName(practice.name);
             setImageKey(practice.imageKey ?? null);
-            setDefaultAddCount(String(practice.defaultAddCount ?? 108));
+            setDailyTargetCount(
+                practice.dailyTargetCount == null
+                    ? ""
+                    : String(practice.dailyTargetCount)
+            );
+            setDefaultSessionCount(String(practice.defaultSessionCount ?? 108));
             setTargetCount(practice.targetCount);
+            setReminderSettings(
+                getPracticeReminderSettingsFromPractice(practice)
+            );
             loadSessions(practice.targetCount);
         }
-    }
+    }, [loadSessions, practiceId]);
 
-    function openPracticeHistory() {
-        closeMenu();
-        setHistoryOpen(true);
-    }
+    const schedulePracticeRefresh = useCallback(() => {
+        loadPracticeData();
+        loadCalendarData();
+    }, [loadCalendarData, loadPracticeData]);
 
-    function confirmDelete() {
-        closeMenu();
+    useEffect(() => {
+        schedulePracticeRefresh();
+    }, [schedulePracticeRefresh]);
 
-        Alert.alert(
-            "Delete practice?",
-            "All sessions for this practice will also be deleted.",
-            [
-                { text: "Cancel", style: "cancel" },
+    useEffect(() => {
+        if (!reminderSettings.enabled) return;
+
+        void practiceReminderRefreshService
+            .refreshReminderForPractice(
+                practiceId,
                 {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: deletePractice
+                    reminderText,
+                    t,
                 }
-            ]
-        );
-    }
+            )
+            .then(() => {
+                setReminderSettings(
+                    getPracticeReminderSettingsFromPractice(
+                        practiceService.getPractice(practiceId)
+                    )
+                );
+            })
+            .catch(error => {
+                console.warn("Failed to refresh practice reminder", error);
+            });
+    }, [
+        practiceId,
+        displayPracticeName,
+        reminderText,
+        t,
+        todayCount,
+        effectiveDailyTargetCount,
+        reminderSettings.enabled,
+    ]);
+
+    useEffect(() => {
+        const unsubscribe = subscribeData(() => {
+            schedulePracticeRefresh();
+        });
+
+        return unsubscribe;
+    }, [schedulePracticeRefresh]);
+
+    useFocusEffect(
+        useCallback(() => {
+            schedulePracticeRefresh();
+        }, [schedulePracticeRefresh])
+    );
 
     const handleEdit = useCallback((date: string, newValue: number) => {
         if (!Number.isFinite(newValue)) return;
 
         if (newValue < 0) {
-            alert("Value cannot be negative");
+            alert(t("practice.valueCannotBeNegative"));
             return;
         }
 
         if (!Number.isInteger(newValue)) {
-            alert("Please enter a whole number");
+            alert(t("practice.enterWholeNumber"));
             return;
         }
 
@@ -217,10 +295,11 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                 date,
                 newValue
             );
+            schedulePracticeRefresh();
         } catch (error: any) {
             alert(error.message);
         }
-    }, [practiceId]);
+    }, [practiceId, schedulePracticeRefresh, t]);
 
     function openCustomAmountModal() {
         setCustomAmount("");
@@ -232,11 +311,40 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         setCustomAmount("");
     }
 
+    function openDailyTargetEditor() {
+        setDailyTargetOpen(true);
+    }
+
+    function closeDailyTargetEditor() {
+        setDailyTargetOpen(false);
+    }
+
+    function saveDailyTarget(dailyTargetCount: number) {
+        practiceService.updatePracticeDailyTargetCount(
+            practiceId,
+            dailyTargetCount
+        );
+        setDailyTargetCount(String(dailyTargetCount));
+        schedulePracticeRefresh();
+    }
+
+    function saveProgress(nextTotal: number, nextTargetCount: number) {
+        practiceService.updatePractice(
+            practiceId,
+            practiceName,
+            nextTargetCount,
+            nextTotal
+        );
+        setTargetCount(nextTargetCount);
+        setTotal(nextTotal);
+        schedulePracticeRefresh();
+    }
+
     function addCustomAmount() {
         const error =
             validateNonNegativeInteger(
                 customAmount,
-                "Custom amount"
+                t("practice.customAmount")
             );
 
         if (error) {
@@ -248,7 +356,9 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
 
         if (value > MAX_REPETITIONS_PER_DAY) {
             alert(
-                `Custom amount cannot exceed ${MAX_REPETITIONS_PER_DAY.toLocaleString()}`
+                t("practice.customAmountTooHigh", {
+                    count: formatNumber(MAX_REPETITIONS_PER_DAY),
+                })
             );
             return;
         }
@@ -259,8 +369,9 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                 value
             );
             customAnimRef.current?.trigger(
-                `+${formatNumber(value)}\nadded!`
+                `+${formatNumber(value)}\n${t("common.added")}`
             );
+            schedulePracticeRefresh();
             closeCustomAmountModal();
         } catch (error: any) {
             alert(error.message);
@@ -269,25 +380,8 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
 
     const calendarStartDate = useMemo(
         () => appService.getCalendarStartDate(practiceId),
-        [practiceId, calendarData]
+        [practiceId]
     );
-
-    async function deletePractice() {
-        await practiceService.deletePractice(practiceId);
-        router.replace("/");
-    }
-
-    function openEditPractice() {
-        setMenuOpen(false);
-
-        router.push({
-            pathname: "/edit-practice",
-            params: {
-                id: practiceId,
-                practiceName
-            }
-        });
-    }
 
     function toggleMenu() {
         if (menuOpen) {
@@ -336,6 +430,80 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
         }, 4000);
     }
 
+    function formatDateKey(date: Date) {
+        return (
+            date.getUTCFullYear() +
+            "-" +
+            String(date.getUTCMonth() + 1).padStart(2, "0") +
+            "-" +
+            String(date.getUTCDate()).padStart(2, "0")
+        );
+    }
+
+    function openReminderEditor() {
+        if (!hasDailyTarget) {
+            Alert.alert(
+                t("practice.enableDailyTarget"),
+                t("practice.setDailyTargetBeforeReminders"),
+                [
+                    {
+                        text: t("common.ok"),
+                        onPress: openDailyTargetEditor,
+                    },
+                ]
+            );
+            return;
+        }
+
+        setReminderOpen(true);
+    }
+
+    async function saveReminder(hour: number, minute: number) {
+        try {
+            const settings =
+                await practiceReminderService.savePracticeReminderSettings({
+                    practiceId,
+                    practiceName: displayPracticeName,
+                    todayCount,
+                    dailyTargetCount: effectiveDailyTargetCount,
+                    reminderText,
+                    hour,
+                    minute,
+                });
+
+            setReminderSettings(settings);
+            practiceService.updatePracticeReminderSettings(
+                practiceId,
+                settings.enabled,
+                settings.hour,
+                settings.minute
+            );
+            setReminderOpen(false);
+        } catch (error: any) {
+            alert(error.message);
+        }
+    }
+
+    async function disableReminder() {
+        try {
+            const settings =
+                await practiceReminderService.disablePracticeReminder(
+                    practiceId
+                );
+
+            setReminderSettings(settings);
+            practiceService.updatePracticeReminderSettings(
+                practiceId,
+                settings.enabled,
+                settings.hour,
+                settings.minute
+            );
+            setReminderOpen(false);
+        } catch (error: any) {
+            alert(error.message);
+        }
+    }
+
     return (
         <View style={{ flex: 1 }}>
             <ScrollView
@@ -357,24 +525,28 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                         ]}
                                         onPress={toggleMenu}
                                         accessibilityRole="button"
-                                        accessibilityLabel={`Open actions for ${practiceName}`}
+                                        accessibilityLabel={t("practice.openActionsA11y", {
+                                            practiceName: displayPracticeName,
+                                        })}
                                     >
                                         <Text style={styles.title}>
-                                            {practiceName}
+                                            {displayPracticeName}
                                         </Text>
 
                                         <Animated.View
                                             style={[
                                                 styles.titleActionIcon,
-                                                { opacity: rotateAnim.interpolate({
-                                                    inputRange: [0, 1],
-                                                    outputRange: [0.78, 1],
-                                                }) }
+                                                {
+                                                    opacity: rotateAnim.interpolate({
+                                                        inputRange: [0, 1],
+                                                        outputRange: [0.78, 1],
+                                                    })
+                                                }
                                             ]}
                                         >
                                             <MaterialIcons
-                                                name="edit"
-                                                size={16}
+                                                name="more-horiz"
+                                                size={20}
                                                 color={colors.primary}
                                             />
                                         </Animated.View>
@@ -404,7 +576,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                     <Image
                                         source={imageSource}
                                         style={{
-                                            height: Math.min(width - 20, 500),
+                                            height: imageDisplayHeight,
                                             aspectRatio: imageRatio,
                                             alignSelf: "center"
                                         }}
@@ -414,119 +586,246 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                             )}
 
 
-                            <View style={{ flexDirection: "row", justifyContent: "space-around" }}>
-                                <View style={styles.indicatorRow}>
-                                    <Text style={{ fontWeight: "bold" }}>
-                                        Progress
-                                    </Text>
-                                    <View style={styles.totalWrapper}>
-                                        <Text style={styles.total}>
-                                            {formatNumber(total) + ' ' + (!!targetCount ? '/ ' + formatNumber(targetCount) : '')}
+                            <View
+                                style={[
+                                    styles.statsCardsRow,
+                                    { width: imageDisplayWidth }
+                                ]}
+                            >
+                                <Pressable
+                                    style={({ pressed }) => [
+                                        styles.statsCard,
+                                        styles.statsCardPressable,
+                                        pressed && styles.statsCardPressed
+                                    ]}
+                                    onPress={() => setProgressEditOpen(true)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t("practice.totalProgress")}
+                                >
+                                    <View style={styles.statsCardLabelRow}>
+                                        <MaterialIcons
+                                            name="trending-up"
+                                            size={16}
+                                            color={colors.primary}
+                                        />
+                                        <Text style={styles.statsCardLabel}>
+                                            {t("practice.totalProgress")}
                                         </Text>
+                                        <MaterialIcons
+                                            name="edit"
+                                            size={14}
+                                            color={colors.primary}
+                                        />
                                     </View>
-
-                                </View>
+                                    <Text style={styles.statsCardValue}>
+                                        {formatCountProgress(
+                                            total,
+                                            targetCount || null
+                                        )}
+                                    </Text>
+                                </Pressable>
 
                                 <Pressable
-                                    style={styles.indicatorRow}
+                                    style={({ pressed }) => [
+                                        styles.statsCard,
+                                        styles.statsCardPressable,
+                                        pressed && styles.statsCardPressed
+                                    ]}
                                     onPress={() => setTargetEditOpen(true)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t("practice.editTargetDate")}
                                 >
-                                    <Text style={{ fontWeight: "bold" }}>
-                                        Target Date
-                                    </Text>
-                                    <View style={styles.targetDateRow}>
+                                    <View style={styles.statsCardLabelRow}>
+                                        <MaterialIcons
+                                            name="event"
+                                            size={16}
+                                            color={colors.primary}
+                                        />
+                                        <Text style={styles.statsCardLabel}>
+                                            {t("practice.targetDate")}
+                                        </Text>
+                                        <MaterialIcons
+                                            name="edit"
+                                            size={14}
+                                            color={colors.primary}
+                                        />
+                                    </View>
 
-                                        <View style={styles.targetDateEditable}>
-                                            <Text style={styles.targetDateText}>
-                                                {formattedTargetDate}
-                                            </Text>
-                                        </View>
+                                    <View style={styles.targetDateRow}>
+                                        <Text style={styles.statsCardValue}>
+                                            {formattedTargetDate}
+                                        </Text>
 
                                         {isCelebrating(practiceId) && (
-                                            <>
-                                                <CelebrationOverlay
-                                                    fade={celebrationFade}
-                                                    sparkle1={sparkle1}
-                                                    sparkle2={sparkle2}
-                                                    sparkle3={sparkle3}
-                                                />
-                                            </>
+                                            <CelebrationOverlay
+                                                fade={celebrationFade}
+                                                sparkle1={sparkle1}
+                                                sparkle2={sparkle2}
+                                                sparkle3={sparkle3}
+                                            />
                                         )}
-
                                     </View>
                                 </Pressable>
                             </View>
 
-                            <View style={styles.addRow}>
-                                <View style={styles.addColumn}>
-                                    <View style={styles.headerArea}>
-                                        <Text style={styles.sectionTitle}>
-                                            Add daily target
+                            <View
+                                style={[
+                                    styles.todayGoalCard,
+                                    { width: imageDisplayWidth }
+                                ]}
+                            >
+                                {hasDailyTarget ? (
+                                    <DailyGoalProgress
+                                        todayCount={todayCount}
+                                        dailyTargetCount={effectiveDailyTargetCount}
+                                        height={22}
+                                        style={styles.todayGoalProgressRow}
+                                        labelStyle={styles.todayGoalLabel}
+                                        barStyle={styles.todayGoalProgressBar}
+                                        textStyle={styles.todayGoalProgressText}
+                                    />
+                                ) : (
+                                    <EnableDailyTargetButton
+                                        onPress={openDailyTargetEditor}
+                                        accessibilityLabel={t("practice.enableDailyTarget")}
+                                    />
+                                )}
+
+                                <Pressable
+                                    style={({ pressed }) => [
+                                        styles.reminderButton,
+                                        pressed && styles.reminderButtonPressed
+                                    ]}
+                                    onPress={openReminderEditor}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t("practice.editPracticeReminder")}
+                                >
+                                    <MaterialIcons
+                                        name={reminderEnabled ? "notifications-active" : "notifications-none"}
+                                        size={18}
+                                        color={reminderEnabled ? colors.primary : "#666"}
+                                    />
+
+                                    <View style={styles.reminderTextGroup}>
+                                        <Text style={styles.reminderTitle}>
+                                            {reminderSummary}
+                                        </Text>
+                                        <Text style={styles.reminderSubtitle}>
+                                            {hasDailyTarget
+                                                ? t("practice.editReminderTime")
+                                                : t("practice.reminderNeedsTarget")}
                                         </Text>
                                     </View>
 
-                                    <View style={styles.quickAddRow}>
+                                    <MaterialIcons
+                                        name="chevron-right"
+                                        size={20}
+                                        color="#999"
+                                    />
+                                </Pressable>
+                            </View>
 
-                                        <Pressable
-                                            style={styles.quickAddButton}
-                                            onPress={() => {
-                                                try {
-                                                    sessionService.addSession(
-                                                        practiceId,
-                                                        Number(defaultAddCount)
-                                                    );
-                                                    dailyAnimRef.current?.trigger(
-                                                        `+${formatNumber(defaultAddCount)}\nadded!`
-                                                    );
-                                                } catch (error: any) {
-                                                    alert(error.message);
-                                                }
-                                            }}
-                                            onLongPress={() => setQuickAddOpen(true)}
-                                        >
-                                            <Text style={styles.quickAddButtonText}>
-                                                +{formatNumber(defaultAddCount)}
-                                            </Text>
-                                            <FloatingAddAnimation ref={dailyAnimRef} />
-                                        </Pressable>
-
-                                    </View>
-                                </View>
-                                {!isSmallScreen &&
-                                    <Text style={styles.orText}>
-                                        OR
+                            <View
+                                style={[
+                                    styles.addSessionCard,
+                                    { width: imageDisplayWidth }
+                                ]}
+                            >
+                                <View style={styles.addSessionHeader}>
+                                    <Text style={styles.addSessionTitle}>
+                                        {t("practice.addSession")}
                                     </Text>
-                                }
-
-                                <View style={styles.addColumn}>
-                                    <View style={styles.headerArea}>
-                                        <View style={styles.customHeader}>
-                                            <Text
-                                                style={[
-                                                    styles.sectionTitle,
-                                                    styles.customSectionTitle
-                                                ]}
-                                                numberOfLines={1}
-                                            >
-                                                Add custom amount
-                                            </Text>
-                                        </View>
-                                    </View>
 
                                     <Pressable
-                                        style={styles.quickAddButton}
+                                        style={({ pressed }) => [
+                                            styles.defaultSessionEditButton,
+                                            pressed && styles.addSessionActionPressed
+                                        ]}
+                                        onPress={() => setQuickAddOpen(true)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={t("practice.editDefaultSessionCount")}
+                                    >
+                                        <MaterialIcons
+                                            name="edit"
+                                            size={15}
+                                            color={colors.primary}
+                                        />
+                                        <Text style={styles.defaultSessionEditText}>
+                                            {formatNumber(defaultSessionCount)}
+                                        </Text>
+                                    </Pressable>
+                                </View>
+
+                                <View style={styles.addSessionActions}>
+                                    <Pressable
+                                        style={({ pressed }) => [
+                                            styles.addSessionAction,
+                                            styles.addSessionActionPrimary,
+                                            pressed && styles.addSessionActionPressed
+                                        ]}
+                                        onPress={() => {
+                                            try {
+                                                sessionService.addSession(
+                                                    practiceId,
+                                                    Number(defaultSessionCount)
+                                                );
+                                                dailyAnimRef.current?.trigger(
+                                                    `+${formatNumber(defaultSessionCount)}\n${t("common.added")}`
+                                                );
+                                                schedulePracticeRefresh();
+                                            } catch (error: any) {
+                                                alert(error.message);
+                                            }
+                                        }}
+                                        onLongPress={() => setQuickAddOpen(true)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={t("practice.addDefaultSessionA11y", {
+                                            count: formatNumber(defaultSessionCount),
+                                        })}
+                                    >
+                                        <Text style={styles.addSessionActionValue}>
+                                            +{formatNumber(defaultSessionCount)}
+                                        </Text>
+                                        <Text style={styles.addSessionActionLabel}>
+                                            {t("practice.defaultSession")}
+                                        </Text>
+                                        <FloatingAddAnimation ref={dailyAnimRef} />
+                                    </Pressable>
+
+                                    <Pressable
+                                        style={({ pressed }) => [
+                                            styles.addSessionAction,
+                                            pressed && styles.addSessionActionPressed
+                                        ]}
                                         onPress={openCustomAmountModal}
                                         accessibilityRole="button"
-                                        accessibilityLabel="Tap to add a custom amount"
+                                        accessibilityLabel={t("practice.addCustomAmount")}
                                     >
-                                        <Text style={styles.quickAddButtonText}>
+                                        <Text style={styles.addSessionActionValue}>
                                             +
+                                        </Text>
+                                        <Text style={styles.addSessionActionLabel}>
+                                            {t("practice.customAmount")}
                                         </Text>
                                         <FloatingAddAnimation ref={customAnimRef} />
                                     </Pressable>
-
                                 </View>
+                            </View>
 
+                            <View
+                                style={[
+                                    styles.calendarButtonContainer,
+                                    { width: imageDisplayWidth }
+                                ]}
+                            >
+                                <Pressable
+                                    style={styles.calendarButton}
+                                    onPress={() => setCalendarOpen(true)}
+                                >
+                                    <Text style={styles.calendarButtonText}>
+                                        {t("practice.practiceCalendar")}
+                                    </Text>
+                                </Pressable>
                             </View>
 
                         </View>
@@ -546,7 +845,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                     onPress={() => { }}
                                 >
                                     <Text style={styles.customAmountTitle}>
-                                        Add custom amount
+                                        {t("practice.addCustomAmount")}
                                     </Text>
 
                                     <TextInput
@@ -557,7 +856,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                         keyboardType="numeric"
                                         returnKeyType="done"
                                         onSubmitEditing={addCustomAmount}
-                                        placeholder="Enter amount"
+                                        placeholder={t("practice.enterAmount")}
                                         placeholderTextColor="#999"
                                         style={styles.customAmountInput}
                                         maxLength={String(MAX_REPETITIONS_PER_DAY).length}
@@ -570,7 +869,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                             onPress={closeCustomAmountModal}
                                         >
                                             <Text style={styles.customAmountCancelText}>
-                                                Cancel
+                                                {t("common.cancel")}
                                             </Text>
                                         </Pressable>
 
@@ -579,7 +878,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                             onPress={addCustomAmount}
                                         >
                                             <Text style={styles.customAmountAddText}>
-                                                Add
+                                                {t("common.add")}
                                             </Text>
                                         </Pressable>
                                     </View>
@@ -587,98 +886,26 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                             </Pressable>
                         </Modal>
 
-                        <Modal
+                        <PracticeCalendarModal
                             visible={calendarOpen}
-                            transparent
-                            animationType="slide"
-                            statusBarTranslucent
-                            onRequestClose={() => setCalendarOpen(false)}
-                        >
-                            <Pressable style={styles.calendarOverlay} onPress={() => setCalendarOpen(false)}>
+                            data={calendarData}
+                            startDate={calendarStartDate}
+                            endDate={calendarEndDate}
+                            onEditDay={handleEdit}
+                            onClose={() => setCalendarOpen(false)}
+                        />
 
-                                <View style={styles.calendarSheet}>
-
-                                    <View style={styles.sheetHandle} />
-
-                                    <View style={styles.calendarHeader}>
-                                        <Pressable onPress={() => setCalendarOpen(false)}>
-                                            <Text style={styles.calendarClose}>
-                                                Close
-                                            </Text>
-                                        </Pressable>
-
-                                        <Pressable
-                                            onPress={() => setCalendarInfoOpen(true)}
-                                            style={styles.calendarInfoIcon}
-                                            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-                                            accessibilityRole="button"
-                                            accessibilityLabel="Practice calendar information"
-                                        >
-                                            <MaterialIcons
-                                                name="info-outline"
-                                                size={20}
-                                                color="#666"
-                                            />
-                                        </Pressable>
-                                    </View>
-
-                                    <PracticeCalendar
-                                        data={calendarData}
-                                        startDate={calendarStartDate}
-                                        endDate={calendarEndDate}
-                                        onEditDay={handleEdit}
-                                    />
-
-                                </View>
-
-                            </Pressable>
-                        </Modal>
-
-                        <Modal
-                            visible={calendarInfoOpen}
-                            transparent
-                            animationType="fade"
-                            onRequestClose={() => setCalendarInfoOpen(false)}
-                        >
-                            <Pressable
-                                style={styles.infoOverlay}
-                                onPress={() => setCalendarInfoOpen(false)}
-                            >
-                                <Pressable
-                                    style={styles.infoModal}
-                                    onPress={() => { }}
-                                >
-                                    <Text style={styles.infoTitle}>
-                                        Editing the Calendar
-                                    </Text>
-
-                                    <Text style={styles.infoText}>
-                                        You can edit today or any earlier day in the practice calendar if you forgot to record a practice.
-                                    </Text>
-
-                                    <Text style={styles.infoText}>
-                                        Tap a day, enter the correct total for that date, and the app will update your progress.
-                                    </Text>
-
-                                    <Pressable
-                                        style={styles.infoButton}
-                                        onPress={() => setCalendarInfoOpen(false)}
-                                    >
-                                        <Text style={styles.infoButtonText}>
-                                            OK
-                                        </Text>
-                                    </Pressable>
-                                </Pressable>
-                            </Pressable>
-                        </Modal>
-
-                        <PracticeDropdownMenu
+                        <PracticeActionsMenu
                             visible={menuOpen}
                             anchor={menuAnchor}
+                            practice={{
+                                id: practiceId,
+                                name: displayPracticeName,
+                                total,
+                            }}
                             onClose={closeMenu}
-                            onEdit={openEditPractice}
-                            onHistory={openPracticeHistory}
-                            onDelete={confirmDelete}
+                            onDeleted={() => router.replace("/")}
+                            onCalendar={() => setCalendarOpen(true)}
                         />
 
                     </View>
@@ -686,9 +913,37 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                     <QuickAddEditor
                         visible={quickAddOpen}
                         practiceId={practiceId}
-                        practiceName={practiceName}
-                        defaultValue={Number(defaultAddCount)}
+                        practiceName={displayPracticeName}
+                        defaultValue={Number(defaultSessionCount)}
                         onClose={() => setQuickAddOpen(false)}
+                    />
+
+                    <PracticeProgressEditor
+                        visible={progressEditOpen}
+                        practiceName={displayPracticeName}
+                        total={total}
+                        targetCount={targetCount}
+                        onClose={() => setProgressEditOpen(false)}
+                        onSave={saveProgress}
+                    />
+
+                    <DailyTargetEditor
+                        visible={dailyTargetOpen}
+                        practiceName={displayPracticeName}
+                        initialValue={dailyTargetCount}
+                        onClose={closeDailyTargetEditor}
+                        onSave={saveDailyTarget}
+                    />
+
+                    <PracticeReminderEditor
+                        visible={reminderOpen}
+                        enabled={reminderEnabled}
+                        practiceName={displayPracticeName}
+                        initialHour={reminderHour}
+                        initialMinute={reminderMinute}
+                        onClose={() => setReminderOpen(false)}
+                        onDisable={disableReminder}
+                        onSave={saveReminder}
                     />
 
                     <TargetDateEditor
@@ -698,10 +953,11 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                         currentTargetDate={targetDate}
                         onClose={() => setTargetEditOpen(false)}
                         onSave={(newDaily, selectedDateStr) => {
-                            practiceService.updatePracticeDefaultAddCount(
+                            practiceService.updatePracticeDailyTargetCount(
                                 practiceId,
                                 newDaily
                             );
+                            setDailyTargetCount(String(newDaily));
 
                             const selectedDate = new Date(selectedDateStr);
 
@@ -736,16 +992,11 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                 onPress={() => { }}
                             >
                                 <Text style={styles.infoTitle}>
-                                    Adjusting Practice Data
+                                    {t("practice.adjustingInfoTitle")}
                                 </Text>
 
                                 <Text style={styles.infoText}>
-                                    You can edit the daily repetition count by long pressing its corresponding button. You can also edit the target date by tapping it.
-                                </Text>
-
-                                <Text style={styles.infoText}>
-                                    Changing one will automatically adjust the other,
-                                    and the calendar below will update accordingly.
+                                    {t("practice.adjustingInfoText1")}
                                 </Text>
 
                                 <Pressable
@@ -753,7 +1004,7 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                                     onPress={() => setInfoOpen(false)}
                                 >
                                     <Text style={styles.infoButtonText}>
-                                        OK
+                                        {t("common.ok")}
                                     </Text>
                                 </Pressable>
 
@@ -761,12 +1012,6 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                         </Pressable>
                     </Modal>
 
-                    <PracticeHistoryModal
-                        visible={historyOpen}
-                        onClose={() => setHistoryOpen(false)}
-                        practiceId={practiceId}
-                        total={total}
-                    />
                 </View>
             </ScrollView>
 
@@ -778,27 +1023,15 @@ export default function PracticeContent({ practiceId }: { practiceId: string }) 
                 <View style={styles.infoOverlay}>
                     <View style={styles.infoModal}>
                         <Text style={styles.infoText}>
-                            You&apos;ll finish sooner than that.
+                            {t("practice.dateAdjustedSooner")}
                         </Text>
 
                         <Text style={styles.infoText}>
-                            We adjusted the date to match your pace.
+                            {t("practice.dateAdjustedPace")}
                         </Text>
                     </View>
                 </View>
             </Modal>
-
-            <Pressable
-                style={[
-                    styles.calendarButtonFixed,
-                    { bottom: calendarButtonBottom }
-                ]}
-                onPress={() => setCalendarOpen(true)}
-            >
-                <Text style={styles.calendarButtonText}>
-                    Practice Calendar
-                </Text>
-            </Pressable>
 
         </View>
     );
@@ -819,13 +1052,6 @@ const styles = StyleSheet.create({
     total: {
         fontSize: 15,
         color: "#666"
-    },
-
-    sectionTitle: {
-        fontSize: 13,
-        color: "#666",
-        marginTop: 12,
-        marginBottom: 6
     },
 
     titleRow: {
@@ -871,60 +1097,67 @@ const styles = StyleSheet.create({
     },
 
     contentBlock: {
-        paddingHorizontal: 20,
         zIndex: 1,
         elevation: 1,
-        paddingBottom: 30
+        paddingBottom: 30,
+        paddingTop: 15
+
     },
 
-    indicatorRow: {
-        alignItems: "center",
-        gap: 3,
-        flexWrap: "wrap",
-        justifyContent: "space-between"
+    statsCardsRow: {
+        flexDirection: "row",
+        alignSelf: "center",
+        gap: 10,
+        paddingTop: 18,
+        paddingBottom: 2,
     },
 
-    totalWrapper: {
-        position: "relative",
-        alignSelf: "flex-start",
+    statsCard: {
+        flex: 1,
+        minHeight: 72,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: "#E1E7F5",
+        backgroundColor: "#FAFBFF",
+        paddingVertical: 11,
+        paddingHorizontal: 12,
+        justifyContent: "center",
+        shadowColor: "#000",
+        shadowOpacity: 0.04,
+        shadowRadius: 5,
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        elevation: 1,
+        alignItems: "center"
     },
 
-    targetDateText: {
-        fontSize: 14,
-        color: "#666"
+    statsCardPressable: {
+        borderColor: "#DBE4FF",
     },
 
-    quickAddRow: {
+    statsCardPressed: {
+        opacity: 0.74,
+    },
+
+    statsCardLabelRow: {
         flexDirection: "row",
         alignItems: "center",
-        marginTop: 2,
-        marginBottom: 10,
-        flexWrap: "wrap"
+        gap: 5,
+        marginBottom: 6,
     },
 
-    quickAddButton: {
-        width:
-            isSmallScreen ? 76 : 90,
-        height: isSmallScreen ? 76 : 90,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "#eef2ff",
-        borderRadius: 100,
-        borderWidth: 2,
-        borderColor: colors.primary,
+    statsCardLabel: {
+        fontSize: 13,
+        fontWeight: "700",
+        color: "#111",
     },
 
-    quickAddButtonText: {
-        fontSize: 16,
-        fontWeight: "600",
-        color: "#111"
-    },
-
-    targetDateEditable: {
-        borderBottomWidth: 1,
-        borderBottomColor: "#cbd5e1",
-        paddingBottom: 2,
-        alignSelf: "flex-start"
+    statsCardValue: {
+        fontSize: 14,
+        color: "#555",
+        lineHeight: 19,
     },
 
     targetDateRow: {
@@ -933,6 +1166,159 @@ const styles = StyleSheet.create({
         gap: 8,
         position: "relative",
         flexWrap: "wrap"
+    },
+
+    todayGoalCard: {
+        alignSelf: "center",
+        marginTop: 18,
+        marginBottom: 8,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: "#DBE4FF",
+        backgroundColor: "#F8FAFF",
+        gap: 10,
+    },
+
+    todayGoalProgressRow: {
+        width: "100%",
+    },
+
+    todayGoalLabel: {
+        fontSize: 14,
+        fontWeight: "700",
+        minWidth: 92,
+    },
+
+    todayGoalProgressBar: {
+        flex: 1,
+        minWidth: 150,
+    },
+
+    todayGoalProgressText: {
+        fontSize: 14,
+    },
+
+    addSessionCard: {
+        alignSelf: "center",
+        marginTop: 14,
+        padding: 14,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: "#DBE4FF",
+        backgroundColor: "#FAFBFF",
+        gap: 12,
+        shadowColor: "#000",
+        shadowOpacity: 0.04,
+        shadowRadius: 5,
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        elevation: 1,
+    },
+
+    addSessionHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+    },
+
+    addSessionTitle: {
+        fontSize: 15,
+        fontWeight: "700",
+        color: "#111",
+    },
+
+    defaultSessionEditButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        paddingVertical: 5,
+        paddingHorizontal: 10,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: "#DBE4FF",
+        backgroundColor: "white",
+    },
+
+    defaultSessionEditText: {
+        fontSize: 13,
+        fontWeight: "700",
+        color: colors.primary,
+    },
+
+    addSessionActions: {
+        flexDirection: "row",
+        gap: 10,
+    },
+
+    addSessionAction: {
+        flex: 1,
+        minHeight: 82,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: "#DBE4FF",
+        backgroundColor: "white",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 8,
+        position: "relative",
+        overflow: "visible",
+    },
+
+    addSessionActionPrimary: {
+        borderColor: colors.primary,
+        backgroundColor: "#EEF2FF",
+    },
+
+    addSessionActionPressed: {
+        opacity: 0.72,
+    },
+
+    addSessionActionValue: {
+        fontSize: 18,
+        fontWeight: "800",
+        color: "#111",
+        marginBottom: 5,
+    },
+
+    addSessionActionLabel: {
+        fontSize: 12,
+        fontWeight: "600",
+        color: "#666",
+        textAlign: "center",
+    },
+
+    reminderButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 9,
+        paddingTop: 9,
+        borderTopWidth: 1,
+        borderTopColor: "#E5E7EB",
+    },
+
+    reminderButtonPressed: {
+        opacity: 0.72,
+    },
+
+    reminderTextGroup: {
+        flex: 1,
+        gap: 2,
+    },
+
+    reminderTitle: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#111",
+    },
+
+    reminderSubtitle: {
+        fontSize: 12,
+        color: "#666",
     },
 
     infoIcon: {
@@ -1050,71 +1436,18 @@ const styles = StyleSheet.create({
         color: "white"
     },
 
-    addRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginTop: 8
-    },
-
-    addColumn: {
-        alignItems: "center",
-        width: 120
-    },
-
-    orText: {
-        alignSelf: "center",
-        marginTop: 24,
-        color: "#666"
-    },
-    customHeader: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center"
-    },
-    customSectionTitle: {
-        width: 145,
-        textAlign: "center"
-    },
-    headerArea: {
-        height: 60,
-        justifyContent: "center",
-        alignItems: "center"
-    },
-
     calendarButtonText: {
         fontSize: 15,
         fontWeight: "600",
         color: "white"
     },
 
-    calendarHeader: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: 20,
-        paddingBottom: 10,
-        borderBottomWidth: 1,
-        borderColor: "#eee"
+    calendarButtonContainer: {
+        alignSelf: "center",
+        marginTop: 24,
     },
-
-    calendarClose: {
-        fontSize: 16,
-        fontWeight: "600",
-        color: colors.primary
-    },
-    calendarInfoIcon: {
-        width: 28,
-        height: 28,
-        alignItems: "center",
-        justifyContent: "center",
-        marginRight: 2
-    },
-    calendarButtonFixed: {
-        position: "absolute",
-        bottom: 20,
-        left: 20,
-        right: 20,
+    calendarButton: {
+        width: "100%",
         paddingVertical: 14,
         borderRadius: 12,
         backgroundColor: colors.primary,
@@ -1128,31 +1461,4 @@ const styles = StyleSheet.create({
         elevation: 4,
     },
 
-    calendarOverlay: {
-        flex: 1,
-        justifyContent: "flex-end",
-        backgroundColor: "rgba(0,0,0,0.15)"
-    },
-
-    calendarSheet: {
-        height: Dimensions.get("window").width > 700 ? "70%" : "60%",
-        backgroundColor: "white",
-        borderTopLeftRadius: 18,
-        borderTopRightRadius: 18,
-        paddingTop: 6,
-        shadowColor: "#000",
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: -3 },
-        elevation: 8
-    },
-    sheetHandle: {
-        width: 40,
-        height: 4,
-        backgroundColor: "#ddd",
-        alignSelf: "center",
-        borderRadius: 2,
-        marginTop: 6,
-        marginBottom: 8
-    },
 });

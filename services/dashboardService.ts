@@ -8,7 +8,8 @@ type DashboardPracticeRow = {
     total: number;
     today: number;
     imageKey?: string | null;
-    defaultAddCount?: number | null;
+    dailyTargetCount?: number | null;
+    defaultSessionCount?: number | null;
 };
 
 export function getDashboardPractices(): DashboardPracticeRow[] {

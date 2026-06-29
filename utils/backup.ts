@@ -13,7 +13,7 @@ import * as appMetaRepo from "../repositories/appMetaRepo";
 
 export async function exportBackup() {
 
-    const data = getBackupData();
+    const data = await getBackupData();
 
     const json = JSON.stringify(data, null, 2);
 
@@ -103,7 +103,15 @@ export async function importBackup(onComplete?: () => void) {
                             targetCount: p.targetCount,
                             orderIndex: p.orderIndex,
                             imageKey: p.imageKey ?? null,
-                            defaultAddCount: p.defaultAddCount ?? 108,
+                            dailyTargetCount: p.dailyTargetCount ?? null,
+                            defaultSessionCount:
+                                p.defaultSessionCount ?? 108,
+                            totalOffset: p.totalOffset ?? 0,
+                            reminderEnabled:
+                                p.reminderEnabled === true ||
+                                p.reminderEnabled === 1,
+                            reminderHour: p.reminderHour ?? 20,
+                            reminderMinute: p.reminderMinute ?? 0,
                         })
                     );
                 }

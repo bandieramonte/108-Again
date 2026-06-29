@@ -9,26 +9,49 @@ export function getWriteSyncMetadata() : SyncMetadata {
 export function createPractice(
     name: string,
     target: number,
-    defaultAddCount: number = 108
+    dailyTargetCount: number | null = null,
+    defaultSessionCount: number = 108,
+    imageKey: string | null = null
 ) {
     return getAppOperationEngine().createPractice(
         name,
         target,
-        defaultAddCount
+        dailyTargetCount,
+        defaultSessionCount,
+        imageKey
     );
+}
+
+export function createSeedPractice(
+    seedPracticeId: string,
+    options: {
+        targetCount?: number;
+        defaultSessionCount?: number;
+    } = {}
+) {
+    return getAppOperationEngine().createSeedPractice(
+        seedPracticeId,
+        options
+    );
+}
+
+export function reorderPractices(orderedPracticeIds: string[]) {
+    getAppOperationEngine().reorderPractices(orderedPracticeIds);
 }
 
 export function updatePractice(
     id: string,
     name: string,
     target: number,
-    newTotal: number
+    newTotal: number,
+    imageKey?: string | null
 ) {
     getAppOperationEngine().updatePractice(
         id,
         name,
         target,
-        newTotal
+        newTotal,
+        imageKey
     );
 }
 
@@ -52,25 +75,53 @@ export function getAllPractices() {
     return getAppOperationEngine().getAllPractices();
 }
 
-export function updatePracticeDefaultAddCount(
+export function updatePracticeDailyTargetCount(
     id: string,
-    defaultAddCount: number
+    dailyTargetCount: number | null
 ) {
-    getAppOperationEngine().updatePracticeDefaultAddCount(
+    getAppOperationEngine().updatePracticeDailyTargetCount(
         id,
-        defaultAddCount,
+        dailyTargetCount,
+    );
+}
+
+export function updatePracticeDefaultSessionCount(
+    id: string,
+    defaultSessionCount: number
+) {
+    getAppOperationEngine().updatePracticeDefaultSessionCount(
+        id,
+        defaultSessionCount,
+    );
+}
+
+export function updatePracticeReminderSettings(
+    id: string,
+    enabled: boolean,
+    hour: number,
+    minute: number
+) {
+    getAppOperationEngine().updatePracticeReminderSettings(
+        id,
+        enabled,
+        hour,
+        minute
     );
 }
 
 export function getExpectedTargetDate(
   targetCount: number,
   total: number,
-  defaultAddCount?: number | null
+  dailyTargetCount?: number | null
 ): Date | null {
 
-  const dailyAmount = defaultAddCount ?? 108;
+  const dailyAmount = dailyTargetCount;
 
-  if (!Number.isFinite(dailyAmount) || dailyAmount <= 0) {
+  if (
+    dailyAmount == null ||
+    !Number.isFinite(dailyAmount) ||
+    dailyAmount <= 0
+  ) {
     return null;
   }
 

@@ -18,7 +18,12 @@ export type RemotePracticeRow = {
     order_index: number;
     image_key: string | null;
     default_add_count: number;
+    daily_target_count: number | null;
+    default_session_count: number | null;
     total_offset: number;
+    reminder_enabled?: boolean | null;
+    reminder_hour?: number | null;
+    reminder_minute?: number | null;
     updated_at: string;
     deleted_at: string | null;
 };
@@ -39,8 +44,12 @@ export type LocalPracticeRow = {
     targetCount: number;
     orderIndex: number;
     imageKey?: string | null;
-    defaultAddCount?: number | null;
+    dailyTargetCount?: number | null;
+    defaultSessionCount?: number | null;
     totalOffset?: number;
+    reminderEnabled?: number | boolean | null;
+    reminderHour?: number | null;
+    reminderMinute?: number | null;
     userId?: string | null;
     updatedAt?: number | null;
     syncStatus?: string | null;
@@ -187,10 +196,16 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             row.targetCount === defaultPractice.targetCount &&
             row.orderIndex === defaultPractice.orderIndex &&
             (row.imageKey ?? null) === (defaultPractice.imageKey ?? null) &&
-            (row.defaultAddCount ?? 108) ===
-                (defaultPractice.defaultAddCount ?? 108) &&
+            (row.dailyTargetCount ?? null) ===
+                (defaultPractice.dailyTargetCount ?? null) &&
+            (row.defaultSessionCount ?? 108) ===
+                (defaultPractice.defaultSessionCount ?? 108) &&
             (row.totalOffset ?? 0) ===
-                (defaultPractice.totalOffset ?? 0)
+                (defaultPractice.totalOffset ?? 0) &&
+            (row.reminderEnabled === true || row.reminderEnabled === 1) ===
+                false &&
+            (row.reminderHour ?? 20) === 20 &&
+            (row.reminderMinute ?? 0) === 0
         );
     }
 
@@ -453,18 +468,29 @@ export function createSyncEngine(deps: SyncEngineDeps) {
 
         if (rowsToPush.length === 0) return;
 
-        const payload = rowsToPush.map((row) => ({
-            id: row.id,
-            user_id: userId,
-            name: row.name,
-            target_count: row.targetCount,
-            order_index: row.orderIndex,
-            image_key: row.imageKey ?? null,
-            default_add_count: row.defaultAddCount ?? 108,
-            total_offset: row.totalOffset ?? 0,
-            updated_at: new Date(row.updatedAt ?? now()).toISOString(),
-            deleted_at: null,
-        }));
+        const payload = rowsToPush.map((row) => {
+            const defaultSessionCount = row.defaultSessionCount ?? 108;
+
+            return {
+                id: row.id,
+                user_id: userId,
+                name: row.name,
+                target_count: row.targetCount,
+                order_index: row.orderIndex,
+                image_key: row.imageKey ?? null,
+                default_add_count: defaultSessionCount,
+                daily_target_count: row.dailyTargetCount ?? null,
+                default_session_count: defaultSessionCount,
+                total_offset: row.totalOffset ?? 0,
+                reminder_enabled:
+                    row.reminderEnabled === true ||
+                    row.reminderEnabled === 1,
+                reminder_hour: row.reminderHour ?? 20,
+                reminder_minute: row.reminderMinute ?? 0,
+                updated_at: new Date(row.updatedAt ?? now()).toISOString(),
+                deleted_at: null,
+            };
+        });
 
         await deps.remote.upsertPractices(payload);
 
@@ -624,6 +650,10 @@ export function createSyncEngine(deps: SyncEngineDeps) {
         }
 
         const deletedAt = new Date(row.deletedAt).toISOString();
+        const defaultSessionCount =
+            parsed.defaultSessionCount ??
+            parsed.defaultAddCount ??
+            108;
 
         return {
             id: row.recordId,
@@ -632,8 +662,13 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             target_count: parsed.targetCount,
             order_index: parsed.orderIndex,
             image_key: parsed.imageKey ?? null,
-            default_add_count: parsed.defaultAddCount ?? 108,
+            default_add_count: defaultSessionCount,
+            daily_target_count: parsed.dailyTargetCount ?? null,
+            default_session_count: defaultSessionCount,
             total_offset: parsed.totalOffset ?? 0,
+            reminder_enabled: parsed.reminderEnabled === true,
+            reminder_hour: parsed.reminderHour ?? 20,
+            reminder_minute: parsed.reminderMinute ?? 0,
             updated_at: deletedAt,
             deleted_at: deletedAt,
         };

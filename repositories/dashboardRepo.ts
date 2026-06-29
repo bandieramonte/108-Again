@@ -7,7 +7,8 @@ export type DashboardPracticeRow = {
   total: number;
   today: number;
   imageKey?: string | null;
-  defaultAddCount?: number | null;
+  dailyTargetCount?: number | null;
+  defaultSessionCount?: number | null;
 };
 
 export function getDashboardPracticeRows(): DashboardPracticeRow[] {
@@ -26,7 +27,8 @@ export function getDashboardPracticeRows(): DashboardPracticeRow[] {
         ELSE 0
       END
     ),0) as today,
-  COALESCE(MAX(p.defaultAddCount), 108) as defaultAddCount
+  MAX(p.dailyTargetCount) as dailyTargetCount,
+  COALESCE(MAX(p.defaultSessionCount), 108) as defaultSessionCount
   FROM practices p
   LEFT JOIN sessions s
     ON p.id = s.practiceId

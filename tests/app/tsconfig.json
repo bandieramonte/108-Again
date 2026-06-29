@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "baseUrl": "../..",
+    "jsx": "react-native",
     "module": "CommonJS",
     "moduleResolution": "Node",
     "outDir": "../.build",
@@ -17,20 +18,30 @@
     "skipLibCheck": true
   },
   "include": [
+    "../../app/+native-intent.tsx",
+    "../../constants/authFieldLimits.ts",
     "../../constants/defaultPractices.ts",
     "../../database/schema.ts",
     "../../database/sqliteTypes.ts",
+    "../../i18n/languageDetection.ts",
     "../../repositories/appMetaRepoFactory.ts",
     "../../repositories/deletedRecordRepoFactory.ts",
     "../../repositories/practiceRepoFactory.ts",
     "../../repositories/sessionRepoFactory.ts",
     "../../services/appOperationEngine.ts",
+    "../../services/appOperationRuntime.ts",
+    "../../services/authAccountActions.ts",
+    "../../services/backupService.ts",
     "../../services/authSessionPolicy.ts",
     "../../services/appUpdatePolicy.ts",
     "../../services/lastPracticeScreenService.ts",
+    "../../services/practiceReminderService.ts",
     "../../services/syncCoordinator.ts",
     "../../services/syncEngine.ts",
     "../../types/sync.ts",
+    "../../utils/dateUtils.ts",
+    "../../utils/practiceReminderState.ts",
+    "../../utils/reminderTime.ts",
     "../../utils/numberUtils.ts"
   ]
 }

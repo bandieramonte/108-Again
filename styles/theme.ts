@@ -1,4 +1,5 @@
 import { ViewStyle } from "react-native";
+import { globalStyles } from "./global";
 
 export const colors = {
   primary: "#1A5FCC",
@@ -50,11 +51,5 @@ export const radius = {
 export const containers: {
   screen: ViewStyle;
 } = {
-  screen: {
-    width: "100%",
-    maxWidth: 800,
-    alignSelf: "center",
-    paddingHorizontal: 20,
-    paddingTop: 20
-  }
+  screen: globalStyles.screen
 };

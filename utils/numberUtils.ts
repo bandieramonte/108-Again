@@ -1,15 +1,21 @@
 export const MAX_PRACTICE_COUNT = 10;
 export const MAX_TARGET_COUNT = 11_111_111;
-export const MAX_REPETITIONS_PER_DAY = 1_111_111;
+export const MAX_REPETITIONS_PER_DAY = 111_111;
 export const MAX_PRACTICE_NAME = 25;
 
 export function validateRepetitionsPerSession(
     value: string
 ): string | null {
+    return validateRepetitionCount(value, "Repetitions per day");
+}
 
+export function validateRepetitionCount(
+    value: string,
+    label: string
+): string | null {
     const baseError = validateNonNegativeInteger(
         value,
-        "Repetitions per day"
+        label
     );
 
     if (baseError) return baseError;
@@ -17,7 +23,7 @@ export function validateRepetitionsPerSession(
     const num = Number(value);
 
     if (num > MAX_REPETITIONS_PER_DAY) {
-        return `Repetitions per day cannot exceed ${MAX_REPETITIONS_PER_DAY.toLocaleString()}`;
+        return `${label} cannot exceed ${MAX_REPETITIONS_PER_DAY.toLocaleString()}`;
     }
 
     return null;
@@ -86,4 +92,15 @@ export function formatNumber(value: number | string): string {
     if (!Number.isFinite(num)) return String(value);
 
     return new Intl.NumberFormat().format(num);
+}
+
+export function formatCountProgress(
+    current: number | string,
+    target?: number | string | null
+): string {
+    const currentText = formatNumber(current);
+
+    if (target == null) return currentText;
+
+    return `${currentText} / ${formatNumber(target)}`;
 }

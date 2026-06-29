@@ -9,6 +9,7 @@ import {
     isAppAccessBlocked,
     verifyRemoteSyncAccess,
 } from "./appUpdateService";
+import * as practiceReminderRefreshService from "./practiceReminderRefreshService";
 import { createSupabaseSyncRemote } from "./supabaseSyncRemote";
 import { createSyncCoordinator } from "./syncCoordinator";
 import {
@@ -163,6 +164,8 @@ function getSyncCoordinator() {
             logger: console,
             markLocalDataOwnerIfSessionIsCurrent,
             requireRemoteAuthoritativeSync,
+            refreshAllReminders:
+                practiceReminderRefreshService.queueRefreshAllPracticeReminders,
             scheduleTimer: setTimeout,
             validateSessionAfterMaxRetries: async () => {
                 await getSupabase().auth.getSession();

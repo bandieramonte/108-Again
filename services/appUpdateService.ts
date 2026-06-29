@@ -14,7 +14,8 @@ const ANDROID_PACKAGE_NAME = "com.bandieramonte.app108again";
 const POLICY_CACHE_KEY = "appUpdatePolicy:android";
 const PROMPTED_VERSION_KEY =
     "appUpdatePrompt:lastPromptedAndroidVersionCode";
-const POLICY_TIMEOUT_MS = 4000;
+const POLICY_TIMEOUT_MS = 10000;
+const RECENT_POLICY_REUSE_MS = 60_000;
 
 type AppUpdateNativeModule = {
     getCurrentVersionCode?: () => Promise<number>;
@@ -34,6 +35,9 @@ type UpdateRequirementListener = (
 ) => void;
 
 let checkInFlight: Promise<UpdateRequirement> | null = null;
+let policyFetchInFlight: Promise<AppUpdatePolicy | null> | null = null;
+let recentRemotePolicy: AppUpdatePolicy | null = null;
+let recentRemotePolicyFetchedAt = 0;
 let appAccessBlocked = false;
 let currentRequirement: UpdateRequirement | null = null;
 const requirementListeners = new Set<UpdateRequirementListener>();
@@ -69,15 +73,6 @@ function applyUpdateRequirement(requirement: UpdateRequirement) {
     requirementListeners.forEach(listener => listener(requirement));
 }
 
-function timeout<T>(ms: number): Promise<T> {
-    return new Promise((_, reject) => {
-        setTimeout(
-            () => reject(new Error("App update policy timeout")),
-            ms
-        );
-    });
-}
-
 function normalizePolicy(row: AppUpdatePolicyRow): AppUpdatePolicy {
     return {
         latestVersionCode: Number(row.latest_version_code),
@@ -87,6 +82,57 @@ function normalizePolicy(row: AppUpdatePolicyRow): AppUpdatePolicy {
         maintenanceMode: row.maintenance_mode,
         message: row.message,
     };
+}
+
+function getRecentRemotePolicy() {
+    if (!recentRemotePolicy) return null;
+
+    const age = Date.now() - recentRemotePolicyFetchedAt;
+
+    return age <= RECENT_POLICY_REUSE_MS
+        ? recentRemotePolicy
+        : null;
+}
+
+async function queryRemotePolicy(): Promise<AppUpdatePolicy | null> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+        () => controller.abort(),
+        POLICY_TIMEOUT_MS
+    );
+
+    try {
+        const { data, error } = await getSupabase()
+            .from("app_update_policy")
+            .select(
+                "latest_version_code, minimum_supported_version_code, maintenance_mode, message"
+            )
+            .eq("platform", "android")
+            .abortSignal(controller.signal)
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) return null;
+
+        const policy = normalizePolicy(data as AppUpdatePolicyRow);
+        recentRemotePolicy = policy;
+        recentRemotePolicyFetchedAt = Date.now();
+
+        await AsyncStorage.setItem(
+            POLICY_CACHE_KEY,
+            JSON.stringify(policy)
+        );
+
+        return policy;
+    } catch (error) {
+        if (controller.signal.aborted) {
+            throw new Error("App update policy timeout");
+        }
+
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
 }
 
 async function readCachedPolicy(): Promise<AppUpdatePolicy | null> {
@@ -101,33 +147,38 @@ async function readCachedPolicy(): Promise<AppUpdatePolicy | null> {
     }
 }
 
-async function fetchRemotePolicy(): Promise<AppUpdatePolicy | null> {
-    const request = getSupabase()
-        .from("app_update_policy")
-        .select(
-            "latest_version_code, minimum_supported_version_code, maintenance_mode, message"
-        )
-        .eq("platform", "android")
-        .maybeSingle();
-    const { data, error } = await Promise.race([
-        request,
-        timeout<never>(POLICY_TIMEOUT_MS),
-    ]);
+async function fetchRemotePolicy({
+    allowRecent = false,
+}: {
+    allowRecent?: boolean;
+} = {}): Promise<AppUpdatePolicy | null> {
+    if (allowRecent) {
+        const recentPolicy = getRecentRemotePolicy();
+        if (recentPolicy) return recentPolicy;
+    }
 
-    if (error) throw error;
-    if (!data) return null;
+    if (policyFetchInFlight) return policyFetchInFlight;
 
-    const policy = normalizePolicy(data as AppUpdatePolicyRow);
-    await AsyncStorage.setItem(POLICY_CACHE_KEY, JSON.stringify(policy));
-    return policy;
+    policyFetchInFlight = queryRemotePolicy()
+        .finally(() => {
+            policyFetchInFlight = null;
+        });
+
+    return policyFetchInFlight;
 }
 
 async function getEffectivePolicy(): Promise<AppUpdatePolicy | null> {
     try {
         return await fetchRemotePolicy();
     } catch (error) {
+        const cachedPolicy = await readCachedPolicy();
+
+        if (cachedPolicy) {
+            return cachedPolicy;
+        }
+
         console.warn("App update policy check failed", error);
-        return readCachedPolicy();
+        return null;
     }
 }
 
@@ -279,11 +330,15 @@ export async function verifyRemoteSyncAccess(): Promise<RemoteSyncAccess> {
     if (Platform.OS !== "android") return "allowed";
     if (appAccessBlocked) return "blocked";
 
+    let currentVersionCode: number | null = null;
+
     try {
         const appUpdateModule = getAppUpdateModule();
-        const currentVersionCode =
+        currentVersionCode =
             await getCurrentAndroidVersionCode(appUpdateModule);
-        const policy = await fetchRemotePolicy();
+        const policy = await fetchRemotePolicy({
+            allowRecent: true,
+        });
 
         if (!policy) {
             throw new Error("Android app update policy is not configured");
@@ -298,6 +353,26 @@ export async function verifyRemoteSyncAccess(): Promise<RemoteSyncAccess> {
         applyUpdateRequirement(requirement);
         return requirement.kind === "required" ? "blocked" : "allowed";
     } catch (error) {
+        if (currentVersionCode != null) {
+            const cachedPolicy = await readCachedPolicy();
+
+            if (cachedPolicy) {
+                const cachedRequirement = determineUpdateRequirement({
+                    currentVersionCode,
+                    policy: cachedPolicy,
+                    playUpdate: null,
+                });
+
+                applyUpdateRequirement(cachedRequirement);
+
+                if (cachedRequirement.kind === "required") {
+                    return "blocked";
+                }
+
+                return "unavailable";
+            }
+        }
+
         console.warn("Remote sync update-policy check failed", error);
         return "unavailable";
     }

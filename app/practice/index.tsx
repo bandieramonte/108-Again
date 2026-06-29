@@ -8,7 +8,10 @@ import PracticeContent from "./practiceContent";
 
 export default function PracticePager() {
     const pagerRef = useRef<PagerView>(null);
-    const { id } = useLocalSearchParams();
+    const { id, openCalendar } = useLocalSearchParams<{
+        id: string;
+        openCalendar?: string;
+    }>();
 
     const practices = practiceService.getAllPractices();
     const pageCount = practices.length;
@@ -35,9 +38,6 @@ export default function PracticePager() {
         return currentIndex;
     }, [currentIndex, pageCount]);
 
-    const shouldRenderPage = (index: number) => {
-        return Math.abs(index - normalizedIndex) <= 1;
-    };
     const pendingJumpRef = useRef<number | null>(null);
     const visiblePracticeId = useMemo(() => {
         if (pageCount === 0) return null;
@@ -89,7 +89,10 @@ export default function PracticePager() {
     if (pageCount === 1) {
         return (
             <View style={{ flex: 1 }}>
-                <PracticeContent practiceId={practices[0].id} />
+                <PracticeContent
+                    practiceId={practices[0].id}
+                    openCalendarInitially={openCalendar === "1"}
+                />
             </View>
         );
     }
@@ -144,7 +147,12 @@ export default function PracticePager() {
             {extended.map((p, i) => (
                 <View key={`${p.id}-${i}`} style={{ flex: 1 }}>
                     {loaded.has(i) ? (
-                        <PracticeContent practiceId={p.id} />
+                        <PracticeContent
+                            practiceId={p.id}
+                            openCalendarInitially={
+                                openCalendar === "1" && i === initialPage
+                            }
+                        />
                     ) : (
                         <View style={{ flex: 1 }} />
                     )}

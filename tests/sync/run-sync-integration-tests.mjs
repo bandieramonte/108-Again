@@ -43,11 +43,11 @@ const {
 } =
   require("../.build/services/syncEngine.js");
 
-const TEST_EMAIL = "automatedTest@test.com";
-const SECOND_TEST_EMAIL = "automatedTest2@test.com";
-const THIRD_TEST_EMAIL = "automatedTest3@test.com";
-const DELETE_ACCOUNT_TEST_EMAIL = "automatedDeleteTest@test.com";
-const RESET_PASSWORD_TEST_EMAIL = "automatedResetTest@test.com";
+const TEST_EMAIL = "automatedTest@example.com";
+const SECOND_TEST_EMAIL = "automatedTest2@example.com";
+const THIRD_TEST_EMAIL = "automatedTest3@example.com";
+const DELETE_ACCOUNT_TEST_EMAIL = "automatedDeleteTest@example.com";
+const RESET_PASSWORD_TEST_EMAIL = "automatedResetTest@example.com";
 const TEST_PASSWORD = "123456";
 const TEST_PRACTICE_NAME = "testPractice1";
 const SESSION_COUNT = 500;
@@ -58,6 +58,13 @@ const AUTOMATED_TEST_EMAILS = new Set([
   THIRD_TEST_EMAIL.toLowerCase(),
   DELETE_ACCOUNT_TEST_EMAIL.toLowerCase(),
   RESET_PASSWORD_TEST_EMAIL.toLowerCase(),
+]);
+const LEGACY_AUTOMATED_TEST_EMAILS = new Set([
+  "automatedtest@test.com",
+  "automatedtest2@test.com",
+  "automatedtest3@test.com",
+  "automateddeletetest@test.com",
+  "automatedresettest@test.com",
 ]);
 const createdTestEmails = new Set();
 
@@ -322,7 +329,12 @@ function makeSupabaseClient() {
 }
 
 function assertAutomatedTestEmail(email) {
-  if (!AUTOMATED_TEST_EMAILS.has(email.toLowerCase())) {
+  const normalizedEmail = email.toLowerCase();
+
+  if (
+    !AUTOMATED_TEST_EMAILS.has(normalizedEmail) &&
+    !LEGACY_AUTOMATED_TEST_EMAILS.has(normalizedEmail)
+  ) {
     throw new Error(`Refusing to delete non-test account: ${email}`);
   }
 }
@@ -430,7 +442,10 @@ async function cleanupCreatedTestAccounts() {
 }
 
 async function cleanupKnownAutomatedAccounts() {
-  for (const email of AUTOMATED_TEST_EMAILS) {
+  for (const email of new Set([
+    ...AUTOMATED_TEST_EMAILS,
+    ...LEGACY_AUTOMATED_TEST_EMAILS,
+  ])) {
     await deleteAutomatedAccountThroughCore(email, TEST_PASSWORD);
   }
 }
@@ -618,6 +633,10 @@ function localPracticeTotal(device, practiceId) {
   return device.sessionRepo.getPracticeTotal(practiceId).total;
 }
 
+function isPracticeReminderEnabled(practice) {
+  return practice.reminderEnabled === true || practice.reminderEnabled === 1;
+}
+
 function activeLocalPractices(device) {
   return device.practiceRepo.getAllPractices()
     .sort((a, b) => a.orderIndex - b.orderIndex);
@@ -630,6 +649,11 @@ function captureExpectedLocalState(device) {
       {
         id: practice.id,
         name: practice.name,
+        dailyTargetCount: practice.dailyTargetCount ?? null,
+        defaultSessionCount: practice.defaultSessionCount ?? 108,
+        reminderEnabled: isPracticeReminderEnabled(practice),
+        reminderHour: practice.reminderHour ?? 20,
+        reminderMinute: practice.reminderMinute ?? 0,
         total: localPracticeTotal(device, practice.id),
       },
     ])
@@ -658,11 +682,164 @@ function assertRemoteMatchesExpected(snapshot, expected, label) {
       `${label}: remote name for ${expectedPractice.name}`
     );
     assert.equal(
+      remotePractice.default_add_count,
+      expectedPractice.defaultSessionCount,
+      `${label}: legacy default count mirrors session count for ${expectedPractice.name}`
+    );
+    assert.equal(
+      remotePractice.daily_target_count,
+      expectedPractice.dailyTargetCount,
+      `${label}: remote daily target count for ${expectedPractice.name}`
+    );
+    assert.equal(
+      remotePractice.default_session_count,
+      expectedPractice.defaultSessionCount,
+      `${label}: remote default session count for ${expectedPractice.name}`
+    );
+    assert.equal(
+      remotePractice.reminder_enabled,
+      expectedPractice.reminderEnabled,
+      `${label}: remote reminder enabled for ${expectedPractice.name}`
+    );
+    assert.equal(
+      remotePractice.reminder_hour,
+      expectedPractice.reminderHour,
+      `${label}: remote reminder hour for ${expectedPractice.name}`
+    );
+    assert.equal(
+      remotePractice.reminder_minute,
+      expectedPractice.reminderMinute,
+      `${label}: remote reminder minute for ${expectedPractice.name}`
+    );
+    assert.equal(
       remotePracticeTotal(snapshot, practiceId),
       expectedPractice.total,
       `${label}: remote total for ${expectedPractice.name}`
     );
   }
+}
+
+async function getRemotePracticeCounts(client, practiceId) {
+  const { data, error } = await client
+    .from("practices")
+    .select(
+      "default_add_count, daily_target_count, default_session_count"
+    )
+    .eq("id", practiceId)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+async function runLegacyCountColumnCompatibilityTest() {
+  const { client, user } = await createFreshAccount();
+  const legacyPracticeId = randomUUID();
+  const defaultPracticeId = randomUUID();
+  const baseLegacyRow = {
+    id: legacyPracticeId,
+    user_id: user.id,
+    name: "Legacy Count Compatibility",
+    target_count: 10000,
+    order_index: 1,
+    image_key: null,
+    default_add_count: 333,
+    total_offset: 0,
+    updated_at: new Date().toISOString(),
+    deleted_at: null,
+  };
+
+  const { error: legacyInsertError } = await client
+    .from("practices")
+    .upsert(baseLegacyRow, { onConflict: "id,user_id" });
+
+  if (legacyInsertError) throw legacyInsertError;
+
+  let counts = await getRemotePracticeCounts(client, legacyPracticeId);
+
+  assert.deepEqual(counts, {
+    default_add_count: 333,
+    daily_target_count: null,
+    default_session_count: 333,
+  });
+
+  const { error: legacyUpdateError } = await client
+    .from("practices")
+    .upsert(
+      {
+        ...baseLegacyRow,
+        default_add_count: 444,
+        updated_at: new Date(Date.now() + 1).toISOString(),
+      },
+      { onConflict: "id,user_id" }
+    );
+
+  if (legacyUpdateError) throw legacyUpdateError;
+
+  counts = await getRemotePracticeCounts(client, legacyPracticeId);
+
+  assert.equal(counts.default_add_count, 444);
+  assert.equal(counts.default_session_count, 444);
+  assert.equal(counts.daily_target_count, null);
+
+  const { error: newUpdateError } = await client
+    .from("practices")
+    .update({
+      daily_target_count: 2000,
+      default_session_count: 555,
+    })
+    .eq("id", legacyPracticeId);
+
+  if (newUpdateError) throw newUpdateError;
+
+  counts = await getRemotePracticeCounts(client, legacyPracticeId);
+
+  assert.equal(counts.default_add_count, 555);
+  assert.equal(counts.default_session_count, 555);
+  assert.equal(counts.daily_target_count, 2000);
+
+  const { error: legacyAfterNewError } = await client
+    .from("practices")
+    .upsert(
+      {
+        ...baseLegacyRow,
+        default_add_count: 666,
+        updated_at: new Date(Date.now() + 2).toISOString(),
+      },
+      { onConflict: "id,user_id" }
+    );
+
+  if (legacyAfterNewError) throw legacyAfterNewError;
+
+  counts = await getRemotePracticeCounts(client, legacyPracticeId);
+
+  assert.equal(counts.default_add_count, 666);
+  assert.equal(counts.default_session_count, 666);
+  assert.equal(counts.daily_target_count, 2000);
+
+  const { error: defaultInsertError } = await client
+    .from("practices")
+    .insert({
+      id: defaultPracticeId,
+      user_id: user.id,
+      name: "Database Count Defaults",
+      target_count: 10000,
+      order_index: 2,
+      image_key: null,
+      total_offset: 0,
+      updated_at: new Date().toISOString(),
+      deleted_at: null,
+    });
+
+  if (defaultInsertError) throw defaultInsertError;
+
+  const defaults = await getRemotePracticeCounts(client, defaultPracticeId);
+
+  assert.deepEqual(defaults, {
+    default_add_count: 108,
+    daily_target_count: null,
+    default_session_count: 108,
+  });
 }
 
 function assertDeviceMatchesExpected(device, expected, label) {
@@ -685,6 +862,31 @@ function assertDeviceMatchesExpected(device, expected, label) {
       localPractice.name,
       expectedPractice.name,
       `${label}: local name for ${expectedPractice.name}`
+    );
+    assert.equal(
+      localPractice.dailyTargetCount,
+      expectedPractice.dailyTargetCount,
+      `${label}: local daily target count for ${expectedPractice.name}`
+    );
+    assert.equal(
+      localPractice.defaultSessionCount,
+      expectedPractice.defaultSessionCount,
+      `${label}: local default session count for ${expectedPractice.name}`
+    );
+    assert.equal(
+      isPracticeReminderEnabled(localPractice),
+      expectedPractice.reminderEnabled,
+      `${label}: local reminder enabled for ${expectedPractice.name}`
+    );
+    assert.equal(
+      localPractice.reminderHour ?? 20,
+      expectedPractice.reminderHour,
+      `${label}: local reminder hour for ${expectedPractice.name}`
+    );
+    assert.equal(
+      localPractice.reminderMinute ?? 0,
+      expectedPractice.reminderMinute,
+      `${label}: local reminder minute for ${expectedPractice.name}`
     );
     assert.equal(
       localPracticeTotal(device, practiceId),
@@ -742,6 +944,11 @@ function assertOnlySeededRemoteZero(snapshot, label) {
     DEFAULT_PRACTICES.length,
     `${label}: active remote practice count`
   );
+  assert.deepEqual(
+    active.map((practice) => practice.id),
+    DEFAULT_PRACTICES.map((practice) => practice.id),
+    `${label}: active remote default practice order`
+  );
 
   for (const seededId of SEEDED_ID_LIST) {
     assert.ok(activeIds.has(seededId), `${label}: has seeded ${seededId}`);
@@ -763,6 +970,11 @@ function assertOnlySeedIdsRemoteZero(snapshot, seedIds, label) {
     expectedIds.size,
     `${label}: active remote practice count`
   );
+  assert.deepEqual(
+    active.map((practice) => practice.id),
+    seedIds,
+    `${label}: active remote seed practice order`
+  );
 
   for (const seededId of expectedIds) {
     assert.ok(activeIds.has(seededId), `${label}: has seeded ${seededId}`);
@@ -782,6 +994,11 @@ function assertOnlySeededDeviceZero(device, label) {
     active.length,
     DEFAULT_PRACTICES.length,
     `${label}: active local practice count`
+  );
+  assert.deepEqual(
+    active.map((practice) => practice.id),
+    DEFAULT_PRACTICES.map((practice) => practice.id),
+    `${label}: active local default practice order`
   );
 
   for (const seededId of SEEDED_ID_LIST) {
@@ -852,7 +1069,14 @@ async function runDeviceAToDeviceBSupabaseSyncTest() {
   const practiceId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
     1500,
+    null,
     500
+  );
+  deviceA.operations.updatePracticeReminderSettings(
+    practiceId,
+    true,
+    8,
+    30
   );
   const days = testDays();
 
@@ -875,10 +1099,27 @@ async function runDeviceAToDeviceBSupabaseSyncTest() {
   );
 
   await deviceA.sync("merge_local");
+
+  const remoteSnapshot = await pullRemoteSnapshot(
+    createSupabaseSyncRemote(() => deviceAClient),
+    userA.id
+  );
+  const remotePractice = activeRemotePracticeById(
+    remoteSnapshot,
+    practiceId
+  );
+  assert.ok(remotePractice, "Remote has testPractice1 after Device A sync");
+  assert.equal(remotePractice.reminder_enabled, true);
+  assert.equal(remotePractice.reminder_hour, 8);
+  assert.equal(remotePractice.reminder_minute, 30);
+
   await deviceB.sync("remote_overwrite_local");
 
   const syncedPractice = findPracticeByName(deviceB, TEST_PRACTICE_NAME);
   assert.ok(syncedPractice, "Device B has testPractice1 after manual sync");
+  assert.equal(isPracticeReminderEnabled(syncedPractice), true);
+  assert.equal(syncedPractice.reminderHour, 8);
+  assert.equal(syncedPractice.reminderMinute, 30);
 
   const sessionTotals = sessionTotalsByDay(deviceB, syncedPractice.id);
   assert.equal(sessionTotals.get(days.today), 500, "Device B has today's 500 session");
@@ -902,6 +1143,7 @@ async function runLogoutOfflineLoginAutoSyncTest() {
   const practiceId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
     1500,
+    null,
     500
   );
 
@@ -951,11 +1193,12 @@ async function runExistingAccountFirstLoginRemoteOverwriteTest() {
   const remotePracticeId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
     5000,
+    null,
     500
   );
 
   deviceA.operations.addSession(remotePracticeId, 700);
-  deviceA.operations.updatePracticeDefaultAddCount(
+  deviceA.operations.updatePracticeDefaultSessionCount(
     remotePracticeId,
     250
   );
@@ -972,6 +1215,7 @@ async function runExistingAccountFirstLoginRemoteOverwriteTest() {
   const localPracticeId = deviceB.operations.createPractice(
     localOnlyPracticeName,
     9999,
+    null,
     333
   );
 
@@ -1006,9 +1250,9 @@ async function runExistingAccountFirstLoginRemoteOverwriteTest() {
     "First login kept remote custom practice"
   );
   assert.equal(
-    deviceBRemotePractice.defaultAddCount,
+    deviceBRemotePractice.defaultSessionCount,
     250,
-    "First login fetched updated default add count"
+    "First login fetched updated default session count"
   );
   assert.equal(
     localPracticeTotal(deviceB, remotePracticeId),
@@ -1041,6 +1285,7 @@ async function runExistingAccountFirstLoginAfterBackupRestoreRemoteOverwriteTest
   const remotePracticeId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
     5000,
+    null,
     500
   );
 
@@ -1070,7 +1315,8 @@ async function runExistingAccountFirstLoginAfterBackupRestoreRemoteOverwriteTest
           targetCount: practice.targetCount,
           orderIndex: practice.orderIndex,
           imageKey: practice.imageKey ?? null,
-          defaultAddCount: practice.defaultAddCount ?? 108,
+          dailyTargetCount: practice.dailyTargetCount ?? null,
+          defaultSessionCount: practice.defaultSessionCount ?? 108,
           totalOffset: 0,
         })),
       {
@@ -1079,7 +1325,8 @@ async function runExistingAccountFirstLoginAfterBackupRestoreRemoteOverwriteTest
         targetCount: 9999,
         orderIndex: DEFAULT_PRACTICES.length + 1,
         imageKey: null,
-        defaultAddCount: 333,
+        dailyTargetCount: null,
+        defaultSessionCount: 333,
         totalOffset: 0,
       },
     ],
@@ -1207,6 +1454,7 @@ async function runOneAccountPerDeviceGuardTest() {
   const markerPracticeId = device.operations.createPractice(
     "ownerMarkerPractice",
     1000,
+    null,
     100
   );
 
@@ -1333,6 +1581,7 @@ async function runDeleteAccountCoreTest() {
   const practiceId = device.operations.createPractice(
     "deleteAccountPractice",
     1000,
+    null,
     100
   );
 
@@ -1422,6 +1671,7 @@ async function runOfflineLocalDataNewAccountSyncTest() {
   const customPracticeId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
     6000,
+    null,
     500
   );
 
@@ -1498,6 +1748,7 @@ async function runEditedTotalsSyncTest() {
   const customPracticeId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
     10000,
+    null,
     500
   );
 
@@ -1565,6 +1816,7 @@ async function runDeletedCustomPracticeSyncTest() {
   const deletedPracticeId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
     4000,
+    null,
     500
   );
 
@@ -1626,7 +1878,12 @@ async function runBackupDefaultsAndRestoreBackupSyncTest() {
   const customPracticeId = deviceA.operations.createPractice(
     TEST_PRACTICE_NAME,
     20000,
+    null,
     500
+  );
+  deviceA.operations.updatePracticeDailyTargetCount(
+    customPracticeId,
+    2000
   );
 
   await deviceA.operations.deletePractice(deletedSeed.id);
@@ -1762,7 +2019,8 @@ async function runRestoreDefaultsAfterPartialSeedBackupSyncTest() {
       targetCount: practice.targetCount,
       orderIndex: practice.orderIndex,
       imageKey: practice.imageKey ?? null,
-      defaultAddCount: practice.defaultAddCount ?? 108,
+      dailyTargetCount: practice.dailyTargetCount ?? null,
+      defaultSessionCount: practice.defaultSessionCount ?? 108,
       totalOffset: 0,
     })),
     sessions: [],
@@ -1851,6 +2109,10 @@ async function runRestoreDefaultsBeatsStaleRemoteOverwriteTest() {
 }
 
 const tests = [
+  [
+    "legacy and new practice count columns remain compatible",
+    runLegacyCountColumnCompatibilityTest,
+  ],
   [
     "Device A operations sync to Device B through Supabase",
     runDeviceAToDeviceBSupabaseSyncTest,

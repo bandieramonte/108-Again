@@ -1,32 +1,48 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import PracticeImagePicker, {
+    CUSTOM_PRACTICE_IMAGE_FALLBACK,
+} from "../components/PracticeImagePicker";
+import { useI18n } from "../i18n";
 import * as practiceService from "../services/practiceService";
-import { colors } from "../styles/theme";
-import { digitsOnly, MAX_PRACTICE_NAME, MAX_TARGET_COUNT, validateNonNegativeInteger, validateRepetitionsPerSession, validateTargetCount } from "../utils/numberUtils";
+import { globalStyles } from "../styles/global";
+import { digitsOnly, MAX_PRACTICE_NAME, MAX_REPETITIONS_PER_DAY, MAX_TARGET_COUNT, validateNonNegativeInteger, validateRepetitionCount, validateTargetCount } from "../utils/numberUtils";
 
 export default function EditPractice() {
 
     const { id } = useLocalSearchParams();
     const router = useRouter();
+    const { t } = useI18n();
 
     const [name, setName] = useState("");
     const [target, setTarget] = useState("");
     const [total, setTotal] = useState("");
-    const [defaultAdd, setDefaultAdd] = useState("");
+    const [dailyTarget, setDailyTarget] = useState("");
+    const [defaultSession, setDefaultSession] = useState("");
+    const [imageKey, setImageKey] =
+        useState(CUSTOM_PRACTICE_IMAGE_FALLBACK);
+    const [isSeedPractice, setIsSeedPractice] = useState(false);
 
     useEffect(() => {
         const data = practiceService.getPracticeEditData(id as string);
         setName(data.name);
         setTarget(String(data.targetCount));
         setTotal(String(data.total));
-        setDefaultAdd(String(data.defaultAddCount ?? 108));
-    }, []);
+        setDailyTarget(
+            data.dailyTargetCount == null
+                ? ""
+                : String(data.dailyTargetCount)
+        );
+        setDefaultSession(String(data.defaultSessionCount ?? 108));
+        setImageKey(data.imageKey ?? CUSTOM_PRACTICE_IMAGE_FALLBACK);
+        setIsSeedPractice(data.isSeedPractice);
+    }, [id]);
 
     function save() {
 
         if (!name.trim()) {
-            alert("Please enter a practice name");
+            alert(t("form.practiceNameRequired"));
             return;
         }
 
@@ -39,18 +55,39 @@ export default function EditPractice() {
         }
 
         const totalError =
-            validateNonNegativeInteger(total, "Total count");
+            validateNonNegativeInteger(total, t("form.totalCount"));
 
         if (totalError) {
             alert(totalError);
             return;
         }
 
-        const defaultError =
-            validateRepetitionsPerSession(defaultAdd);
+        const dailyTargetError =
+            dailyTarget.trim()
+                ? validateRepetitionCount(
+                    dailyTarget,
+                    t("dashboard.dailyTarget")
+                )
+                : null;
 
-        if (defaultError) {
-            alert(defaultError);
+        if (dailyTargetError) {
+            alert(dailyTargetError);
+            return;
+        }
+
+        if (dailyTarget.trim() && Number(dailyTarget) <= 0) {
+            alert(t("dashboard.dailyTargetPositive"));
+            return;
+        }
+
+        const defaultSessionError =
+            validateRepetitionCount(
+                defaultSession,
+                t("form.defaultSessionCount")
+            );
+
+        if (defaultSessionError) {
+            alert(defaultSessionError);
             return;
         }
 
@@ -59,17 +96,23 @@ export default function EditPractice() {
                 id as string,
                 name,
                 Number(target),
-                Number(total)
+                Number(total),
+                isSeedPractice ? undefined : imageKey
+            );
+            practiceService.updatePracticeDailyTargetCount(
+                id as string,
+                dailyTarget.trim()
+                    ? Number(dailyTarget)
+                    : null
+            );
+            practiceService.updatePracticeDefaultSessionCount(
+                id as string,
+                Number(defaultSession)
             );
         } catch (error: any) {
             alert(error.message);
             return;
         }
-
-        practiceService.updatePracticeDefaultAddCount(
-            id as string,
-            Number(defaultAdd) || 108
-        );
 
         router.back();
     }
@@ -81,61 +124,100 @@ export default function EditPractice() {
             behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
             <ScrollView
-                contentContainerStyle={styles.container}
+                contentContainerStyle={[
+                    globalStyles.sidePadding,
+                    globalStyles.formScreen,
+                ]}
                 keyboardShouldPersistTaps="handled"
             >
-                <Text style={styles.title}>Edit Practice</Text>
+                <Text style={globalStyles.formTitle}>
+                    {t("form.editPracticeTitle")}
+                </Text>
 
-                <Text>Name</Text>
-                <TextInput
-                    value={name}
-                    onChangeText={(text) => setName(text.slice(0, MAX_PRACTICE_NAME))}
-                    maxLength={25}
-                    style={styles.input}
-                />
+                <View style={globalStyles.formSectionCard}>
+                    <Text style={globalStyles.formInputLabel}>
+                        {t("form.name")}
+                    </Text>
+                    <TextInput
+                        value={name}
+                        onChangeText={(text) => setName(text.slice(0, MAX_PRACTICE_NAME))}
+                        maxLength={25}
+                        style={globalStyles.formInput}
+                    />
 
-                <Text>Target count</Text>
-                <TextInput
-                    value={target}
-                    onChangeText={(v) => {
-                        const clean = digitsOnly(v);
-                        if (Number(clean) > MAX_TARGET_COUNT) return;
-                        setTarget(clean);
-                    }}
-                    keyboardType="numeric"
-                    style={styles.input}
-                />
+                    <Text style={globalStyles.formInputLabel}>
+                        {t("form.targetCount")}
+                    </Text>
+                    <TextInput
+                        value={target}
+                        onChangeText={(v) => {
+                            const clean = digitsOnly(v);
+                            if (Number(clean) > MAX_TARGET_COUNT) return;
+                            setTarget(clean);
+                        }}
+                        keyboardType="numeric"
+                        style={globalStyles.formInput}
+                    />
 
-                <Text>Total count</Text>
-                <TextInput
-                    value={total}
-                    onChangeText={(v) => {
-                        const clean = digitsOnly(v);
-                        if (Number(clean) > MAX_TARGET_COUNT) return;
-                        setTotal(clean);
-                    }}
-                    keyboardType="numeric"
-                    style={styles.input}
-                />
+                    <Text style={globalStyles.formInputLabel}>
+                        {t("form.totalCountSoFar")}
+                    </Text>
+                    <TextInput
+                        value={total}
+                        onChangeText={(v) => {
+                            const clean = digitsOnly(v);
+                            if (Number(clean) > MAX_TARGET_COUNT) return;
+                            setTotal(clean);
+                        }}
+                        keyboardType="numeric"
+                        style={globalStyles.formInput}
+                    />
 
-                <Text>Daily target count</Text>
-                <TextInput
-                    value={defaultAdd}
-                    onChangeText={(v) => {
-                        const clean = digitsOnly(v);
-                        if (Number(clean) > 108000) return;
-                        setDefaultAdd(clean);
-                    }}
-                    keyboardType="numeric"
-                    style={styles.input}
-                />
+                    <Text style={globalStyles.formInputLabel}>
+                        {t("form.dailyTargetOptional")}
+                    </Text>
+                    <TextInput
+                        value={dailyTarget}
+                        onChangeText={(v) => {
+                            const clean = digitsOnly(v);
+                            if (Number(clean) > MAX_REPETITIONS_PER_DAY) return;
+                            setDailyTarget(clean);
+                        }}
+                        keyboardType="numeric"
+                        placeholder={t("form.disabled")}
+                        placeholderTextColor="#999"
+                        style={globalStyles.formInput}
+                    />
+
+                    <Text style={globalStyles.formInputLabel}>
+                        {t("form.defaultSessionCount")}
+                    </Text>
+                    <TextInput
+                        value={defaultSession}
+                        onChangeText={(v) => {
+                            const clean = digitsOnly(v);
+                            if (Number(clean) > MAX_REPETITIONS_PER_DAY) return;
+                            setDefaultSession(clean);
+                        }}
+                        keyboardType="numeric"
+                        style={globalStyles.formInput}
+                    />
+
+                    {!isSeedPractice && (
+                        <PracticeImagePicker
+                            selectedImageKey={imageKey}
+                            title={t("addPractice.optionalImage")}
+                            onSelect={setImageKey}
+                        />
+                    )}
+                </View>
 
                 <Pressable
-                    style={styles.saveButton}
+                    style={globalStyles.formSaveButton}
                     onPress={save}
                 >
-                    <Text style={styles.saveButtonText}>
-                        Save
+                    <Text style={globalStyles.formSaveButtonText}>
+                        {t("common.save")}
                     </Text>
                 </Pressable>
 
@@ -143,40 +225,3 @@ export default function EditPractice() {
         </KeyboardAvoidingView>
     );
 }
-
-const styles = StyleSheet.create({
-
-    container: {
-        flex: 1,
-        padding: 20,
-        marginTop: 60
-    },
-
-    title: {
-        fontSize: 24,
-        marginBottom: 20
-    },
-
-    input: {
-        borderWidth: 1,
-        borderColor: "#ccc",
-        padding: 10,
-        marginBottom: 20,
-        color: "black"
-    },
-
-    saveButton: {
-        backgroundColor: colors.primary,
-        paddingVertical: 12,
-        borderRadius: 10,
-        alignItems: "center",
-        marginTop: 10
-    },
-
-    saveButtonText: {
-        color: "white",
-        fontSize: 16,
-        fontWeight: "600"
-    }
-
-});

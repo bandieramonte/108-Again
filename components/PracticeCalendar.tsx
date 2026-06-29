@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Dimensions,
     FlatList,
@@ -9,6 +9,7 @@ import {
     useWindowDimensions,
     View,
 } from "react-native";
+import { useI18n } from "../i18n";
 import { colors } from "../styles/theme";
 
 type DayData = {
@@ -30,11 +31,11 @@ const ARROW_HIT_SLOP = {
     right: 18,
 };
 
-function getMonthLabel(baseWeekStart: Date, index: number) {
+function getMonthLabel(baseWeekStart: Date, index: number, locale: string) {
     const start = new Date(baseWeekStart);
     start.setUTCDate(start.getUTCDate() + index * 7);
 
-    return start.toLocaleDateString(undefined, {
+    return start.toLocaleDateString(locale, {
         month: "long",
         year: "numeric"
     });
@@ -47,6 +48,7 @@ export default function PracticeCalendar({
     onEditDay
 }: Props) {
 
+    const { locale, t } = useI18n();
     const { width } = useWindowDimensions();
 
     const WEEK_HEIGHT =
@@ -103,15 +105,30 @@ export default function PracticeCalendar({
     const [visibleMonth, setVisibleMonth] = useState(() =>
         getMonthLabel(
             baseWeekStart,
-            initialScrollIndex + Math.floor(VISIBLE_WEEKS / 2)
+            initialScrollIndex + Math.floor(VISIBLE_WEEKS / 2),
+            locale
         )
+    );
+    const weekDayLabels = useMemo(
+        () => [
+            t("calendar.mondayShort"),
+            t("calendar.tuesdayShort"),
+            t("calendar.wednesdayShort"),
+            t("calendar.thursdayShort"),
+            t("calendar.fridayShort"),
+            t("calendar.saturdayShort"),
+            t("calendar.sundayShort"),
+        ],
+        [t]
     );
 
 
     const [editingDate, setEditingDate] = useState<string | null>(null);
     const [editingValue, setEditingValue] = useState("");
+    const listRef = useRef<FlatList<number>>(null);
+    const currentIndex = useRef(initialScrollIndex);
 
-    const handleScroll = useRef((event: any) => {
+    const handleScroll = useCallback((event: any) => {
 
         const offsetY =
             event.nativeEvent.contentOffset.y;
@@ -125,13 +142,13 @@ export default function PracticeCalendar({
             firstVisibleIndex +
             Math.floor(VISIBLE_WEEKS / 2);
 
-        const month = getMonthLabel(baseWeekStart, dominantIndex);
+        const month = getMonthLabel(baseWeekStart, dominantIndex, locale);
 
         setVisibleMonth(prev =>
             prev === month ? prev : month
         );
 
-    }).current;
+    }, [baseWeekStart, locale, WEEK_HEIGHT]);
 
     const todayString = useMemo(() => {
         return formatDate(new Date());
@@ -146,18 +163,15 @@ export default function PracticeCalendar({
         [totalWeeks]
     );
 
-    const listRef = useRef<FlatList<number>>(null);
-    const currentIndex = useRef(initialScrollIndex);
-
     useEffect(() => {
         const dominantIndex =
             initialScrollIndex + Math.floor(VISIBLE_WEEKS / 2);
 
-        const month = getMonthLabel(baseWeekStart, dominantIndex);
+        const month = getMonthLabel(baseWeekStart, dominantIndex, locale);
 
         setVisibleMonth(month);
         currentIndex.current = initialScrollIndex;
-    }, [baseWeekStart, initialScrollIndex, WEEK_HEIGHT]);
+    }, [baseWeekStart, initialScrollIndex, locale, WEEK_HEIGHT]);
 
     function getWeekStart(date: Date) {
 
@@ -346,7 +360,7 @@ export default function PracticeCalendar({
                 </View>
 
                 <View style={styles.weekHeader}>
-                    {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+                    {weekDayLabels.map((d, i) => (
                         <Text key={i} style={styles.weekHeaderText}>
                             {d}
                         </Text>

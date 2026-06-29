@@ -1,16 +1,33 @@
 import { SqliteDatabase } from "./sqliteTypes";
 
+const DAILY_TARGET_OPTIONAL_MIGRATION_KEY =
+  "dailyTargetOptionalMigrationApplied";
+
+function getTableColumns(
+  db: SqliteDatabase,
+  tableName: string
+) {
+  return db.getAllSync(`PRAGMA table_info(${tableName})`) as {
+    name: string;
+  }[];
+}
+
+function hasColumn(
+  db: SqliteDatabase,
+  tableName: string,
+  columnName: string
+) {
+  return getTableColumns(db, tableName)
+    .some((column) => column.name === columnName);
+}
+
 function addColumnIfMissing(
   db: SqliteDatabase,
   tableName: string,
   columnName: string,
   columnSql: string
 ) {
-  const columns = db.getAllSync(`PRAGMA table_info(${tableName})`) as {
-    name: string;
-  }[];
-
-  const exists = columns.some((column) => column.name === columnName);
+  const exists = hasColumn(db, tableName, columnName);
 
   if (!exists) {
     db.execSync(`ALTER TABLE ${tableName} ADD COLUMN ${columnSql}`);
@@ -25,8 +42,12 @@ export function initializeDatabaseSchema(db: SqliteDatabase) {
       targetCount INTEGER,
       orderIndex INTEGER,
       imageKey TEXT,
-      defaultAddCount INTEGER,
-      totalOffset INTEGER
+      dailyTargetCount INTEGER,
+      defaultSessionCount INTEGER,
+      totalOffset INTEGER,
+      reminderEnabled INTEGER,
+      reminderHour INTEGER,
+      reminderMinute INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
@@ -65,12 +86,56 @@ export function initializeDatabaseSchema(db: SqliteDatabase) {
   `);
 
   addColumnIfMissing(db, "practices", "imageKey", "imageKey TEXT");
-  addColumnIfMissing(db, "practices", "defaultAddCount", "defaultAddCount INTEGER");
+  addColumnIfMissing(db, "practices", "dailyTargetCount", "dailyTargetCount INTEGER");
+  addColumnIfMissing(db, "practices", "defaultSessionCount", "defaultSessionCount INTEGER");
   addColumnIfMissing(db, "practices", "totalOffset", "totalOffset INTEGER");
+  addColumnIfMissing(db, "practices", "reminderEnabled", "reminderEnabled INTEGER DEFAULT 0");
+  addColumnIfMissing(db, "practices", "reminderHour", "reminderHour INTEGER DEFAULT 20");
+  addColumnIfMissing(db, "practices", "reminderMinute", "reminderMinute INTEGER DEFAULT 0");
   addColumnIfMissing(db, "practices", "userId", "userId TEXT");
   addColumnIfMissing(db, "practices", "updatedAt", "updatedAt INTEGER");
   addColumnIfMissing(db, "practices", "syncStatus", "syncStatus TEXT DEFAULT 'synced'");
   addColumnIfMissing(db, "practices", "lastSyncedAt", "lastSyncedAt INTEGER");
+
+  if (hasColumn(db, "practices", "defaultAddCount")) {
+    db.execSync(`
+      UPDATE practices
+      SET defaultSessionCount = COALESCE(defaultSessionCount, defaultAddCount, 108)
+      WHERE defaultSessionCount IS NULL;
+    `);
+  }
+
+  db.execSync(`
+    UPDATE practices
+    SET defaultSessionCount = COALESCE(defaultSessionCount, 108)
+    WHERE defaultSessionCount IS NULL;
+  `);
+
+  db.execSync(`
+    UPDATE practices
+    SET
+      reminderEnabled = COALESCE(reminderEnabled, 0),
+      reminderHour = COALESCE(reminderHour, 20),
+      reminderMinute = COALESCE(reminderMinute, 0);
+  `);
+
+  const optionalDailyTargetMigration =
+    db.getAllSync(
+      `SELECT value FROM app_meta WHERE key = ?`,
+      DAILY_TARGET_OPTIONAL_MIGRATION_KEY
+    )[0] as { value: string } | undefined;
+
+  if (!optionalDailyTargetMigration) {
+    db.execSync(`
+      UPDATE practices
+      SET dailyTargetCount = NULL;
+    `);
+    db.runSync(
+      `INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)`,
+      DAILY_TARGET_OPTIONAL_MIGRATION_KEY,
+      "true"
+    );
+  }
 
   addColumnIfMissing(db, "sessions", "userId", "userId TEXT");
   addColumnIfMissing(db, "sessions", "updatedAt", "updatedAt INTEGER");

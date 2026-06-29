@@ -11,45 +11,93 @@ import {
     View,
 } from "react-native";
 import PrivacyModal from "../components/PrivacyModal";
+import { useI18n } from "../i18n";
 import * as authService from "../services/authService";
 import { getIsOnline } from "../services/networkService";
 import * as syncService from "../services/syncService";
-import { getSyncLabel } from "../services/syncService";
+import { globalStyles } from "../styles/global";
 import { subscribeAuth, subscribeSync } from "../utils/events";
 
 export default function AccountScreen() {
-    const [authState, setAuthState] = useState(authService.getAuthState());
+    const { t } = useI18n();
+    const initialAuthState = authService.getAuthState();
+    const [authState, setAuthState] = useState(initialAuthState);
+    const [authChecked, setAuthChecked] =
+        useState(initialAuthState.isAuthenticated);
     const [syncState, setSyncState] = useState(syncService.getSyncState());
     const [syncing, setSyncing] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [privacyVisible, setPrivacyVisible] = useState(false);
 
     useEffect(() => {
+        let active = true;
+
         const unsubscribeAuth = subscribeAuth(() => {
-            setAuthState(authService.getAuthState());
+            const nextAuthState = authService.getAuthState();
+
+            setAuthState(nextAuthState);
+
+            if (nextAuthState.isAuthenticated) {
+                setAuthChecked(true);
+            }
         });
 
         const unsubscribeSync = subscribeSync(() => {
             setSyncState(syncService.getSyncState());
         });
 
+        void authService
+            .initializeAuth()
+            .catch(error => {
+                console.warn("Account auth verification failed", error);
+            })
+            .finally(() => {
+                if (!active) return;
+
+                setAuthState(authService.getAuthState());
+                setAuthChecked(true);
+            });
+
         return () => {
+            active = false;
             unsubscribeAuth();
             unsubscribeSync();
         };
     }, []);
 
     useEffect(() => {
-        if (!authState.isAuthenticated) {
+        if (authChecked && !authState.isAuthenticated) {
             router.replace("/");
         }
-    }, [authState.isAuthenticated]);
+    }, [authChecked, authState.isAuthenticated]);
 
     async function handleSignOut() {
         try {
             await authService.signOut();
         } catch (error: any) {
-            Alert.alert("Log out failed", error?.message ?? "Unknown error");
+            Alert.alert(
+                t("account.logOutFailed"),
+                error?.message ?? t("common.unknownError")
+            );
+        }
+    }
+
+    function getTranslatedSyncLabel(state: typeof syncState) {
+        switch (state) {
+            case "idle":
+                return t("account.syncIdle");
+            case "syncing":
+                return t("account.syncing");
+            case "success":
+                return t("account.syncSuccess");
+            case "error":
+                return t("account.syncError");
+            case "offline":
+                return t("account.syncOffline");
+            case "timeout":
+                return t("account.syncTimeout");
+            default:
+                return String(state);
         }
     }
 
@@ -63,8 +111,8 @@ export default function AccountScreen() {
 
             if (!getIsOnline()) {
                 Alert.alert(
-                    "Offline",
-                    "You are offline. Sync will resume when you're back online."
+                    t("account.offlineTitle"),
+                    t("account.offlineMessage")
                 );
                 return;
             }
@@ -77,8 +125,8 @@ export default function AccountScreen() {
 
             if (result === "policy_unavailable") {
                 Alert.alert(
-                    "Sync postponed",
-                    "The app could not verify whether cloud synchronization is currently supported. Your local changes are safe; please try syncing again shortly."
+                    t("account.syncPostponedTitle"),
+                    t("account.syncPostponedMessage")
                 );
                 return;
             }
@@ -91,17 +139,26 @@ export default function AccountScreen() {
             const state = syncService.getSyncState();
 
             if (state === "success") {
-                Alert.alert("Sync complete", "Local and cloud data are now synchronized.");
+                Alert.alert(
+                    t("account.syncCompleteTitle"),
+                    t("account.syncCompleteMessage")
+                );
             } else if (state === "error") {
-                Alert.alert("Sync failed", "An error occurred during sync.");
+                Alert.alert(
+                    t("account.syncFailedTitle"),
+                    t("account.syncFailedMessage")
+                );
             } else if (state === "timeout") {
                 Alert.alert(
-                    "Sync timeout",
-                    "Sync took too long. Please try again in a few minutes. If issue persists, try closing and opening app again."
+                    t("account.syncTimeoutTitle"),
+                    t("account.syncTimeoutMessage")
                 );
             }
         } catch (error: any) {
-            Alert.alert("Sync failed", error?.message ?? "Unknown error");
+            Alert.alert(
+                t("account.syncFailedTitle"),
+                error?.message ?? t("common.unknownError")
+            );
         } finally {
             setSyncing(false);
         }
@@ -111,12 +168,12 @@ export default function AccountScreen() {
         if (deleting) return;
 
         Alert.alert(
-            "Delete account",
-            "This will permanently delete your online data. Your local data will remain on this device.",
+            t("account.deleteAccountTitle"),
+            t("account.deleteAccountMessage"),
             [
-                { text: "Cancel", style: "cancel" },
+                { text: t("common.cancel"), style: "cancel" },
                 {
-                    text: "Delete",
+                    text: t("common.delete"),
                     style: "destructive",
                     onPress: async () => {
                         try {
@@ -125,18 +182,26 @@ export default function AccountScreen() {
                             await authService.deleteAccount();
 
                             Alert.alert(
-                                "Account deleted",
-                                "Your account has been deleted."
+                                t("account.accountDeletedTitle"),
+                                t("account.accountDeletedMessage")
                             );
 
                         } catch (e: any) {
-                            Alert.alert("Error", e.message);
+                            Alert.alert(t("account.errorTitle"), e.message);
                         } finally {
                             setDeleting(false);
                         }
                     },
                 },
             ]
+        );
+    }
+
+    if (!authChecked && !authState.isAuthenticated) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#1A5FCC" />
+            </View>
         );
     }
 
@@ -155,22 +220,24 @@ export default function AccountScreen() {
                 }}
             />
 
-            <View style={styles.container}>
-                <Text style={styles.title}>Account</Text>
+            <View style={[globalStyles.sidePadding, styles.container]}>
+                <Text style={styles.title}>{t("account.title")}</Text>
 
                 <View style={styles.card}>
-                    <Text style={styles.label}>Status</Text>
+                    <Text style={styles.label}>{t("account.status")}</Text>
                     <Text style={styles.value}>
-                        {authState.isAuthenticated ? "Signed in" : "Signed out"}
+                        {authState.isAuthenticated
+                            ? t("account.signedIn")
+                            : t("account.signedOut")}
                     </Text>
 
-                    <Text style={styles.label}>First name</Text>
+                    <Text style={styles.label}>{t("account.firstName")}</Text>
                     <Text style={styles.value}>{authState.firstName ?? "—"}</Text>
 
-                    <Text style={styles.label}>Email</Text>
+                    <Text style={styles.label}>{t("account.email")}</Text>
                     <Text style={styles.value}>{authState.email ?? "—"}</Text>
 
-                    <Text style={styles.label}>Sync status</Text>
+                    <Text style={styles.label}>{t("account.syncStatus")}</Text>
                     <View style={styles.syncContainer}>
                         <Text
                             style={[
@@ -181,7 +248,7 @@ export default function AccountScreen() {
                                 syncState === "timeout" && { color: "orange" },
                             ]}
                         >
-                            {getSyncLabel(syncState)}
+                            {getTranslatedSyncLabel(syncState)}
                         </Text>
                     </View>
                 </View>
@@ -200,7 +267,9 @@ export default function AccountScreen() {
                             {syncing ? (
                                 <ActivityIndicator />
                             ) : (
-                                <Text style={styles.buttonText}>Sync Now</Text>
+                                <Text style={styles.buttonText}>
+                                    {t("account.syncNow")}
+                                </Text>
                             )}
                         </Pressable>
 
@@ -212,7 +281,9 @@ export default function AccountScreen() {
                             ]}
                             onPress={handleSignOut}
                         >
-                            <Text style={styles.buttonText}>Log Out</Text>
+                            <Text style={styles.buttonText}>
+                                {t("menu.logOut")}
+                            </Text>
                         </Pressable>
 
                         <TouchableOpacity
@@ -220,7 +291,7 @@ export default function AccountScreen() {
                             style={[styles.button, styles.secondaryButton]}
                         >
                             <Text style={styles.buttonText}>
-                                Privacy & Data
+                                {t("menu.privacyData")}
                             </Text>
                         </TouchableOpacity>
 
@@ -237,7 +308,7 @@ export default function AccountScreen() {
                                 <ActivityIndicator color="white" />
                             ) : (
                                 <Text style={styles.deleteButtonText}>
-                                    Delete Account
+                                    {t("account.deleteAccount")}
                                 </Text>
                             )}
                         </Pressable>
@@ -255,7 +326,14 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 20,
+        paddingVertical: 14,
+        backgroundColor: "white",
+    },
+
+    loadingContainer: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
         backgroundColor: "white",
     },
 

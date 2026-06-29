@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated } from "react-native";
 
 type ReachedCelebrationItem = {
@@ -24,19 +24,24 @@ export function useReachedCelebration() {
     const sparkle2 = useRef(new Animated.Value(0)).current;
     const sparkle3 = useRef(new Animated.Value(0)).current;
 
-    function stopAnimations() {
+    const stopAnimations = useCallback(() => {
         sparkleAnimationsRef.current.forEach(animation => animation.stop());
         sparkleAnimationsRef.current = [];
-    }
+    }, []);
 
-    function resetAnimatedValues() {
+    const resetAnimatedValues = useCallback(() => {
         celebrationFade.setValue(1);
         sparkle1.setValue(0);
         sparkle2.setValue(0);
         sparkle3.setValue(0);
-    }
+    }, [
+        celebrationFade,
+        sparkle1,
+        sparkle2,
+        sparkle3,
+    ]);
 
-    function startCelebration(id: string) {
+    const startCelebration = useCallback((id: string) => {
         if (celebrationTimeoutRef.current) {
             clearTimeout(celebrationTimeoutRef.current);
         }
@@ -87,9 +92,16 @@ export function useReachedCelebration() {
                 }, 0);
             });
         }, 3000);
-    }
+    }, [
+        celebrationFade,
+        resetAnimatedValues,
+        sparkle1,
+        sparkle2,
+        sparkle3,
+        stopAnimations,
+    ]);
 
-    async function updateReachedState(items: ReachedCelebrationItem[]) {
+    const updateReachedState = useCallback(async (items: ReachedCelebrationItem[]) => {
         for (const item of items) {
             let highestCelebratedTarget = highestCelebratedTargetRef.current[item.id];
             if (highestCelebratedTarget === undefined) {
@@ -116,11 +128,11 @@ export function useReachedCelebration() {
 
             previousTotalRef.current[item.id] = item.total;
         }
-    }
+    }, [startCelebration]);
 
-    function isCelebrating(id: string) {
+    const isCelebrating = useCallback((id: string) => {
         return celebratingId === id;
-    }
+    }, [celebratingId]);
 
     useEffect(() => {
         return () => {
@@ -130,7 +142,7 @@ export function useReachedCelebration() {
 
             stopAnimations();
         };
-    }, []);
+    }, [stopAnimations]);
 
     return {
         celebrationFade,

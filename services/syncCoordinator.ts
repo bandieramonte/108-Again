@@ -34,6 +34,7 @@ type SyncCoordinatorDeps = {
     logger: Pick<Console, "error" | "log" | "warn">;
     markLocalDataOwnerIfSessionIsCurrent(userId: string): Promise<void>;
     requireRemoteAuthoritativeSync(userId: string): void;
+    refreshAllReminders?: () => Promise<void> | void;
     scheduleTimer(callback: () => void, delayMs: number): TimerHandle;
     validateSessionAfterMaxRetries(): Promise<void>;
     verifyRemoteSyncAccess(): Promise<RemoteSyncAccess>;
@@ -82,6 +83,24 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
         pendingSyncUserId = null;
         pendingSyncMode = null;
         retryCount = 0;
+    }
+
+    function refreshRemindersAfterSync() {
+        try {
+            void Promise
+                .resolve(deps.refreshAllReminders?.())
+                .catch(error => {
+                    deps.logger.warn(
+                        "Failed to refresh practice reminders after sync",
+                        error
+                    );
+                });
+        } catch (error) {
+            deps.logger.warn(
+                "Failed to refresh practice reminders after sync",
+                error
+            );
+        }
     }
 
     async function syncNow(
@@ -134,6 +153,7 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
             await deps.markLocalDataOwnerIfSessionIsCurrent(userId);
 
             deps.emitDataChanged();
+            refreshRemindersAfterSync();
             setSyncState("success");
             retryCount = 0;
             return "success";

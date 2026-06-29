@@ -32,6 +32,20 @@ export type ResetPasswordCoreDeps = {
     ) => Promise<AuthResult>;
 };
 
+export type EstablishPasswordRecoverySessionDeps = {
+    setPasswordRecoveryFlow: (value: boolean) => void;
+    setSession: (session: {
+        access_token: string;
+        refresh_token: string;
+    }) => Promise<AuthResult>;
+};
+
+export type PasswordRecoverySessionParams = {
+    accessToken?: string | null;
+    refreshToken?: string | null;
+    type?: string | null;
+};
+
 function validateAuthFieldLength(
     value: string,
     label: string,
@@ -107,4 +121,29 @@ export async function resetPasswordCore(
     if (error) {
         throw new Error(error.message);
     }
+}
+
+export async function establishPasswordRecoverySessionCore(
+    deps: EstablishPasswordRecoverySessionDeps,
+    params: PasswordRecoverySessionParams
+) {
+    const { accessToken, refreshToken, type } = params;
+
+    if (type !== "recovery" || !accessToken || !refreshToken) {
+        return { kind: "no_recovery_link" } as const;
+    }
+
+    deps.setPasswordRecoveryFlow(true);
+
+    const { error } = await deps.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+    });
+
+    if (error) {
+        deps.setPasswordRecoveryFlow(false);
+        throw new Error(error.message);
+    }
+
+    return { kind: "session_established" } as const;
 }

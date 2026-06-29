@@ -2,19 +2,39 @@ import { subscribeData } from "@/utils/events";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import * as Progress from "react-native-progress";
+import Reanimated, { LinearTransition } from "react-native-reanimated";
 import CelebrationOverlay from "../components/CelebrationOverlay";
+import DailyGoalProgress from "../components/DailyGoalProgress";
+import DailyTargetEditor from "../components/DailyTargetEditor";
+import EnableDailyTargetButton from "../components/EnableDailyTargetButton";
+import PracticeActionsMenu, {
+  type PracticeMenuAnchor,
+} from "../components/PracticeActionsMenu";
+import PracticeCalendarModal from "../components/PracticeCalendarModal";
+import PracticeHistoryModal from "../components/PracticeHistoryModal";
 import QuickAddEditor from "../components/QuickAddEditor";
 import WelcomeModal from "../components/WelcomeModal";
 import { practiceImages } from "../constants/practiceImages";
+import { usePracticeActions } from "../hooks/usePracticeActions";
 import { useReachedCelebration } from "../hooks/useReachedCelebration";
+import { useI18n } from "../i18n";
+import { getPracticeDisplayName } from "../i18n/practiceNames";
+import * as appService from "../services/appService";
 import * as dashboardService from "../services/dashboardService";
+import {
+  DEFAULT_DRAG_REORDER_ANIMATION_MS,
+  DragReorderService,
+  getDragPreviewItems,
+  type DragOverlayFrame,
+} from "../services/dragReorderService";
 import * as practiceService from "../services/practiceService";
 import * as sessionService from "../services/sessionService";
 import { colors, containers } from "../styles/theme";
-import { formatNumber } from "../utils/numberUtils";
+import { formatMonthDayYear } from "../utils/dateUtils";
+import { formatCountProgress, formatNumber } from "../utils/numberUtils";
 
 type Practice = {
   id: string;
@@ -23,22 +43,61 @@ type Practice = {
   total: number;
   today: number;
   imageKey?: string | null;
-  defaultAddCount?: number | null;
+  dailyTargetCount?: number | null;
+  defaultSessionCount?: number | null;
 };
+
+const MAX_STREAK_FIRE_DAYS = 365;
+const MIN_STREAK_FIRE_SIZE = 5;
+const MAX_STREAK_FIRE_SIZE = 26;
+const STREAK_FIRE_GROWTH_EXPONENT = 1.4;
+const practiceCardLayoutTransition =
+  LinearTransition.duration(DEFAULT_DRAG_REORDER_ANIMATION_MS);
+
+function getStreakFireSize(streak: number) {
+  const cappedStreak =
+    Math.min(Math.max(streak, 0), MAX_STREAK_FIRE_DAYS);
+  const progress = Math.pow(
+    cappedStreak / MAX_STREAK_FIRE_DAYS,
+    STREAK_FIRE_GROWTH_EXPONENT
+  );
+
+  return Math.round(
+    MIN_STREAK_FIRE_SIZE +
+    (MAX_STREAK_FIRE_SIZE - MIN_STREAK_FIRE_SIZE) * progress
+  );
+}
 
 export default function Dashboard() {
 
   const router = useRouter();
+  const { locale, t } = useI18n();
   const [practices, setPractices] = useState<Practice[]>([]);
   const [streak, setStreak] = useState(0);
+  const [dashboardLoaded, setDashboardLoaded] = useState(false);
 
   const [editDefaultOpen, setEditDefaultOpen] = useState(false);
   const [selectedPracticeId, setSelectedPracticeId] = useState<string | null>(null);
   const [selectedPracticeName, setSelectedPracticeName] = useState("");
-  const [defaultAddInput, setDefaultAddInput] = useState("");
+  const [defaultSessionInput, setDefaultSessionInput] = useState("");
+  const [dailyTargetPromptPractice, setDailyTargetPromptPractice] =
+    useState<{ id: string; name: string } | null>(null);
   const [showQuickAddHint, setShowQuickAddHint] = useState(false);
   const quickAddRefs = useRef<Record<string, View | null>>({});
+  const practiceRowRefs = useRef<Record<string, View | null>>({});
+  const practicesRef = useRef<Practice[]>([]);
+  const [draggingPracticeId, setDraggingPracticeId] = useState<string | null>(null);
+  const [dragPreviewOrderIds, setDragPreviewOrderIds] = useState<string[] | null>(null);
+  const [dragOverlayPractice, setDragOverlayPractice] = useState<Practice | null>(null);
+  const [dragOverlayFrame, setDragOverlayFrame] = useState<DragOverlayFrame | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
+  const [menuPractice, setMenuPractice] = useState<Practice | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<PracticeMenuAnchor | null>(null);
+  const [calendarPractice, setCalendarPractice] =
+    useState<Practice | null>(null);
+  const [calendarData, setCalendarData] = useState<
+    { date: string; count: number }[]
+  >([]);
   const {
     celebrationFade,
     sparkle1,
@@ -50,12 +109,78 @@ export default function Dashboard() {
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const refreshDashboard = useCallback(() => {
+    const rows = dashboardService.getDashboardPractices();
+    updateReachedState(
+      rows.map(practice => ({
+        id: practice.id,
+        total: practice.total,
+        targetCount: practice.targetCount,
+      }))
+    );
+    setPractices(rows);
+    setStreak(dashboardService.getCurrentStreak());
+    setDashboardLoaded(true);
+  }, [updateReachedState]);
+  const scheduleDashboardRefresh = useCallback(() => {
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+    }
+
+    refreshTimeoutRef.current = setTimeout(() => {
+      refreshTimeoutRef.current = null;
+      refreshDashboard();
+    }, 0);
+  }, [refreshDashboard]);
+  const practiceActions = usePracticeActions({
+    onDeleted: refreshDashboard,
+  });
+  const streakFireSize = getStreakFireSize(streak);
+  const refreshDashboardRef = useRef(refreshDashboard);
+  const dragReorderRef = useRef<DragReorderService<Practice> | null>(null);
+
+  if (!dragReorderRef.current) {
+    dragReorderRef.current = new DragReorderService<Practice>({
+      getItems: () => practicesRef.current,
+      setItems: (nextPractices) => {
+        practicesRef.current = nextPractices;
+        setPractices(nextPractices);
+      },
+      setPreviewOrderIds: setDragPreviewOrderIds,
+      setDraggingItemId: setDraggingPracticeId,
+      setOverlayItem: setDragOverlayPractice,
+      setOverlayFrame: setDragOverlayFrame,
+      onReorder: (nextOrder) => {
+        practiceService.reorderPractices(nextOrder);
+      },
+      onReorderError: (error: any) => {
+        alert(error.message);
+        refreshDashboardRef.current();
+      },
+    });
+  }
+
+  const dragReorder = dragReorderRef.current;
+
+  useEffect(() => {
+    refreshDashboardRef.current = refreshDashboard;
+  }, [refreshDashboard]);
 
   useFocusEffect(
     useCallback(() => {
       scheduleDashboardRefresh();
-    }, [])
+    }, [scheduleDashboardRefresh])
   );
+
+  useEffect(() => {
+    practicesRef.current = practices;
+  }, [practices]);
+
+  useEffect(() => {
+    return () => {
+      dragReorder.dispose();
+    };
+  }, [dragReorder]);
 
   useEffect(() => {
     maybeShowWelcomeModal();
@@ -70,7 +195,7 @@ export default function Dashboard() {
       }
       unsubscribe();
     };
-  }, []);
+  }, [scheduleDashboardRefresh]);
 
   async function maybeShowWelcomeModal() {
     const seen = await AsyncStorage.getItem("welcomeModalSeen");
@@ -118,120 +243,579 @@ export default function Dashboard() {
     });
   }
 
-  function scheduleDashboardRefresh() {
-    if (refreshTimeoutRef.current) {
-      clearTimeout(refreshTimeoutRef.current);
-    }
+  async function quickAdd(practice: Practice) {
+    const count = practice.defaultSessionCount ?? 108;
 
-    refreshTimeoutRef.current = setTimeout(() => {
-      refreshTimeoutRef.current = null;
-      refreshDashboard();
-    }, 0);
-  }
-
-  function refreshDashboard() {
-    const rows = dashboardService.getDashboardPractices();
-    updateReachedState(
-      rows.map(practice => ({
-        id: practice.id,
-        total: practice.total,
-        targetCount: practice.targetCount,
-      }))
-    );
-    setPractices(rows);
-    setStreak(dashboardService.getCurrentStreak());
-  }
-
-  async function quickAdd(practiceId: string, count: number) {
     try {
-      sessionService.addSession(practiceId, count);
+      sessionService.addSession(practice.id, count);
     } catch (error: any) {
       alert(error.message);
     }
-    await maybeShowQuickAddHint(practiceId);
+
+    await maybeShowQuickAddHint(practice.id);
   }
 
-  function openEditDefaultModal(practiceId: string, practiceName: string, currentDefault: number) {
+  function openEditDefaultModal(practiceId: string, practiceName: string, currentDefaultSession: number) {
     setSelectedPracticeId(practiceId);
     setSelectedPracticeName(practiceName);
-    setDefaultAddInput(String(currentDefault));
+    setDefaultSessionInput(String(currentDefaultSession));
     setEditDefaultOpen(true);
+  }
+
+  function openPracticeMenu(practice: Practice) {
+    const target = practiceRowRefs.current[practice.id];
+    if (!target) return;
+    const practiceDisplayName =
+      getPracticeDisplayName(practice.id, practice.name, t);
+
+    (target as any).measureInWindow(
+      (x: number, y: number, width: number, height: number) => {
+        setMenuPractice({
+          ...practice,
+          name: practiceDisplayName,
+        });
+        setMenuAnchor({ x, y, width, height });
+      }
+    );
+  }
+
+  function closePracticeMenu() {
+    setMenuPractice(null);
+    setMenuAnchor(null);
+  }
+
+  function openDailyTargetPrompt(practice: Practice) {
+    setDailyTargetPromptPractice({
+      id: practice.id,
+      name: getPracticeDisplayName(practice.id, practice.name, t),
+    });
+  }
+
+  function closeDailyTargetPrompt() {
+    setDailyTargetPromptPractice(null);
+  }
+
+  function saveDailyTarget(dailyTargetCount: number) {
+    if (!dailyTargetPromptPractice) return;
+
+    practiceService.updatePracticeDailyTargetCount(
+      dailyTargetPromptPractice.id,
+      dailyTargetCount
+    );
+    refreshDashboard();
+  }
+
+  function openPracticeCalendar(practice: Practice) {
+    setCalendarPractice(practice);
+    setCalendarData(sessionService.getCalendarDailyData(practice.id));
+  }
+
+  function closePracticeCalendar() {
+    setCalendarPractice(null);
+    setCalendarData([]);
+  }
+
+  function handleCalendarEdit(date: string, newValue: number) {
+    if (!calendarPractice) return;
+
+    if (!Number.isFinite(newValue)) return;
+
+    if (newValue < 0) {
+      alert(t("practice.valueCannotBeNegative"));
+      return;
+    }
+
+    if (!Number.isInteger(newValue)) {
+      alert(t("practice.enterWholeNumber"));
+      return;
+    }
+
+    try {
+      sessionService.adjustDayTotal(
+        calendarPractice.id,
+        date,
+        newValue
+      );
+      setCalendarData(
+        sessionService.getCalendarDailyData(calendarPractice.id)
+      );
+
+      const latestPractice =
+        dashboardService
+          .getDashboardPractices()
+          .find(practice => practice.id === calendarPractice.id);
+
+      if (latestPractice) {
+        setCalendarPractice(latestPractice);
+      }
+
+      refreshDashboard();
+    } catch (error: any) {
+      alert(error.message);
+    }
+  }
+
+  const calendarStartDate = useMemo(
+    () => calendarPractice
+      ? appService.getCalendarStartDate(calendarPractice.id)
+      : new Date(),
+    [calendarPractice]
+  );
+  const calendarEndDate = useMemo(() => {
+    if (!calendarPractice) return new Date();
+
+    return (
+      practiceService.getExpectedTargetDate(
+        calendarPractice.targetCount,
+        calendarPractice.total,
+        calendarPractice.dailyTargetCount ?? null
+      ) ?? new Date()
+    );
+  }, [calendarPractice]);
+
+  function getPracticeCardViewModel(practice: Practice) {
+    const practiceDisplayName =
+      getPracticeDisplayName(practice.id, practice.name, t);
+    const currentCycleProgress =
+      practice.total >= practice.targetCount
+        ? 1
+        : (practice.total % practice.targetCount) / practice.targetCount;
+    const dailyTargetCount = practice.dailyTargetCount ?? null;
+    const hasDailyTarget =
+      dailyTargetCount != null &&
+      dailyTargetCount > 0;
+    const targetDate =
+      hasDailyTarget
+        ? practiceService.getExpectedTargetDate(
+          practice.targetCount,
+          practice.total,
+          dailyTargetCount
+        )
+        : null;
+    const targetReached =
+      practice.targetCount > 0 &&
+      practice.total >= practice.targetCount;
+    const expectedTargetDate =
+      targetReached
+        ? t("practice.reached")
+        : !hasDailyTarget
+          ? t("practice.setDailyTargetFirst")
+          : targetDate
+            ? formatMonthDayYear(targetDate, locale)
+            : t("practice.noEstimate");
+
+    return {
+      practiceDisplayName,
+      currentCycleProgress,
+      dailyTargetCount,
+      hasDailyTarget,
+      targetReached,
+      expectedTargetDate,
+    };
+  }
+
+  function renderPracticeDragOverlay() {
+    if (!dragOverlayPractice || !dragOverlayFrame) return null;
+
+    const {
+      practiceDisplayName,
+      currentCycleProgress,
+      dailyTargetCount,
+      hasDailyTarget,
+      targetReached,
+      expectedTargetDate,
+    } = getPracticeCardViewModel(dragOverlayPractice);
+    const defaultSessionCount =
+      dragOverlayPractice.defaultSessionCount ?? 108;
+
+    return (
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.dragOverlayCard,
+          {
+            left: dragOverlayFrame.left,
+            width: dragOverlayFrame.width,
+            transform: [{ translateY: dragReorder.overlayTranslateY }],
+          }
+        ]}
+      >
+        <View style={[styles.card, styles.cardDragging, styles.dragOverlaySurface]}>
+          <View style={styles.cardContent}>
+            <View style={styles.practiceNameRow}>
+              <View style={styles.dragHandle}>
+                <MaterialIcons
+                  name="drag-indicator"
+                  size={22}
+                  color="#9CA3AF"
+                />
+              </View>
+
+              <Text numberOfLines={1} ellipsizeMode="tail" style={styles.practiceName}>
+                {practiceDisplayName}
+              </Text>
+
+              <View style={styles.practiceActionButtons}>
+                <View style={styles.practiceActionButton}>
+                  <MaterialIcons name="edit" size={18} color={colors.primary} />
+                </View>
+                <View style={styles.practiceActionButton}>
+                  <MaterialIcons name="bar-chart" size={18} color={colors.primary} />
+                </View>
+                <View style={styles.practiceActionButton}>
+                  <MaterialIcons name="calendar-today" size={17} color={colors.primary} />
+                </View>
+                <View style={styles.practiceActionButton}>
+                  <MaterialIcons name="delete-outline" size={18} color="#c62828" />
+                </View>
+              </View>
+            </View>
+
+            <Progress.Bar
+              progress={currentCycleProgress}
+              width={null}
+              height={10}
+              color={colors.primary}
+              unfilledColor="#E5E5E5"
+              borderWidth={0}
+              borderRadius={5}
+            />
+
+            <View style={styles.practiceBodyRow}>
+              <Image
+                source={dragOverlayPractice.imageKey && practiceImages[dragOverlayPractice.imageKey] ? practiceImages[dragOverlayPractice.imageKey] : practiceImages["generic"]}
+                style={styles.icon}
+                resizeMode="contain"
+              />
+
+              <View style={styles.practiceMetricGroup}>
+                <Text style={styles.countText}>
+                  {t("practice.totalProgress")}: {formatCountProgress(
+                    dragOverlayPractice.total,
+                    dragOverlayPractice.targetCount || null
+                  )}
+                </Text>
+
+                <Text style={styles.countText}>
+                  {t("practice.targetDate")}:{" "}
+                  <Text style={targetReached ? { color: colors.primary } : undefined}>
+                    {expectedTargetDate}
+                  </Text>
+                </Text>
+
+                {hasDailyTarget ? (
+                  <DailyGoalProgress
+                    todayCount={dragOverlayPractice.today}
+                    dailyTargetCount={dailyTargetCount ?? 0}
+                    style={styles.dailyGoalInline}
+                    labelStyle={[styles.countText, styles.dailyGoalLabel]}
+                    barStyle={styles.dailyGoalBar}
+                    textStyle={styles.dailyGoalBarText}
+                    labelNumberOfLines={1}
+                  />
+                ) : (
+                  <View style={styles.enableDailyTargetButton}>
+                    <MaterialIcons
+                      name="check-circle-outline"
+                      size={16}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.enableDailyTargetText}>
+                      {t("practice.enableDailyTarget")}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.quickAddContainer}>
+            <View style={styles.quickAddButton}>
+              <View style={styles.quickAddMainButton}>
+                <Text style={styles.quickAddAmountText}>
+                  +{formatNumber(defaultSessionCount)}
+                </Text>
+
+                <Text
+                  style={styles.quickAddLabelText}
+                  numberOfLines={1}
+                >
+                  {t("practice.addDefaultSession")}
+                </Text>
+              </View>
+
+              <View style={styles.quickAddEditButton}>
+                <MaterialIcons
+                  name="edit"
+                  size={15}
+                  color={colors.primary}
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      </Animated.View>
+    );
+  }
+
+  const renderedPractices = useMemo(
+    () => getDragPreviewItems(practices, dragPreviewOrderIds),
+    [dragPreviewOrderIds, practices]
+  );
+
+  if (!dashboardLoaded) {
+    return (
+      <View
+        ref={dragReorder.rootRef}
+        style={styles.dashboardRoot}
+        onLayout={() => dragReorder.updateRootWindowMetrics()}
+      >
+        <View style={[containers.screen, styles.dashboardLoadingContainer]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+
+        <WelcomeModal
+          visible={welcomeOpen}
+          onClose={() => setWelcomeOpen(false)}
+        />
+      </View>
+    );
   }
 
   return (
 
-    <ScrollView style={containers.screen} contentContainerStyle={{ paddingBottom: 30 }}>
-      <View
-        style={{
-          width: "100%",
-          maxWidth: 700,
-          alignSelf: "center"
+    <View
+      ref={dragReorder.rootRef}
+      style={styles.dashboardRoot}
+      onLayout={() => dragReorder.updateRootWindowMetrics()}
+    >
+      <ScrollView
+        ref={dragReorder.scrollViewRef}
+        style={containers.screen}
+        contentContainerStyle={{ paddingBottom: 30 }}
+        scrollEnabled={draggingPracticeId === null}
+        scrollEventThrottle={16}
+        onScroll={(event) => {
+          dragReorder.setScrollY(event.nativeEvent.contentOffset.y);
+        }}
+        onContentSizeChange={(_width, height) => {
+          dragReorder.setScrollContentHeight(height);
+        }}
+        onLayout={(event) => {
+          dragReorder.handleScrollViewLayout(
+            event.nativeEvent.layout.height
+          );
         }}
       >
-        <View style={styles.streakContainer}>
-          <View style={styles.streakBadge}>
-            <Text style={styles.streakText}>
-              Streak: {streak} {streak === 1 ? "day" : "days"}
-            </Text>
-
-            <Pressable
-              onPress={() => setInfoOpen(true)}
-            >
-              <MaterialIcons
-                name="info-outline"
-                size={20}
-                color="#666"
-                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-              />
-            </Pressable>
-          </View>
-        </View>
-        {practices.map((practice) => {
-
-          const currentCycleProgress = practice.total >= practice.targetCount ? 1 : (practice.total % practice.targetCount) / practice.targetCount;
-          const targetDate =
-            practiceService.getExpectedTargetDate(
-              practice.targetCount,
-              practice.total,
-              practice.defaultAddCount
+        <View
+          ref={dragReorder.contentRef}
+          style={{
+            width: "100%",
+            maxWidth: 700,
+            alignSelf: "center"
+          }}
+          onLayout={(event) => {
+            dragReorder.handleContentLayout(
+              event.nativeEvent.layout.x
             );
+          }}
+        >
+          <View style={styles.streakContainer}>
+            <View style={styles.streakBadge}>
+              <View style={styles.streakFireIconBox}>
+                <MaterialIcons
+                  name="local-fire-department"
+                  size={streakFireSize}
+                  color={colors.primary}
+                />
+              </View>
 
-          const expectedTargetDate =
-            practice.targetCount > 0 && practice.total >= practice.targetCount
-              ? <Text style={{ color: colors.primary }}>Reached!</Text>
-              : targetDate
-                ? targetDate.toLocaleDateString("en-US", {
-                  month: "long",
-                  day: "2-digit",
-                  year: "numeric"
-                })
-                : "No estimate";
+              <Text style={styles.streakText}>
+                {t("dashboard.streak", {
+                  count: streak,
+                  unit: streak === 1
+                    ? t("dashboard.streakDay")
+                    : t("dashboard.streakDays"),
+                })}
+              </Text>
 
-          return (
-
-            <View key={practice.id} style={styles.card}>
-              <TouchableOpacity
-                onPress={() =>
-                  router.push({
-                    pathname: "/practice",
-                    params: {
-                      id: practice.id
-                    }
-                  })
-                }
+              <Pressable
+                onPress={() => setInfoOpen(true)}
+                style={styles.streakInfoButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
+                <MaterialIcons
+                  name="info-outline"
+                  size={18}
+                  color="#6B7280"
+                />
+              </Pressable>
+            </View>
+          </View>
+          {renderedPractices.map((practice) => {
 
-                <View style={styles.row}>
-                  <Image
-                    source={practice.imageKey && practiceImages[practice.imageKey] ? practiceImages[practice.imageKey] : practiceImages["generic"]}
-                    style={styles.icon}
-                    resizeMode="contain"
-                  />
+            const {
+              practiceDisplayName,
+              currentCycleProgress,
+              dailyTargetCount,
+              hasDailyTarget,
+              targetReached,
+              expectedTargetDate,
+            } = getPracticeCardViewModel(practice);
+            return (
 
-                  <View style={{ flex: 1 }}>
-                    <Text numberOfLines={2} ellipsizeMode="tail" style={styles.practiceName}>
-                      {practice.name}
-                    </Text>
+              <Reanimated.View
+                key={practice.id}
+                layout={draggingPracticeId ? practiceCardLayoutTransition : undefined}
+                ref={(node) => {
+                  dragReorder.cardRefs[practice.id] =
+                    node as unknown as View | null;
+                }}
+                style={[
+                  styles.card,
+                  draggingPracticeId === practice.id &&
+                  styles.cardDraggingPlaceholder,
+                ]}
+                onLayout={(event) => {
+                  dragReorder.setCardLayout(practice.id, {
+                    x: event.nativeEvent.layout.x,
+                    y: event.nativeEvent.layout.y,
+                    width: event.nativeEvent.layout.width,
+                    height: event.nativeEvent.layout.height,
+                  });
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() => {
+                    if (dragReorder.isPressSuppressed()) return;
+
+                    router.push({
+                      pathname: "/practice",
+                      params: {
+                        id: practice.id
+                      }
+                    });
+                  }}
+                  onLongPress={() => openPracticeMenu(practice)}
+                  delayLongPress={350}
+                  accessibilityHint={t("dashboard.infoLongPressPractice")}
+                >
+
+                  <View
+                    ref={(node) => {
+                      practiceRowRefs.current[practice.id] = node;
+                    }}
+                    style={styles.cardContent}
+                  >
+                    <View style={styles.practiceNameRow}>
+                      <View
+                        style={styles.dragHandle}
+                        {...dragReorder.getPanHandlers(practice.id)}
+                        accessibilityRole="adjustable"
+                        accessibilityLabel={`${t("dashboard.reorderPractice")}: ${practiceDisplayName}`}
+                      >
+                        <MaterialIcons
+                          name="drag-indicator"
+                          size={22}
+                          color="#9CA3AF"
+                        />
+                      </View>
+
+                      <Text numberOfLines={1} ellipsizeMode="tail" style={styles.practiceName}>
+                        {practiceDisplayName}
+                      </Text>
+
+                      <View style={styles.practiceActionButtons}>
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.practiceActionButton,
+                            pressed && styles.practiceActionButtonPressed
+                          ]}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            practiceActions.editPractice({
+                              ...practice,
+                              name: practiceDisplayName,
+                            });
+                          }}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${t("practiceMenu.edit")}: ${practiceDisplayName}`}
+                        >
+                          <MaterialIcons
+                            name="edit"
+                            size={18}
+                            color={colors.primary}
+                          />
+                        </Pressable>
+
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.practiceActionButton,
+                            pressed && styles.practiceActionButtonPressed
+                          ]}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            practiceActions.openPracticeHistory({
+                              ...practice,
+                              name: practiceDisplayName,
+                            });
+                          }}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${t("practiceMenu.history")}: ${practiceDisplayName}`}
+                        >
+                          <MaterialIcons
+                            name="bar-chart"
+                            size={18}
+                            color={colors.primary}
+                          />
+                        </Pressable>
+
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.practiceActionButton,
+                            pressed && styles.practiceActionButtonPressed
+                          ]}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            openPracticeCalendar(practice);
+                          }}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${t("practiceMenu.calendar")}: ${practiceDisplayName}`}
+                        >
+                          <MaterialIcons
+                            name="calendar-today"
+                            size={17}
+                            color={colors.primary}
+                          />
+                        </Pressable>
+
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.practiceActionButton,
+                            pressed && styles.practiceDeleteButtonPressed
+                          ]}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            practiceActions.confirmDeletePractice({
+                              ...practice,
+                              name: practiceDisplayName,
+                            });
+                          }}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${t("practiceMenu.delete")}: ${practiceDisplayName}`}
+                        >
+                          <MaterialIcons
+                            name="delete-outline"
+                            size={18}
+                            color="#c62828"
+                          />
+                        </Pressable>
+                      </View>
+                    </View>
 
                     <Progress.Bar
                       progress={currentCycleProgress}
@@ -243,165 +827,306 @@ export default function Dashboard() {
                       borderRadius={5}
                     />
 
-                    <Text style={styles.countText}>
-                      {formatNumber(practice.total) + ' ' + (!!practice.targetCount ? '/ ' + formatNumber(practice.targetCount) : '')}
-                    </Text>
+                    <View style={styles.practiceBodyRow}>
+                      <Image
+                        source={practice.imageKey && practiceImages[practice.imageKey] ? practiceImages[practice.imageKey] : practiceImages["generic"]}
+                        style={styles.icon}
+                        resizeMode="contain"
+                      />
 
-                    <Text style={{ fontSize: 12, color: "#666" }}>
-                      Today: {formatNumber(practice.today)}
-                    </Text>
+                      <View style={styles.practiceMetricGroup}>
+                        <Text style={styles.countText}>
+                          {t("practice.totalProgress")}: {formatCountProgress(
+                            practice.total,
+                            practice.targetCount || null
+                          )}
+                        </Text>
 
-                    <View style={styles.targetDateRow}>
-                      {isCelebrating(practice.id) && (
-                        <CelebrationOverlay
-                          fade={celebrationFade}
-                          sparkle1={sparkle1}
-                          sparkle2={sparkle2}
-                          sparkle3={sparkle3}
-                        />
-                      )}
-                      <Text
-                        style={
-                          !!practice.imageKey
-                            ? { fontSize: 12, color: "#666", marginTop: 2 }
-                            : { fontSize: 12, color: "#666", marginTop: 2, marginBottom: 10 }
-                        }
-                      >
-                        Target date: {expectedTargetDate ?? "No estimate"}
+                        <View style={styles.targetDateRow}>
+                          {isCelebrating(practice.id) && (
+                            <CelebrationOverlay
+                              fade={celebrationFade}
+                              sparkle1={sparkle1}
+                              sparkle2={sparkle2}
+                              sparkle3={sparkle3}
+                            />
+                          )}
+                          <Text style={styles.countText}>
+                            {t("practice.targetDate")}:{" "}
+                            <Text style={targetReached ? { color: colors.primary } : undefined}>
+                              {expectedTargetDate}
+                            </Text>
+                          </Text>
+
+                          {targetReached && isCelebrating(practice.id) && (
+                            <Animated.Text
+                              style={[
+                                styles.congratsText,
+                                { opacity: celebrationFade }
+                              ]}
+                            >
+                              {t("dashboard.congratulations")}
+                            </Animated.Text>
+                          )}
+                        </View>
+
+                        {hasDailyTarget ? (
+                          <DailyGoalProgress
+                            todayCount={practice.today}
+                            dailyTargetCount={dailyTargetCount ?? 0}
+                            style={styles.dailyGoalInline}
+                            labelStyle={[styles.countText, styles.dailyGoalLabel]}
+                            barStyle={styles.dailyGoalBar}
+                            textStyle={styles.dailyGoalBarText}
+                            labelNumberOfLines={1}
+                          />
+                        ) : (
+                          <EnableDailyTargetButton
+                            onPress={() => openDailyTargetPrompt(practice)}
+                            accessibilityLabel={`${t("practice.enableDailyTarget")}: ${practiceDisplayName}`}
+                          />
+                        )}
+                      </View>
+                    </View>
+                  </View>
+
+                </TouchableOpacity>
+
+                <View
+                  ref={(node) => {
+                    quickAddRefs.current[practice.id] = node;
+                  }}
+                  style={styles.quickAddContainer}
+                >
+                  <View style={styles.quickAddButton}>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.quickAddMainButton,
+                        pressed && styles.quickAddButtonPressed
+                      ]}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        void quickAdd(practice);
+                      }}
+                      onLongPress={(event) => {
+                        event.stopPropagation();
+                        openEditDefaultModal(
+                          practice.id,
+                          practiceDisplayName,
+                          practice.defaultSessionCount ?? 108
+                        );
+                      }}
+                      delayLongPress={350}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${t("practice.addDefaultSessionA11y", {
+                        count: formatNumber(practice.defaultSessionCount ?? 108),
+                      })}: ${practiceDisplayName}`}
+                    >
+                      <Text style={styles.quickAddAmountText}>
+                        +{formatNumber(practice.defaultSessionCount ?? 108)}
                       </Text>
 
-                      {expectedTargetDate === "Reached!" && isCelebrating(practice.id) && (
-                        <Animated.Text
-                          style={[
-                            styles.congratsText,
-                            { opacity: celebrationFade }
-                          ]}
-                        >
-                          Congratulations!!
-                        </Animated.Text>
-                      )}
-                    </View>
+                      <Text
+                        style={styles.quickAddLabelText}
+                        numberOfLines={1}
+                      >
+                        {t("practice.addDefaultSession")}
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.quickAddEditButton,
+                        pressed && styles.quickAddEditButtonPressed
+                      ]}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        openEditDefaultModal(
+                          practice.id,
+                          practiceDisplayName,
+                          practice.defaultSessionCount ?? 108
+                        );
+                      }}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${t("practice.editDefaultSessionCount")}: ${practiceDisplayName}`}
+                    >
+                      <MaterialIcons
+                        name="edit"
+                        size={15}
+                        color={colors.primary}
+                      />
+                    </Pressable>
                   </View>
                 </View>
 
-              </TouchableOpacity>
+              </Reanimated.View>
 
-              <View
-                ref={(node) => {
-                  quickAddRefs.current[practice.id] = node;
-                }}
-              >
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.quickAddButton,
-                    pressed && styles.quickAddButtonPressed
-                  ]}
-                  onPress={() => quickAdd(practice.id, practice.defaultAddCount ?? 108)}
-                  onLongPress={() =>
-                    openEditDefaultModal(
-                      practice.id,
-                      practice.name,
-                      practice.defaultAddCount ?? 108
-                    )
-                  }
-                  delayLongPress={350}
-                >
-                  <Text style={styles.quickAddButtonText}>
-                    +{formatNumber(practice.defaultAddCount ?? 108)}
-                  </Text>
-                </Pressable>
-              </View>
+            );
+          })}
 
+          <Pressable
+            style={({ pressed }) => [
+              styles.addPracticeCard,
+              pressed && styles.addPracticeCardPressed
+            ]}
+            onPress={() => router.push("/add-practice")}
+            accessibilityRole="button"
+            accessibilityLabel={t("dashboard.addPractice")}
+          >
+            <View style={styles.addPracticeCircle}>
+              <MaterialIcons
+                name="add"
+                size={22}
+                color={colors.primary}
+              />
             </View>
 
-          );
-        })}
-
-        <QuickAddEditor
-          visible={editDefaultOpen}
-          practiceId={selectedPracticeId}
-          practiceName={selectedPracticeName}
-          defaultValue={Number(defaultAddInput)}
-          onClose={() => setEditDefaultOpen(false)}
-        />
-
-        {showQuickAddHint && tooltipPosition && (
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => {
-              setShowQuickAddHint(false);
-              setTooltipPosition(null);
-            }}
-          >
-            <View
-              style={[
-                styles.anchoredTooltip,
-                {
-                  top: tooltipPosition.top,
-                  left: tooltipPosition.left,
-                }
-              ]}
-            >
-              <Text style={styles.anchoredTooltipText}>
-                Tip: Long press this button to change the expected amount of daily repetitions.
+            <View style={styles.addPracticeTextWrapper}>
+              <Text style={styles.addPracticeText}>
+                {t("dashboard.addPractice")}
               </Text>
             </View>
           </Pressable>
-        )}
 
-        <Modal
-          visible={infoOpen}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setInfoOpen(false)}
-        >
-          <Pressable
-            style={styles.infoOverlay}
-            onPress={() => setInfoOpen(false)}
+          <QuickAddEditor
+            visible={editDefaultOpen}
+            practiceId={selectedPracticeId}
+            practiceName={selectedPracticeName}
+            defaultValue={Number(defaultSessionInput)}
+            onClose={() => setEditDefaultOpen(false)}
+          />
+
+          <PracticeActionsMenu
+            visible={menuPractice !== null}
+            anchor={menuAnchor}
+            practice={menuPractice}
+            onClose={closePracticeMenu}
+            onDeleted={refreshDashboard}
+            onCalendar={(practice) => {
+              const latestPractice =
+                practicesRef.current.find(row => row.id === practice.id);
+
+              if (latestPractice) {
+                openPracticeCalendar(latestPractice);
+              }
+            }}
+          />
+
+          {practiceActions.historyPractice && (
+            <PracticeHistoryModal
+              visible
+              onClose={practiceActions.closePracticeHistory}
+              practiceId={practiceActions.historyPractice.id}
+              total={practiceActions.historyPractice.total}
+            />
+          )}
+
+          <DailyTargetEditor
+            visible={dailyTargetPromptPractice !== null}
+            practiceName={dailyTargetPromptPractice?.name}
+            onClose={closeDailyTargetPrompt}
+            onSave={saveDailyTarget}
+          />
+
+          <PracticeCalendarModal
+            visible={calendarPractice !== null}
+            data={calendarData}
+            startDate={calendarStartDate}
+            endDate={calendarEndDate}
+            onEditDay={handleCalendarEdit}
+            onClose={closePracticeCalendar}
+          />
+
+          {showQuickAddHint && tooltipPosition && (
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => {
+                setShowQuickAddHint(false);
+                setTooltipPosition(null);
+              }}
+            >
+              <View
+                style={[
+                  styles.anchoredTooltip,
+                  {
+                    top: tooltipPosition.top,
+                    left: tooltipPosition.left,
+                  }
+                ]}
+              >
+                <Text style={styles.anchoredTooltipText}>
+                  {t("dashboard.quickAddTip")}
+                </Text>
+              </View>
+            </Pressable>
+          )}
+
+          <Modal
+            visible={infoOpen}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setInfoOpen(false)}
           >
             <Pressable
-              style={styles.infoModal}
-              onPress={() => { }}
+              style={styles.infoOverlay}
+              onPress={() => setInfoOpen(false)}
             >
-              <Text style={styles.infoTitle}>
-                Dashboard Info
-              </Text>
-
-              <Text style={styles.infoText}>
-                Your streak shows how many consecutive days
-                you did any practice at least once.
-              </Text>
-
-              <Text style={styles.infoText}>
-                Tip: Long press the quick add button to change
-                the daily repetition count.
-              </Text>
-
               <Pressable
-                style={styles.infoButton}
-                onPress={() => setInfoOpen(false)}
+                style={styles.infoModal}
+                onPress={() => { }}
               >
-                <Text style={styles.infoButtonText}>
-                  OK
+                <Text style={styles.infoTitle}>
+                  {t("dashboard.infoTitle")}
                 </Text>
+
+                <Text style={styles.infoText}>
+                  {t("dashboard.infoStreak")}
+                </Text>
+
+                <Text style={styles.infoText}>
+                  {t("dashboard.infoLongPressPractice")}
+                </Text>
+
+                <Pressable
+                  style={styles.infoButton}
+                  onPress={() => setInfoOpen(false)}
+                >
+                  <Text style={styles.infoButtonText}>
+                    {t("common.ok")}
+                  </Text>
+                </Pressable>
+
               </Pressable>
-
             </Pressable>
-          </Pressable>
-        </Modal>
+          </Modal>
 
-      </View>
-      <WelcomeModal
-        visible={welcomeOpen}
-        onClose={() => setWelcomeOpen(false)}
-      />
-    </ScrollView>
+        </View>
+        <WelcomeModal
+          visible={welcomeOpen}
+          onClose={() => setWelcomeOpen(false)}
+        />
+      </ScrollView>
+
+      {renderPracticeDragOverlay()}
+    </View>
   );
 }
 
 const screenWidth = Dimensions.get("window").width;
-const iconSize = screenWidth < 360 ? 60 : 70;
+const iconSize = screenWidth < 360 ? 56 : 66;
+const addPracticeCardHeight = Math.round(iconSize);
 const styles = StyleSheet.create({
+
+  dashboardRoot: {
+    flex: 1,
+  },
+
+  dashboardLoadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   title: {
     fontSize: 28,
@@ -410,101 +1135,256 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    marginBottom: 25,
+    marginBottom: 18,
     position: "relative",
+    marginHorizontal: 6,
+    padding: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E1E7F5",
+    backgroundColor: "#FAFBFF",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 7,
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    elevation: 2,
+  },
+
+  cardDragging: {
+    opacity: 0.96,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 7,
+    zIndex: 10,
+  },
+
+  cardDraggingPlaceholder: {
+    opacity: 0,
+  },
+
+  dragOverlayCard: {
+    position: "absolute",
+    top: 0,
+    zIndex: 1000,
+    elevation: 12,
+  },
+
+  dragOverlaySurface: {
+    marginBottom: 0,
+    marginHorizontal: 0,
+  },
+
+  dragHandle: {
+    width: 24,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 2,
+  },
+
+  addPracticeCard: {
+    minHeight: addPracticeCardHeight,
+    marginBottom: 25,
     marginHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: "transparent",
+    justifyContent: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+  },
+
+  addPracticeCardPressed: {
+    opacity: 0.72,
+  },
+
+  addPracticeCircle: {
+    position: "absolute",
+    left: 18,
+    width: addPracticeCardHeight * .8,
+    height: addPracticeCardHeight * .8,
+    borderRadius: addPracticeCardHeight / 2,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+
+  addPracticeTextWrapper: {
+    alignItems: "center",
+  },
+
+  addPracticeText: {
+    fontSize: 18,
+    color: "#111",
+    textAlign: "center",
   },
 
   practiceName: {
     fontSize: 18,
-    marginBottom: 6,
+    fontWeight: "600",
+    color: "#111",
+    flex: 1,
+  },
+
+  practiceNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+
+  practiceActionButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  practiceActionButton: {
+    width: 25.5,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  practiceActionButtonPressed: {
+    backgroundColor: "#eef2ff",
+  },
+
+  practiceDeleteButtonPressed: {
+    backgroundColor: "#ffebee",
   },
 
   countText: {
-    marginTop: 6,
     fontSize: 14,
+    fontWeight: "400",
+    color: "#222",
   },
 
-  quickButtons: {
-    marginTop: 6,
-    alignItems: "flex-start"
+  practiceMetricGroup: {
+    flex: 1,
+    gap: 6,
+    minWidth: 0,
   },
 
-  row: {
+  practiceMetricGroupNoImage: {
+    marginBottom: 10,
+  },
+
+  enableDailyTargetButton: {
     flexDirection: "row",
     alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 7,
+    paddingVertical: 4,
+    paddingHorizontal: 9,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    backgroundColor: "transparent",
+  },
+
+  enableDailyTargetText: {
+    fontSize: 14,
+    fontWeight: "400",
+    color: "#111",
+  },
+
+  quickAddContainer: {
+    marginTop: 12,
+    alignSelf: "stretch",
+  },
+
+  cardContent: {
     gap: 10,
+  },
+
+  practiceBodyRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
   },
 
   icon: {
     width: iconSize,
     height: iconSize,
-    borderRadius: 8,
+    borderRadius: 12,
   },
 
-  quickAddButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
+  dailyGoalInline: {
+    alignSelf: "stretch",
+    alignItems: "center",
+    width: "100%",
+  },
+
+  dailyGoalLabel: {
+    flexShrink: 1,
+    maxWidth: "48%",
+  },
+
+  dailyGoalBar: {
+    flex: 1,
+    minWidth: 94,
+    maxWidth: "100%",
+  },
+
+  dailyGoalBarText: {
+    fontSize: 14,
   },
 
   quickAddButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EEF2FF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#DBE4FF",
+    overflow: "hidden",
+  },
+
+  quickAddMainButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
     paddingVertical: 10,
-    paddingHorizontal: 14,
-    backgroundColor: "#e5e7eb",
-    borderRadius: 8,
-    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+  },
+
+  quickAddAmountText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#111",
+  },
+
+  quickAddLabelText: {
+    flexShrink: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#333",
+  },
+
+  quickAddEditButton: {
+    width: 40,
+    minHeight: 40,
+    alignSelf: "stretch",
+    alignItems: "center",
+    justifyContent: "center",
+    borderLeftWidth: 1,
+    borderLeftColor: "#DBE4FF",
   },
 
   quickAddButtonPressed: {
     opacity: 0.65,
-    transform: [{ scale: 1.15 }],
   },
 
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.25)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-
-  modalCard: {
-    width: "100%",
-    maxWidth: 360,
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 20,
-  },
-
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-
-  modalSubtitle: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 16,
-  },
-
-  modalInput: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    padding: 10,
-    marginBottom: 16,
-    borderRadius: 8,
-  },
-
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 10,
-  },
-
-  modalButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+  quickAddEditButtonPressed: {
+    backgroundColor: "#DBE4FF",
   },
 
   tooltipOverlay: {
@@ -573,8 +1453,9 @@ const styles = StyleSheet.create({
   },
 
   streakText: {
-    fontWeight: "bold",
-    fontStyle: "italic"
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111",
   },
 
   infoOverlay: {
@@ -627,18 +1508,36 @@ const styles = StyleSheet.create({
   streakBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    backgroundColor: "#f3f4f6",
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
+    gap: 7,
+    backgroundColor: "#FAFBFF",
+    paddingLeft: 7,
+    paddingRight: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#DBE4FF",
     shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
+    shadowOpacity: 0.05,
+    shadowRadius: 7,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
+  },
+
+  streakFireIconBox: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EEF2FF",
+  },
+
+  streakInfoButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
 });

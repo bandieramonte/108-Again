@@ -1,6 +1,10 @@
 import { DEFAULT_PRACTICES, SEEDED_IDS } from "../constants/defaultPractices";
 import { SyncMetadata } from "../types/sync";
 import { MAX_TARGET_COUNT } from "../utils/numberUtils";
+import {
+    getPracticeReminderBackupRowFromPractice,
+    isPracticeReminderEnabledValue,
+} from "../utils/practiceReminderState";
 
 export type OperationPracticeRow = {
     id: string;
@@ -8,8 +12,12 @@ export type OperationPracticeRow = {
     targetCount: number;
     orderIndex: number;
     imageKey?: string | null;
-    defaultAddCount?: number | null;
+    dailyTargetCount?: number | null;
+    defaultSessionCount?: number | null;
     totalOffset?: number;
+    reminderEnabled?: number | boolean | null;
+    reminderHour?: number | null;
+    reminderMinute?: number | null;
     userId?: string | null;
     updatedAt?: number | null;
     syncStatus?: string | null;
@@ -39,18 +47,40 @@ type OperationPracticeRepo = {
         orderIndex: number,
         syncMetadata: SyncMetadata,
         imageKey?: string | null,
-        defaultAddCount?: number,
-        totalOffset?: number
+        dailyTargetCount?: number | null,
+        defaultSessionCount?: number,
+        totalOffset?: number,
+        reminderEnabled?: boolean | number,
+        reminderHour?: number,
+        reminderMinute?: number
     ): void;
     updatePractice(
         id: string,
         name: string,
         target: number,
+        syncMetadata: SyncMetadata,
+        imageKey?: string | null
+    ): void;
+    updatePracticeDailyTargetCount(
+        id: string,
+        dailyTargetCount: number | null,
         syncMetadata: SyncMetadata
     ): void;
-    updatePracticeDefaultAddCount(
+    updatePracticeDefaultSessionCount(
         id: string,
-        defaultAddCount: number,
+        defaultSessionCount: number,
+        syncMetadata: SyncMetadata
+    ): void;
+    updatePracticeReminderSettings(
+        id: string,
+        enabled: boolean,
+        hour: number,
+        minute: number,
+        syncMetadata: SyncMetadata
+    ): void;
+    updatePracticeOrder(
+        id: string,
+        orderIndex: number,
         syncMetadata: SyncMetadata
     ): void;
     updatePracticeTotalOffset(
@@ -132,9 +162,14 @@ export type AppOperationEngineDeps = {
     emitDataChanged?: () => void;
     enqueueWrite: (fn: () => Promise<void> | void) => Promise<void>;
     getCurrentUserId: () => string | null;
+    logger?: Pick<Console, "warn">;
     now?: () => number;
     practiceRepo: OperationPracticeRepo;
     randomUUID: () => string;
+    refreshAllReminders?: () => Promise<void> | void;
+    refreshReminderForPractice?: (
+        practiceId: string
+    ) => Promise<void> | void;
     requestSync?: (
         userId: string | null,
         options?: {
@@ -193,10 +228,124 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         };
     }
 
+    function applyPracticeOrder(
+        orderedPracticeIds: string[],
+        syncMetadata: SyncMetadata
+    ) {
+        orderedPracticeIds.forEach((practiceId, index) => {
+            deps.practiceRepo.updatePracticeOrder(
+                practiceId,
+                index + 1,
+                syncMetadata
+            );
+        });
+    }
+
+    function insertPracticeIdAtDefaultOrder(
+        practices: OperationPracticeRow[],
+        practiceId: string,
+        defaultOrderIndex: number
+    ) {
+        const orderedPracticeIds =
+            practices.map(practice => practice.id);
+        const insertIndex =
+            Math.max(
+                0,
+                Math.min(defaultOrderIndex - 1, orderedPracticeIds.length)
+            );
+
+        orderedPracticeIds.splice(insertIndex, 0, practiceId);
+
+        return orderedPracticeIds;
+    }
+
+    function refreshReminderForPractice(practiceId: string) {
+        try {
+            void Promise
+                .resolve(deps.refreshReminderForPractice?.(practiceId))
+                .catch(error => {
+                    deps.logger?.warn(
+                        "Failed to refresh practice reminder",
+                        error
+                    );
+                });
+        } catch (error) {
+            deps.logger?.warn(
+                "Failed to refresh practice reminder",
+                error
+            );
+        }
+    }
+
+    function refreshAllReminders() {
+        try {
+            void Promise
+                .resolve(deps.refreshAllReminders?.())
+                .catch(error => {
+                    deps.logger?.warn(
+                        "Failed to refresh practice reminders",
+                        error
+                    );
+                });
+        } catch (error) {
+            deps.logger?.warn(
+                "Failed to refresh practice reminders",
+                error
+            );
+        }
+    }
+
+    function getPracticeReminderBackupRows(
+        practices = deps.practiceRepo.getAllPractices()
+    ) {
+        return practices
+            .map(getPracticeReminderBackupRowFromPractice)
+            .filter((row): row is {
+                practiceId: string;
+                enabled: boolean;
+                hour: number;
+                minute: number;
+            } => row !== null);
+    }
+
+    function getReminderBackupByPracticeId(data: any) {
+        const rows = Array.isArray(data?.practiceReminders)
+            ? data.practiceReminders
+            : [];
+
+        return new Map<string, {
+            enabled: boolean;
+            hour: number;
+            minute: number;
+        }>(
+            rows
+                .filter((row: any) =>
+                    row &&
+                    typeof row.practiceId === "string"
+                )
+                .map((row: any) => [
+                    row.practiceId,
+                    {
+                        enabled: row.enabled === true,
+                        hour:
+                            typeof row.hour === "number"
+                                ? row.hour
+                                : 20,
+                        minute:
+                            typeof row.minute === "number"
+                                ? row.minute
+                                : 0,
+                    },
+                ])
+        );
+    }
+
     function createPractice(
         name: string,
         target: number,
-        defaultAddCount = 108
+        dailyTargetCount: number | null = null,
+        defaultSessionCount = 108,
+        imageKey: string | null = null
     ) {
         const practices = deps.practiceRepo.getAllPractices();
 
@@ -215,27 +364,121 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
             target,
             nextOrder,
             syncMetadata,
-            null,
-            defaultAddCount,
+            imageKey,
+            dailyTargetCount,
+            defaultSessionCount,
             0
         );
 
         deps.emitDataChanged?.();
+        refreshReminderForPractice(id);
         void deps.requestSync?.(syncMetadata.userId);
 
         return id;
+    }
+
+    function createSeedPractice(
+        seedPracticeId: string,
+        options: {
+            targetCount?: number;
+            defaultSessionCount?: number;
+        } = {}
+    ) {
+        const defaultPractice =
+            DEFAULT_PRACTICES.find(practice => practice.id === seedPracticeId);
+
+        if (!defaultPractice) {
+            throw new Error(`Seed practice not found: ${seedPracticeId}`);
+        }
+
+        const practices = deps.practiceRepo.getAllPractices();
+
+        if (practices.some(practice => practice.id === seedPracticeId)) {
+            throw new Error("This seed practice is already active.");
+        }
+
+        if (practices.length >= 10) {
+            throw new Error("Maximum of 10 practices reached.");
+        }
+
+        const orderResult = deps.practiceRepo.getMaxOrderIndex();
+        const nextOrder = (orderResult.maxOrder ?? 0) + 1;
+        const syncMetadata = getWriteSyncMetadata();
+        const orderedPracticeIds =
+            insertPracticeIdAtDefaultOrder(
+                practices,
+                defaultPractice.id,
+                defaultPractice.orderIndex
+            );
+
+        deps.transaction(() => {
+            deps.practiceRepo.insertPractice(
+                defaultPractice.id,
+                defaultPractice.name,
+                options.targetCount ?? defaultPractice.targetCount,
+                nextOrder,
+                syncMetadata,
+                defaultPractice.imageKey ?? null,
+                defaultPractice.dailyTargetCount ?? null,
+                options.defaultSessionCount ??
+                    defaultPractice.defaultSessionCount ??
+                    108,
+                defaultPractice.totalOffset ?? 0
+            );
+
+            applyPracticeOrder(orderedPracticeIds, syncMetadata);
+        });
+
+        deps.emitDataChanged?.();
+        refreshReminderForPractice(defaultPractice.id);
+        void deps.requestSync?.(syncMetadata.userId);
+
+        return defaultPractice.id;
+    }
+
+    function reorderPractices(orderedPracticeIds: string[]) {
+        const practices = deps.practiceRepo.getAllPractices();
+        const activeIds = new Set(practices.map(practice => practice.id));
+
+        if (orderedPracticeIds.length !== practices.length) {
+            throw new Error("Practice order does not include all practices.");
+        }
+
+        for (const practiceId of orderedPracticeIds) {
+            if (!activeIds.has(practiceId)) {
+                throw new Error(`Practice not found: ${practiceId}`);
+            }
+        }
+
+        if (new Set(orderedPracticeIds).size !== orderedPracticeIds.length) {
+            throw new Error("Practice order contains duplicate practices.");
+        }
+
+        const syncMetadata = getWriteSyncMetadata();
+
+        deps.transaction(() => {
+            applyPracticeOrder(orderedPracticeIds, syncMetadata);
+        });
+
+        deps.emitDataChanged?.();
+        void deps.requestSync?.(syncMetadata.userId);
     }
 
     function updatePractice(
         id: string,
         name: string,
         target: number,
-        newTotal: number
+        newTotal: number,
+        imageKey?: string | null
     ) {
         if (newTotal > MAX_TARGET_COUNT) {
             throw new Error(
                 `Total count cannot exceed ${MAX_TARGET_COUNT.toLocaleString()}`
             );
+        }
+
+        if (imageKey !== undefined && SEEDED_IDS.has(id)) {
+            throw new Error("Default practice images cannot be changed.");
         }
 
         const currentTotal = deps.sessionRepo.getPracticeTotal(id).total;
@@ -246,7 +489,8 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
             id,
             name,
             target,
-            syncMetadata
+            syncMetadata,
+            imageKey
         );
 
         if (difference !== 0) {
@@ -262,6 +506,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         }
 
         deps.emitDataChanged?.();
+        refreshReminderForPractice(id);
         void deps.requestSync?.(syncMetadata.userId);
     }
 
@@ -324,9 +569,17 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                             targetCount: practice.targetCount,
                             orderIndex: practice.orderIndex,
                             imageKey: practice.imageKey ?? null,
-                            defaultAddCount:
-                                practice.defaultAddCount ?? 108,
+                            dailyTargetCount:
+                                practice.dailyTargetCount ?? null,
+                            defaultSessionCount:
+                                practice.defaultSessionCount ?? 108,
                             totalOffset: practice.totalOffset ?? 0,
+                            reminderEnabled:
+                                isPracticeReminderEnabledValue(
+                                    practice.reminderEnabled
+                                ),
+                            reminderHour: practice.reminderHour ?? 20,
+                            reminderMinute: practice.reminderMinute ?? 0,
                         })
                     );
                 }
@@ -337,6 +590,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         });
 
         deps.emitDataChanged?.();
+        refreshReminderForPractice(id);
         void deps.requestSync?.(userId);
     }
 
@@ -353,7 +607,10 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
             name: practice.name,
             targetCount: practice.targetCount,
             total: totalResult.total,
-            defaultAddCount: practice.defaultAddCount ?? 108,
+            dailyTargetCount: practice.dailyTargetCount ?? null,
+            defaultSessionCount: practice.defaultSessionCount ?? 108,
+            imageKey: practice.imageKey ?? null,
+            isSeedPractice: SEEDED_IDS.has(id),
         };
     }
 
@@ -419,6 +676,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         }
 
         deps.emitDataChanged?.();
+        refreshReminderForPractice(practiceId);
         void deps.requestSync?.(syncMetadata.userId);
     }
 
@@ -468,22 +726,62 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         }
 
         deps.emitDataChanged?.();
+        refreshReminderForPractice(practiceId);
         void deps.requestSync?.(syncMetadata.userId);
     }
 
-    function updatePracticeDefaultAddCount(
+    function updatePracticeDailyTargetCount(
         id: string,
-        defaultAddCount: number
+        dailyTargetCount: number | null
     ) {
         const syncMetadata = getWriteSyncMetadata();
 
-        deps.practiceRepo.updatePracticeDefaultAddCount(
+        deps.practiceRepo.updatePracticeDailyTargetCount(
             id,
-            defaultAddCount,
+            dailyTargetCount,
             syncMetadata
         );
 
         deps.emitDataChanged?.();
+        refreshReminderForPractice(id);
+        void deps.requestSync?.(syncMetadata.userId);
+    }
+
+    function updatePracticeDefaultSessionCount(
+        id: string,
+        defaultSessionCount: number
+    ) {
+        const syncMetadata = getWriteSyncMetadata();
+
+        deps.practiceRepo.updatePracticeDefaultSessionCount(
+            id,
+            defaultSessionCount,
+            syncMetadata
+        );
+
+        deps.emitDataChanged?.();
+        refreshReminderForPractice(id);
+        void deps.requestSync?.(syncMetadata.userId);
+    }
+
+    function updatePracticeReminderSettings(
+        id: string,
+        enabled: boolean,
+        hour: number,
+        minute: number
+    ) {
+        const syncMetadata = getWriteSyncMetadata();
+
+        deps.practiceRepo.updatePracticeReminderSettings(
+            id,
+            enabled,
+            hour,
+            minute,
+            syncMetadata
+        );
+
+        deps.emitDataChanged?.();
+        refreshReminderForPractice(id);
         void deps.requestSync?.(syncMetadata.userId);
     }
 
@@ -533,6 +831,12 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         await deps.enqueueWrite(() => {
             deps.transaction(() => {
                 const restoredAt = now();
+                const restoreSyncMetadata: SyncMetadata = {
+                    userId,
+                    updatedAt: restoredAt,
+                    syncStatus: userId ? "pending" : "synced",
+                    lastSyncedAt: userId ? null : restoredAt,
+                };
                 const sessions = deps.sessionRepo.getAllSessionsForSync();
 
                 for (const session of sessions) {
@@ -578,9 +882,18 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                                     targetCount: practice.targetCount,
                                     orderIndex: practice.orderIndex,
                                     imageKey: practice.imageKey ?? null,
-                                    defaultAddCount:
-                                        practice.defaultAddCount ?? 108,
+                                    dailyTargetCount:
+                                        practice.dailyTargetCount ?? null,
+                                    defaultSessionCount:
+                                        practice.defaultSessionCount ?? 108,
                                     totalOffset: practice.totalOffset ?? 0,
+                                    reminderEnabled:
+                                        isPracticeReminderEnabledValue(
+                                            practice.reminderEnabled
+                                        ),
+                                    reminderHour: practice.reminderHour ?? 20,
+                                    reminderMinute:
+                                        practice.reminderMinute ?? 0,
                                 })
                             );
                         }
@@ -596,24 +909,29 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
 
                     if (!defaultPractice) continue;
 
-                    const syncMetadata: SyncMetadata = {
-                        userId,
-                        updatedAt: restoredAt,
-                        syncStatus: "pending",
-                        lastSyncedAt: null,
-                    };
-
                     deps.practiceRepo.updatePractice(
                         practice.id,
                         defaultPractice.name,
                         defaultPractice.targetCount,
-                        syncMetadata
+                        restoreSyncMetadata
                     );
 
-                    deps.practiceRepo.updatePracticeDefaultAddCount(
+                    deps.practiceRepo.updatePracticeDailyTargetCount(
                         practice.id,
-                        defaultPractice.defaultAddCount ?? 108,
-                        syncMetadata
+                        defaultPractice.dailyTargetCount ?? null,
+                        restoreSyncMetadata
+                    );
+                    deps.practiceRepo.updatePracticeDefaultSessionCount(
+                        practice.id,
+                        defaultPractice.defaultSessionCount ?? 108,
+                        restoreSyncMetadata
+                    );
+                    deps.practiceRepo.updatePracticeReminderSettings(
+                        practice.id,
+                        false,
+                        20,
+                        0,
+                        restoreSyncMetadata
                     );
                 }
 
@@ -630,12 +948,18 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                         defaultPractice.name,
                         defaultPractice.targetCount,
                         defaultPractice.orderIndex,
-                        getWriteSyncMetadata(),
+                        restoreSyncMetadata,
                         defaultPractice.imageKey ?? null,
-                        defaultPractice.defaultAddCount ?? 108,
+                        defaultPractice.dailyTargetCount ?? null,
+                        defaultPractice.defaultSessionCount ?? 108,
                         0
                     );
                 }
+
+                applyPracticeOrder(
+                    DEFAULT_PRACTICES.map(practice => practice.id),
+                    restoreSyncMetadata
+                );
 
                 deps.practiceRepo.resetPracticeTotals(userId, restoredAt);
 
@@ -659,6 +983,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         });
 
         deps.emitDataChanged?.();
+        refreshAllReminders();
 
         if (userId) {
             await deps.requestSync?.(userId);
@@ -666,11 +991,14 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
     }
 
     function getBackupData() {
+        const practices = deps.practiceRepo.getAllPractices();
+
         return {
             app: BACKUP_APP_ID,
             exportedAt: now(),
-            practices: deps.practiceRepo.getAllPractices(),
+            practices,
             sessions: deps.sessionRepo.getAllSessionsForSync(),
+            practiceReminders: getPracticeReminderBackupRows(practices),
         };
     }
 
@@ -681,6 +1009,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         const sessions = Array.isArray(data?.sessions)
             ? data.sessions
             : [];
+        const reminderByPracticeId = getReminderBackupByPracticeId(data);
         const syncMetadata = getBackupSyncMetadata();
 
         await deps.enqueueWrite(() => {
@@ -690,6 +1019,9 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                 deps.deletedRecordRepo.deleteAllDeletedRecords();
 
                 backupPractices.forEach((practice: any) => {
+                    const reminder =
+                        reminderByPracticeId.get(practice.id);
+
                     deps.practiceRepo.insertPractice(
                         practice.id,
                         practice.name,
@@ -697,8 +1029,14 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                         practice.orderIndex,
                         syncMetadata,
                         practice.imageKey ?? null,
-                        practice.defaultAddCount ?? 108,
-                        practice.totalOffset ?? 0
+                        practice.dailyTargetCount ?? null,
+                        practice.defaultSessionCount ??
+                            practice.defaultAddCount ??
+                            108,
+                        practice.totalOffset ?? 0,
+                        reminder?.enabled ?? false,
+                        reminder?.hour ?? 20,
+                        reminder?.minute ?? 0
                     );
                 });
 
@@ -733,12 +1071,16 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                 }
             });
         });
+
+        deps.emitDataChanged?.();
+        refreshAllReminders();
     }
 
     return {
         addSession,
         adjustDayTotal,
         createPractice,
+        createSeedPractice,
         deletePractice,
         getAllPractices,
         getBackupData,
@@ -754,7 +1096,10 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         getWriteSyncMetadata,
         restoreBackupData,
         restoreDefaults,
+        reorderPractices,
         updatePractice,
-        updatePracticeDefaultAddCount,
+        updatePracticeDailyTargetCount,
+        updatePracticeDefaultSessionCount,
+        updatePracticeReminderSettings,
     };
 }

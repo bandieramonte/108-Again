@@ -15,9 +15,12 @@ import {
     TextInput,
     View,
 } from "react-native";
+import { useI18n } from "../i18n";
 import * as authService from "../services/authService";
+import { globalStyles } from "../styles/global";
 
 export default function SignInScreen() {
+    const { t } = useI18n();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [submitting, setSubmitting] = useState(false);
@@ -46,7 +49,10 @@ export default function SignInScreen() {
             await authService.signIn(email, password);
             router.replace("/");
         } catch (error: any) {
-            Alert.alert("Log in failed", error?.message ?? "Unknown error");
+            Alert.alert(
+                t("auth.loginFailed"),
+                error?.message ?? t("common.unknownError")
+            );
         } finally {
             setSubmitting(false);
         }
@@ -55,7 +61,10 @@ export default function SignInScreen() {
         if (sendingReset) return;
 
         if (!email) {
-            Alert.alert("Missing email", "Please enter your email first.");
+            Alert.alert(
+                t("auth.missingEmailTitle"),
+                t("auth.missingEmailMessage")
+            );
             return;
         }
 
@@ -67,13 +76,13 @@ export default function SignInScreen() {
             await authService.resetPassword(email);
 
             Alert.alert(
-                "Check your email",
-                "If your email is registered, you will receive a password reset link."
+                t("auth.checkEmailTitle"),
+                t("auth.checkEmailMessage")
             );
         } catch (error: any) {
             Alert.alert(
-                "Reset failed",
-                error?.message ?? "Unknown error"
+                t("auth.resetFailed"),
+                error?.message ?? t("common.unknownError")
             );
         } finally {
             setSendingReset(false);
@@ -86,20 +95,23 @@ export default function SignInScreen() {
             behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
             <ScrollView
-                contentContainerStyle={styles.container}
+                contentContainerStyle={[
+                    globalStyles.sidePadding,
+                    styles.container,
+                ]}
                 keyboardShouldPersistTaps="handled"
             >
-                <Text style={styles.title}>Log In</Text>
+                <Text style={styles.title}>{t("menu.logIn")}</Text>
 
                 {showConfirmedBanner && (
                     <View style={styles.successBanner}>
                         <Text style={styles.successBannerText}>
-                            Email confirmed. You can now log in.
+                            {t("auth.emailConfirmed")}
                         </Text>
                     </View>
                 )}
 
-                <Text style={styles.label}>Email</Text>
+                <Text style={styles.label}>{t("account.email")}</Text>
                 <TextInput
                     value={email}
                     onChangeText={setEmail}
@@ -108,10 +120,10 @@ export default function SignInScreen() {
                     autoCorrect={false}
                     keyboardType="email-address"
                     style={styles.input}
-                    placeholder="Enter your email"
+                    placeholder={t("auth.emailPlaceholder")}
                 />
 
-                <Text style={styles.label}>Password</Text>
+                <Text style={styles.label}>{t("auth.password")}</Text>
                 <View style={styles.passwordContainer}>
                     <TextInput
                         value={password}
@@ -121,7 +133,7 @@ export default function SignInScreen() {
                         autoCapitalize="none"
                         autoCorrect={false}
                         style={styles.passwordInput}
-                        placeholder="Enter your password"
+                        placeholder={t("auth.passwordPlaceholder")}
                     />
 
                     <Pressable
@@ -146,9 +158,13 @@ export default function SignInScreen() {
                     disabled={sendingReset}
                 >
                     {sendingReset ? (
-                        <Text style={styles.forgotText}>Sending...</Text>
+                        <Text style={styles.forgotText}>
+                            {t("auth.sending")}
+                        </Text>
                     ) : (
-                        <Text style={styles.forgotText}>Forgot password?</Text>
+                        <Text style={styles.forgotText}>
+                            {t("auth.forgotPassword")}
+                        </Text>
                     )}
                 </Pressable>
 
@@ -164,7 +180,9 @@ export default function SignInScreen() {
                     {submitting ? (
                         <ActivityIndicator />
                     ) : (
-                        <Text style={styles.buttonText}>Log In</Text>
+                        <Text style={styles.buttonText}>
+                            {t("menu.logIn")}
+                        </Text>
                     )}
                 </Pressable>
 
@@ -172,7 +190,9 @@ export default function SignInScreen() {
                     onPress={() => router.push("/sign-up")}
                     style={styles.linkButton}
                 >
-                    <Text style={styles.linkText}>Need an account? Create one</Text>
+                    <Text style={styles.linkText}>
+                        {t("auth.needAccount")}
+                    </Text>
                 </Pressable>
             </ScrollView>
         </KeyboardAvoidingView>
@@ -182,7 +202,7 @@ export default function SignInScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 20,
+        paddingVertical: 14,
         backgroundColor: "white",
     },
 

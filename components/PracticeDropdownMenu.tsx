@@ -5,10 +5,12 @@ import {
     Pressable,
     StyleSheet,
     Text,
+    useWindowDimensions,
     View,
 } from "react-native";
+import { useI18n } from "../i18n";
 
-type Anchor = {
+export type PracticeMenuAnchor = {
     x: number;
     y: number;
     width: number;
@@ -17,10 +19,11 @@ type Anchor = {
 
 type Props = {
     visible: boolean;
-    anchor: Anchor | null;
+    anchor: PracticeMenuAnchor | null;
     onClose: () => void;
     onEdit: () => void;
     onHistory: () => void;
+    onCalendar?: () => void;
     onDelete: () => void;
 };
 
@@ -30,8 +33,40 @@ export default function PracticeDropdownMenu({
     onClose,
     onEdit,
     onHistory,
+    onCalendar,
     onDelete,
 }: Props) {
+    const { t } = useI18n();
+    const { width: screenWidth, height: screenHeight } =
+        useWindowDimensions();
+    const menuWidth = 220;
+    const estimatedMenuHeight = onCalendar ? 184 : 138;
+    const screenMargin = 12;
+
+    const menuLeft = anchor
+        ? Math.min(
+            screenWidth - menuWidth - screenMargin,
+            Math.max(
+                screenMargin,
+                anchor.x + anchor.width / 2 - menuWidth / 2
+            )
+        )
+        : screenMargin;
+
+    const preferredMenuTop = anchor
+        ? anchor.y + anchor.height + 8
+        : screenMargin;
+
+    const menuTop =
+        anchor &&
+            preferredMenuTop + estimatedMenuHeight >
+            screenHeight - screenMargin
+            ? Math.max(
+                screenMargin,
+                anchor.y - estimatedMenuHeight - 8
+            )
+            : preferredMenuTop;
+
     return (
         <Modal
             visible={visible}
@@ -48,17 +83,8 @@ export default function PracticeDropdownMenu({
                         style={[
                             styles.menu,
                             {
-                                top:
-                                    anchor.y +
-                                    anchor.height +
-                                    8,
-                                left: Math.max(
-                                    20,
-                                    anchor.x +
-                                    anchor.width /
-                                    2 -
-                                    110
-                                ),
+                                top: menuTop,
+                                left: menuLeft,
                             },
                         ]}
                     >
@@ -72,7 +98,7 @@ export default function PracticeDropdownMenu({
                                 color="#333"
                             />
                             <Text style={styles.text}>
-                                Edit practice
+                                {t("practiceMenu.edit")}
                             </Text>
                         </Pressable>
 
@@ -86,9 +112,25 @@ export default function PracticeDropdownMenu({
                                 color="#333"
                             />
                             <Text style={styles.text}>
-                                Practice history
+                                {t("practiceMenu.history")}
                             </Text>
                         </Pressable>
+
+                        {onCalendar && (
+                            <Pressable
+                                style={styles.item}
+                                onPress={onCalendar}
+                            >
+                                <MaterialIcons
+                                    name="calendar-today"
+                                    size={18}
+                                    color="#333"
+                                />
+                                <Text style={styles.text}>
+                                    {t("practiceMenu.calendar")}
+                                </Text>
+                            </Pressable>
+                        )}
 
                         <Pressable
                             style={styles.item}
@@ -102,7 +144,7 @@ export default function PracticeDropdownMenu({
                             <Text
                                 style={styles.deleteText}
                             >
-                                Delete practice
+                                {t("practiceMenu.delete")}
                             </Text>
                         </Pressable>
                     </View>

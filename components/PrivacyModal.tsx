@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { useI18n } from "../i18n";
 import { colors } from "../styles/theme";
 import { PrivacyContent } from "../utils/privacyText";
 
@@ -16,6 +17,8 @@ type Props = {
 };
 
 export default function PrivacyModal({ visible, onClose }: Props) {
+    const { t } = useI18n();
+
     return (
         <Modal
             visible={visible}
@@ -39,7 +42,7 @@ export default function PrivacyModal({ visible, onClose }: Props) {
                         onPress={onClose}
                     >
                         <Text style={styles.closeButtonText}>
-                            Close
+                            {t("common.close")}
                         </Text>
                     </TouchableOpacity>
                 </View>

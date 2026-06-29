@@ -28,7 +28,12 @@ export function createSupabaseSyncRemote(
                     order_index,
                     image_key,
                     default_add_count,
+                    daily_target_count,
+                    default_session_count,
                     total_offset,
+                    reminder_enabled,
+                    reminder_hour,
+                    reminder_minute,
                     updated_at,
                     deleted_at
                 `)
@@ -73,7 +78,12 @@ export function createSupabaseSyncRemote(
                     order_index,
                     image_key,
                     default_add_count,
+                    daily_target_count,
+                    default_session_count,
                     total_offset,
+                    reminder_enabled,
+                    reminder_hour,
+                    reminder_minute,
                     updated_at,
                     deleted_at
                 `)

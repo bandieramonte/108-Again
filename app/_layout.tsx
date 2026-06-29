@@ -1,32 +1,40 @@
 import HeaderMenu from "@/components/HeaderMenu";
 import HeaderTitle from "@/components/HeaderTitle";
 import UpdateRequiredScreen from "@/components/UpdateRequiredScreen";
-import { getSupabase } from "@/lib/supabase";
+import { I18nProvider, useI18n } from "@/i18n";
 import { subscribeAuth } from "@/utils/events";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack, router, usePathname } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Pressable, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, View } from "react-native";
 import * as appService from "../services/appService";
 import type { UpdateRequirement } from "../services/appUpdatePolicy";
 import * as appUpdateService from "../services/appUpdateService";
 import * as authService from "../services/authService";
 import * as lastPracticeScreenService from "../services/lastPracticeScreenService";
 import * as practiceService from "../services/practiceService";
+import * as practiceReminderService from "../services/practiceReminderService";
 import * as syncService from "../services/syncService";
 
 export default function Layout() {
+    return (
+        <I18nProvider>
+            <LayoutContent />
+        </I18nProvider>
+    );
+}
+
+function LayoutContent() {
+    const { t } = useI18n();
     const [authState, setAuthState] = useState(authService.getAuthState());
     const [appInitialized, setAppInitialized] = useState(false);
-    const [initialUrlChecked, setInitialUrlChecked] = useState(false);
     const [startupRouteHandled, setStartupRouteHandled] = useState(false);
     const [updateRequirement, setUpdateRequirement] =
         useState<UpdateRequirement | null>(null);
     const [checkingForUpdate, setCheckingForUpdate] = useState(true);
     const pathname = usePathname();
-    const handledDeepLink = useRef(false);
-    const initialUrlPresent = useRef(false);
     const restoringPracticeRoute = useRef(false);
+    const reminderRouteHandled = useRef(false);
     const appInitializedRef = useRef(false);
     const initializationRef = useRef<Promise<void> | null>(null);
 
@@ -52,6 +60,8 @@ export default function Layout() {
     }, []);
 
     useEffect(() => {
+        practiceReminderService.initializePracticeReminderNotifications();
+
         return appUpdateService.subscribeAppUpdateRequirement(
             setUpdateRequirement
         );
@@ -94,78 +104,43 @@ export default function Layout() {
     }, [checkAppAccess, initializeAppOnce]);
 
     useEffect(() => {
-        if (
-            !appInitialized ||
-            !updateRequirement ||
-            updateRequirement.kind === "required"
-        ) {
-            return;
+        if (!appInitialized) return;
+
+        function openReminderPractice(practiceId: string) {
+            if (!practiceService.getPractice(practiceId)) return;
+
+            reminderRouteHandled.current = true;
+
+            router.push({
+                pathname: "/practice",
+                params: { id: practiceId },
+            });
         }
 
-        async function handleInitialUrl() {
-            const url = await Linking.getInitialURL();
-            if (url) {
-                initialUrlPresent.current = true;
-                handleDeepLink(url);
-            }
+        practiceReminderService.consumeLastPracticeReminderResponse(
+            openReminderPractice
+        );
 
-            setInitialUrlChecked(true);
-        }
+        const subscription =
+            practiceReminderService.subscribePracticeReminderResponses(
+                openReminderPractice
+            );
 
-        async function handleDeepLink(url: string) {
-            if (handledDeepLink.current) return;
-
-            const fragment = url.split("#")[1];
-            if (!fragment) return;
-
-            const params = new URLSearchParams(fragment);
-            const access_token = params.get("access_token");
-            const refresh_token = params.get("refresh_token");
-            const type = params.get("type");
-
-            if (type === "recovery" && access_token && refresh_token) {
-                authService.setPasswordRecoveryFlow(true);
-
-                handledDeepLink.current = true;
-
-                console.log("Setting recovery session...");
-                const supabase = getSupabase();
-                const { error } = await supabase.auth.setSession({
-                    access_token,
-                    refresh_token,
-                });
-
-                if (error) {
-                    console.error("setSession failed:", error);
-                    Alert.alert(
-                        "Reset failed",
-                        "Invalid or expired password reset link."
-                    );
-                    return;
-                }
-
-                console.log("Recovery session established");
-
-                router.replace("/reset-password");
-            }
-        }
-
-        handleInitialUrl();
-
-        const sub = Linking.addEventListener("url", (event) => {
-            handleDeepLink(event.url);
-        });
-
-        return () => sub.remove();
-    }, [appInitialized, updateRequirement]);
+        return () => subscription.remove();
+    }, [appInitialized]);
 
     useEffect(() => {
-        if (!appInitialized || !initialUrlChecked) return;
+        if (!appInitialized) return;
 
         let cancelled = false;
 
         async function restorePracticeRoute() {
-            if (handledDeepLink.current || initialUrlPresent.current) {
+            if (pathname !== "/") {
+                setStartupRouteHandled(true);
+                return;
+            }
+
+            if (reminderRouteHandled.current) {
                 setStartupRouteHandled(true);
                 return;
             }
@@ -185,7 +160,7 @@ export default function Layout() {
 
             restoringPracticeRoute.current = true;
 
-            router.replace({
+            router.push({
                 pathname: "/practice",
                 params: { id: practiceId },
             });
@@ -200,7 +175,7 @@ export default function Layout() {
         return () => {
             cancelled = true;
         };
-    }, [appInitialized, initialUrlChecked]);
+    }, [appInitialized, pathname]);
 
     useEffect(() => {
         if (!startupRouteHandled) return;
@@ -229,7 +204,10 @@ export default function Layout() {
             await authService.signOut();
             router.replace("/");
         } catch (error: any) {
-            Alert.alert("Log out failed", error?.message ?? "Unknown error");
+            Alert.alert(
+                t("menu.logOut"),
+                error?.message ?? t("common.unknownError")
+            );
         }
     }
 
@@ -275,6 +253,21 @@ export default function Layout() {
                     void appUpdateService.startRequiredUpdate();
                 }}
             />
+        );
+    }
+
+    if (!appInitialized) {
+        return (
+            <View
+                style={{
+                    flex: 1,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "white",
+                }}
+            >
+                <ActivityIndicator size="large" color="#1A5FCC" />
+            </View>
         );
     }
 

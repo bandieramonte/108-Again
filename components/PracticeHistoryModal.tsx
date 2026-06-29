@@ -13,6 +13,7 @@ import Svg, {
     Rect,
     Text as SvgText,
 } from "react-native-svg";
+import { useI18n } from "../i18n";
 import * as sessionService from "../services/sessionService";
 
 type DailyData = {
@@ -33,6 +34,7 @@ export default function PracticeHistoryModal({
     practiceId,
     total,
 }: Props) {
+    const { locale, t } = useI18n();
     const [selectedIndex, setSelectedIndex] =
         useState<number | null>(null);
     const [rangeDays, setRangeDays] = useState(10);
@@ -68,7 +70,7 @@ export default function PracticeHistoryModal({
     function formatShortDate(date: string) {
         const d = new Date(date);
 
-        return d.toLocaleDateString("en-US", {
+        return d.toLocaleDateString(locale, {
             month: "short",
             day: "numeric",
         });
@@ -361,7 +363,7 @@ export default function PracticeHistoryModal({
                     onPress={() => { }}
                 >
                     <Text style={styles.title}>
-                        Practice History
+                        {t("history.title")}
                     </Text>
 
                     <View style={styles.rangeSelector}>
@@ -384,7 +386,7 @@ export default function PracticeHistoryModal({
                                         styles.rangeButtonTextActive
                                     ]}
                                 >
-                                    {days} Days
+                                    {t("history.days", { count: days })}
                                 </Text>
                             </Pressable>
                         ))}
@@ -394,33 +396,45 @@ export default function PracticeHistoryModal({
                         renderChart()
                     ) : (
                         <Text style={styles.empty}>
-                            No history available yet.
+                            {t("history.empty")}
                         </Text>
                     )}
 
                     <View style={styles.statsSection}>
                         <Text style={styles.statsTitle}>
-                            All-time statistics
+                            {t("history.allTimeStatistics")}
                         </Text>
 
                         <View style={styles.statRowInner}>
-                            <Text style={styles.statLabel}>Average session size</Text>
+                            <Text style={styles.statLabel}>
+                                {t("history.averageSessionSize")}
+                            </Text>
                             <Text style={styles.statValue}>{formatNumber(stats.averageSessionSize)}</Text>
                         </View>
 
                         <View style={styles.statRowInner}>
-                            <Text style={styles.statLabel}>Largest session</Text>
+                            <Text style={styles.statLabel}>
+                                {t("history.largestSession")}
+                            </Text>
                             <Text style={styles.statValue}>{formatNumber(stats.largestSession)}</Text>
                         </View>
 
                         <View style={styles.statRowInner}>
-                            <Text style={styles.statLabel}>Longest streak</Text>
-                            <Text style={styles.statValue}>{stats.longestStreak} days</Text>
+                            <Text style={styles.statLabel}>
+                                {t("history.longestStreak")}
+                            </Text>
+                            <Text style={styles.statValue}>
+                                {t("history.days", { count: stats.longestStreak })}
+                            </Text>
                         </View>
 
                         <View style={styles.statRowInner}>
-                            <Text style={styles.statLabel}>Current streak</Text>
-                            <Text style={styles.statValue}>{stats.currentStreak} days</Text>
+                            <Text style={styles.statLabel}>
+                                {t("history.currentStreak")}
+                            </Text>
+                            <Text style={styles.statValue}>
+                                {t("history.days", { count: stats.currentStreak })}
+                            </Text>
                         </View>
 
                     </View>
@@ -430,7 +444,7 @@ export default function PracticeHistoryModal({
                         onPress={onClose}
                     >
                         <Text style={styles.buttonText}>
-                            Close
+                            {t("common.close")}
                         </Text>
                     </Pressable>
                 </Pressable>

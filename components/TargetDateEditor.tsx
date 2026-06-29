@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Calendar } from "react-native-calendars";
+import { useI18n } from "../i18n";
 import * as practiceService from "../services/practiceService";
 import { colors } from "../styles/theme";
 
@@ -13,6 +14,10 @@ type Props = {
     onSave: (newDailyCount: number, selectedDate: string) => void;
 };
 
+function todayString() {
+    return new Date().toISOString().split("T")[0];
+}
+
 export default function TargetDateEditor({
     visible,
     targetCount,
@@ -22,15 +27,18 @@ export default function TargetDateEditor({
     onSave
 }: Props) {
 
+    const { t } = useI18n();
     const [selectedDate, setSelectedDate] = useState(
         currentTargetDate
             ? currentTargetDate.toISOString().split("T")[0]
-            : ""
+            : todayString()
     );
     useEffect(() => {
-        if (visible && currentTargetDate) {
+        if (visible) {
             setSelectedDate(
-                currentTargetDate.toISOString().split("T")[0]
+                currentTargetDate
+                    ? currentTargetDate.toISOString().split("T")[0]
+                    : todayString()
             );
         }
     }, [visible, currentTargetDate]);
@@ -49,7 +57,7 @@ export default function TargetDateEditor({
         onClose();
     }
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayString();
 
     return (
         <Modal
@@ -68,7 +76,7 @@ export default function TargetDateEditor({
                     onPress={() => { }}
                 >
                     <Text style={styles.title}>
-                        Edit target date
+                        {t("targetDateEditor.title")}
                     </Text>
 
                     {selectedDate && (
@@ -103,11 +111,11 @@ export default function TargetDateEditor({
 
                     <View style={styles.buttons}>
                         <Pressable onPress={onClose}>
-                            <Text>Cancel</Text>
+                            <Text>{t("common.cancel")}</Text>
                         </Pressable>
 
                         <Pressable onPress={save}>
-                            <Text>Save</Text>
+                            <Text>{t("common.save")}</Text>
                         </Pressable>
                     </View>
 

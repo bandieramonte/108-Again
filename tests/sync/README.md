@@ -14,8 +14,12 @@ through GitHub Actions secrets in CI:
 
 Current covered flows:
 
-- Device A creates `testPractice1`, adds sessions for today, yesterday, and
-  before yesterday, syncs through Supabase, and Device B fetches the same data.
+- Legacy clients can insert and update `default_add_count`, new clients can
+  update `default_session_count`, and both columns remain synchronized while
+  `daily_target_count` stays independent and optional.
+- Device A creates `testPractice1`, sets a scheduled reminder, adds sessions
+  for today, yesterday, and before yesterday, syncs through Supabase, and
+  Device B fetches the same data.
 - Device A adds a session while logged in, logs out, adds another session
   offline, logs back in, and the login sync pushes the merged total.
 - Device B has pre-login local data, logs into an existing account for the

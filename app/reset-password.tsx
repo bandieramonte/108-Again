@@ -1,7 +1,7 @@
 import { getSupabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
 import { AUTH_FIELD_LIMITS } from "../constants/authFieldLimits";
 import {
     ActivityIndicator,
@@ -15,38 +15,117 @@ import {
     TextInput,
     View,
 } from "react-native";
+import { useI18n } from "../i18n";
+import {
+    establishPasswordRecoverySessionCore,
+} from "../services/authAccountActions";
 import * as authService from "../services/authService";
+import { globalStyles } from "../styles/global";
+
+function getSearchParam(value?: string | string[]) {
+    return Array.isArray(value) ? value[0] : value;
+}
 
 export default function ResetPasswordScreen() {
+    const { t } = useI18n();
+    const params = useLocalSearchParams<{
+        access_token?: string | string[];
+        refresh_token?: string | string[];
+        type?: string | string[];
+    }>();
+    const accessToken = getSearchParam(params.access_token);
+    const refreshToken = getSearchParam(params.refresh_token);
+    const resetType = getSearchParam(params.type);
     const [password, setPassword] = useState("");
     const [submitting, setSubmitting] = useState(false);
+    const [sessionReady, setSessionReady] = useState(false);
+    const [sessionError, setSessionError] = useState<string | null>(null);
     const [confirmPassword, setConfirmPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
+    const formDisabled = submitting || !sessionReady || sessionError !== null;
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function establishRecoverySession() {
+            if (resetType !== "recovery" || !accessToken || !refreshToken) {
+                setSessionReady(true);
+                return;
+            }
+
+            setSessionReady(false);
+            setSessionError(null);
+
+            const supabase = getSupabase();
+            try {
+                const result = await establishPasswordRecoverySessionCore(
+                    {
+                        setPasswordRecoveryFlow:
+                            authService.setPasswordRecoveryFlow,
+                        setSession: (session) =>
+                            supabase.auth.setSession(session),
+                    },
+                    {
+                        accessToken,
+                        refreshToken,
+                        type: resetType,
+                    }
+                );
+
+                if (cancelled) return;
+
+                setSessionReady(true);
+
+                if (result.kind === "session_established") {
+                    router.replace("/reset-password");
+                }
+            } catch {
+                if (cancelled) return;
+
+                const message = t("auth.resetLinkExpired");
+                setSessionError(message);
+                setSessionReady(true);
+                Alert.alert(t("auth.resetFailed"), message);
+            }
+        }
+
+        establishRecoverySession();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [accessToken, refreshToken, resetType, t]);
 
     async function handleReset() {
+        if (formDisabled) return;
+
         if (!password || !confirmPassword) {
-            Alert.alert("Missing fields", "Please fill all fields.");
+            Alert.alert(t("auth.missingFieldsTitle"), t("auth.missingFieldsMessage"));
             return;
         }
 
         if (password.length > AUTH_FIELD_LIMITS.password) {
             Alert.alert(
-                "Password too long",
-                `Password must be ${AUTH_FIELD_LIMITS.password} characters or fewer.`
+                t("auth.passwordTooLongTitle"),
+                t("auth.passwordTooLongMessage", {
+                    count: AUTH_FIELD_LIMITS.password,
+                })
             );
             return;
         }
 
         if (confirmPassword.length > AUTH_FIELD_LIMITS.password) {
             Alert.alert(
-                "Password too long",
-                `Confirm password must be ${AUTH_FIELD_LIMITS.password} characters or fewer.`
+                t("auth.passwordTooLongTitle"),
+                t("auth.confirmPasswordTooLongMessage", {
+                    count: AUTH_FIELD_LIMITS.password,
+                })
             );
             return;
         }
 
         if (password !== confirmPassword) {
-            Alert.alert("Mismatch", "Passwords do not match.");
+            Alert.alert(t("auth.passwordMismatchTitle"), t("auth.passwordMismatchMessage"));
             return;
         }
 
@@ -61,8 +140,8 @@ export default function ResetPasswordScreen() {
             }
 
             Alert.alert(
-                "Success",
-                "Your password has been updated. Please log in again."
+                t("auth.passwordUpdatedTitle"),
+                t("auth.passwordUpdatedMessage")
             );
             authService.setPasswordRecoveryFlow(false);
             await authService.signOut();
@@ -71,10 +150,10 @@ export default function ResetPasswordScreen() {
 
             const message =
                 error?.message?.toLowerCase().includes("session")
-                    ? "Your reset link has expired. Please request a new one."
-                    : error?.message ?? "Unknown error";
+                    ? t("auth.resetLinkExpired")
+                    : error?.message ?? t("common.unknownError");
 
-            Alert.alert("Reset failed", message);
+            Alert.alert(t("auth.resetFailed"), message);
         } finally {
             setSubmitting(false);
         }
@@ -86,12 +165,15 @@ export default function ResetPasswordScreen() {
             behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
             <ScrollView
-                contentContainerStyle={styles.container}
+                contentContainerStyle={[
+                    globalStyles.sidePadding,
+                    styles.container,
+                ]}
                 keyboardShouldPersistTaps="handled"
             >
-                <Text style={styles.title}>Set new password</Text>
+                <Text style={styles.title}>{t("auth.setNewPassword")}</Text>
 
-                <Text style={styles.label}>New password</Text>
+                <Text style={styles.label}>{t("auth.newPassword")}</Text>
                 <View style={styles.passwordContainer}>
                     <TextInput
                         value={password}
@@ -99,7 +181,7 @@ export default function ResetPasswordScreen() {
                         maxLength={AUTH_FIELD_LIMITS.password}
                         secureTextEntry={!showPassword}
                         style={styles.passwordInput}
-                        placeholder="Enter new password"
+                        placeholder={t("auth.newPasswordPlaceholder")}
                     />
 
                     <Pressable onPress={() => setShowPassword((v) => !v)} style={styles.icon}>
@@ -111,7 +193,7 @@ export default function ResetPasswordScreen() {
                     </Pressable>
                 </View>
 
-                <Text style={styles.label}>Confirm password</Text>
+                <Text style={styles.label}>{t("auth.confirmPassword")}</Text>
 
                 <TextInput
                     value={confirmPassword}
@@ -119,26 +201,30 @@ export default function ResetPasswordScreen() {
                     maxLength={AUTH_FIELD_LIMITS.password}
                     secureTextEntry={!showPassword}
                     style={styles.input}
-                    placeholder="Confirm password"
+                    placeholder={t("auth.confirmPassword")}
                 />
 
                 <Pressable
                     style={({ pressed }) => [
                         styles.button,
                         pressed && styles.buttonPressed,
-                        submitting && styles.buttonDisabled,
+                        formDisabled && styles.buttonDisabled,
                     ]}
                     onPress={handleReset}
-                    disabled={submitting}
+                    disabled={formDisabled}
                 >
-                    {submitting ? (
+                    {submitting || !sessionReady ? (
                         <ActivityIndicator />
                     ) : (
                         <Text style={styles.buttonText}>
-                            Update Password
+                            {t("auth.updatePassword")}
                         </Text>
                     )}
                 </Pressable>
+
+                {sessionError ? (
+                    <Text style={styles.errorText}>{sessionError}</Text>
+                ) : null}
             </ScrollView>
         </KeyboardAvoidingView>
     );
@@ -147,7 +233,7 @@ export default function ResetPasswordScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 20,
+        paddingVertical: 14,
         backgroundColor: "white",
     },
 
@@ -191,6 +277,13 @@ const styles = StyleSheet.create({
     buttonText: {
         fontSize: 16,
         fontWeight: "600",
+    },
+
+    errorText: {
+        marginTop: 12,
+        color: "#b91c1c",
+        fontSize: 14,
+        textAlign: "center",
     },
 
     passwordContainer: {

@@ -5,6 +5,7 @@ import * as deletedRecordRepo from "@/repositories/deletedRecordRepo";
 import * as practiceRepo from "@/repositories/practiceRepo";
 import * as sessionRepo from "@/repositories/sessionRepo";
 import * as authService from "@/services/authService";
+import * as practiceReminderRefreshService from "@/services/practiceReminderRefreshService";
 import * as syncService from "@/services/syncService";
 import { emitDataChanged } from "@/utils/events";
 import { randomUUID } from "expo-crypto";
@@ -17,8 +18,13 @@ export function createConcreteAppOperationEngine() {
         emitDataChanged,
         enqueueWrite,
         getCurrentUserId: authService.getCurrentUserId,
+        logger: console,
         practiceRepo,
         randomUUID,
+        refreshAllReminders:
+            practiceReminderRefreshService.queueRefreshAllPracticeReminders,
+        refreshReminderForPractice:
+            practiceReminderRefreshService.queueRefreshReminderForPractice,
         requestSync: syncService.requestSync,
         sessionRepo,
         transaction(fn) {
