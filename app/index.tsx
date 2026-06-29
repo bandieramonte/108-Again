@@ -3,7 +3,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import * as Progress from "react-native-progress";
 import Reanimated, { LinearTransition } from "react-native-reanimated";
 import CelebrationOverlay from "../components/CelebrationOverlay";
@@ -70,6 +70,7 @@ export default function Dashboard() {
   const { locale, t } = useI18n();
   const [practices, setPractices] = useState<Practice[]>([]);
   const [streak, setStreak] = useState(0);
+  const [dashboardLoaded, setDashboardLoaded] = useState(false);
 
   const [editDefaultOpen, setEditDefaultOpen] = useState(false);
   const [selectedPracticeId, setSelectedPracticeId] = useState<string | null>(null);
@@ -111,6 +112,7 @@ export default function Dashboard() {
     );
     setPractices(rows);
     setStreak(dashboardService.getCurrentStreak());
+    setDashboardLoaded(true);
   }, [updateReachedState]);
   const scheduleDashboardRefresh = useCallback(() => {
     if (refreshTimeoutRef.current) {
@@ -519,6 +521,25 @@ export default function Dashboard() {
     () => getDragPreviewItems(practices, dragPreviewOrderIds),
     [dragPreviewOrderIds, practices]
   );
+
+  if (!dashboardLoaded) {
+    return (
+      <View
+        ref={dragReorder.rootRef}
+        style={styles.dashboardRoot}
+        onLayout={() => dragReorder.updateRootWindowMetrics()}
+      >
+        <View style={[containers.screen, styles.dashboardLoadingContainer]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+
+        <WelcomeModal
+          visible={welcomeOpen}
+          onClose={() => setWelcomeOpen(false)}
+        />
+      </View>
+    );
+  }
 
   return (
 
@@ -1110,6 +1131,12 @@ const styles = StyleSheet.create({
 
   dashboardRoot: {
     flex: 1,
+  },
+
+  dashboardLoadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   title: {

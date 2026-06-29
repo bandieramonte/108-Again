@@ -326,6 +326,21 @@ function LayoutContent() {
         );
     }
 
+    if (!appInitialized) {
+        return (
+            <View
+                style={{
+                    flex: 1,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "white",
+                }}
+            >
+                <ActivityIndicator size="large" color="#1A5FCC" />
+            </View>
+        );
+    }
+
     return (
         // _layout.tsx
         <Stack
