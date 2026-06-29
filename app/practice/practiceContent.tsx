@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
 import * as Localization from "expo-localization";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -997,10 +997,6 @@ export default function PracticeContent({
 
                                 <Text style={styles.infoText}>
                                     {t("practice.adjustingInfoText1")}
-                                </Text>
-
-                                <Text style={styles.infoText}>
-                                    {t("practice.adjustingInfoText2")}
                                 </Text>
 
                                 <Pressable

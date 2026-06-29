@@ -22,6 +22,7 @@ import { usePracticeActions } from "../hooks/usePracticeActions";
 import { useReachedCelebration } from "../hooks/useReachedCelebration";
 import { useI18n } from "../i18n";
 import { getPracticeDisplayName } from "../i18n/practiceNames";
+import * as appService from "../services/appService";
 import * as dashboardService from "../services/dashboardService";
 import {
   DEFAULT_DRAG_REORDER_ANIMATION_MS,
@@ -30,7 +31,6 @@ import {
   type DragOverlayFrame,
 } from "../services/dragReorderService";
 import * as practiceService from "../services/practiceService";
-import * as appService from "../services/appService";
 import * as sessionService from "../services/sessionService";
 import { colors, containers } from "../styles/theme";
 import { formatMonthDayYear } from "../utils/dateUtils";
@@ -590,526 +590,522 @@ export default function Dashboard() {
       onLayout={() => dragReorder.updateRootWindowMetrics()}
     >
       <ScrollView
-      ref={dragReorder.scrollViewRef}
-      style={containers.screen}
-      contentContainerStyle={{ paddingBottom: 30 }}
-      scrollEnabled={draggingPracticeId === null}
-      scrollEventThrottle={16}
-      onScroll={(event) => {
-        dragReorder.setScrollY(event.nativeEvent.contentOffset.y);
-      }}
-      onContentSizeChange={(_width, height) => {
-        dragReorder.setScrollContentHeight(height);
-      }}
-      onLayout={(event) => {
-        dragReorder.handleScrollViewLayout(
-          event.nativeEvent.layout.height
-        );
-      }}
-    >
-      <View
-        ref={dragReorder.contentRef}
-        style={{
-          width: "100%",
-          maxWidth: 700,
-          alignSelf: "center"
+        ref={dragReorder.scrollViewRef}
+        style={containers.screen}
+        contentContainerStyle={{ paddingBottom: 30 }}
+        scrollEnabled={draggingPracticeId === null}
+        scrollEventThrottle={16}
+        onScroll={(event) => {
+          dragReorder.setScrollY(event.nativeEvent.contentOffset.y);
+        }}
+        onContentSizeChange={(_width, height) => {
+          dragReorder.setScrollContentHeight(height);
         }}
         onLayout={(event) => {
-          dragReorder.handleContentLayout(
-            event.nativeEvent.layout.x
+          dragReorder.handleScrollViewLayout(
+            event.nativeEvent.layout.height
           );
         }}
       >
-        <View style={styles.streakContainer}>
-          <View style={styles.streakBadge}>
-            <View style={styles.streakFireIconBox}>
+        <View
+          ref={dragReorder.contentRef}
+          style={{
+            width: "100%",
+            maxWidth: 700,
+            alignSelf: "center"
+          }}
+          onLayout={(event) => {
+            dragReorder.handleContentLayout(
+              event.nativeEvent.layout.x
+            );
+          }}
+        >
+          <View style={styles.streakContainer}>
+            <View style={styles.streakBadge}>
+              <View style={styles.streakFireIconBox}>
+                <MaterialIcons
+                  name="local-fire-department"
+                  size={streakFireSize}
+                  color={colors.primary}
+                />
+              </View>
+
+              <Text style={styles.streakText}>
+                {t("dashboard.streak", {
+                  count: streak,
+                  unit: streak === 1
+                    ? t("dashboard.streakDay")
+                    : t("dashboard.streakDays"),
+                })}
+              </Text>
+
+              <Pressable
+                onPress={() => setInfoOpen(true)}
+                style={styles.streakInfoButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <MaterialIcons
+                  name="info-outline"
+                  size={18}
+                  color="#6B7280"
+                />
+              </Pressable>
+            </View>
+          </View>
+          {renderedPractices.map((practice) => {
+
+            const {
+              practiceDisplayName,
+              currentCycleProgress,
+              dailyTargetCount,
+              hasDailyTarget,
+              targetReached,
+              expectedTargetDate,
+            } = getPracticeCardViewModel(practice);
+            return (
+
+              <Reanimated.View
+                key={practice.id}
+                layout={draggingPracticeId ? practiceCardLayoutTransition : undefined}
+                ref={(node) => {
+                  dragReorder.cardRefs[practice.id] =
+                    node as unknown as View | null;
+                }}
+                style={[
+                  styles.card,
+                  draggingPracticeId === practice.id &&
+                  styles.cardDraggingPlaceholder,
+                ]}
+                onLayout={(event) => {
+                  dragReorder.setCardLayout(practice.id, {
+                    x: event.nativeEvent.layout.x,
+                    y: event.nativeEvent.layout.y,
+                    width: event.nativeEvent.layout.width,
+                    height: event.nativeEvent.layout.height,
+                  });
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() => {
+                    if (dragReorder.isPressSuppressed()) return;
+
+                    router.push({
+                      pathname: "/practice",
+                      params: {
+                        id: practice.id
+                      }
+                    });
+                  }}
+                  onLongPress={() => openPracticeMenu(practice)}
+                  delayLongPress={350}
+                  accessibilityHint={t("dashboard.infoLongPressPractice")}
+                >
+
+                  <View
+                    ref={(node) => {
+                      practiceRowRefs.current[practice.id] = node;
+                    }}
+                    style={styles.cardContent}
+                  >
+                    <View style={styles.practiceNameRow}>
+                      <View
+                        style={styles.dragHandle}
+                        {...dragReorder.getPanHandlers(practice.id)}
+                        accessibilityRole="adjustable"
+                        accessibilityLabel={`${t("dashboard.reorderPractice")}: ${practiceDisplayName}`}
+                      >
+                        <MaterialIcons
+                          name="drag-indicator"
+                          size={22}
+                          color="#9CA3AF"
+                        />
+                      </View>
+
+                      <Text numberOfLines={1} ellipsizeMode="tail" style={styles.practiceName}>
+                        {practiceDisplayName}
+                      </Text>
+
+                      <View style={styles.practiceActionButtons}>
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.practiceActionButton,
+                            pressed && styles.practiceActionButtonPressed
+                          ]}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            practiceActions.editPractice({
+                              ...practice,
+                              name: practiceDisplayName,
+                            });
+                          }}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${t("practiceMenu.edit")}: ${practiceDisplayName}`}
+                        >
+                          <MaterialIcons
+                            name="edit"
+                            size={18}
+                            color={colors.primary}
+                          />
+                        </Pressable>
+
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.practiceActionButton,
+                            pressed && styles.practiceActionButtonPressed
+                          ]}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            practiceActions.openPracticeHistory({
+                              ...practice,
+                              name: practiceDisplayName,
+                            });
+                          }}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${t("practiceMenu.history")}: ${practiceDisplayName}`}
+                        >
+                          <MaterialIcons
+                            name="bar-chart"
+                            size={18}
+                            color={colors.primary}
+                          />
+                        </Pressable>
+
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.practiceActionButton,
+                            pressed && styles.practiceActionButtonPressed
+                          ]}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            openPracticeCalendar(practice);
+                          }}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${t("practiceMenu.calendar")}: ${practiceDisplayName}`}
+                        >
+                          <MaterialIcons
+                            name="calendar-today"
+                            size={17}
+                            color={colors.primary}
+                          />
+                        </Pressable>
+
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.practiceActionButton,
+                            pressed && styles.practiceDeleteButtonPressed
+                          ]}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            practiceActions.confirmDeletePractice({
+                              ...practice,
+                              name: practiceDisplayName,
+                            });
+                          }}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${t("practiceMenu.delete")}: ${practiceDisplayName}`}
+                        >
+                          <MaterialIcons
+                            name="delete-outline"
+                            size={18}
+                            color="#c62828"
+                          />
+                        </Pressable>
+                      </View>
+                    </View>
+
+                    <Progress.Bar
+                      progress={currentCycleProgress}
+                      width={null}
+                      height={10}
+                      color={colors.primary}
+                      unfilledColor="#E5E5E5"
+                      borderWidth={0}
+                      borderRadius={5}
+                    />
+
+                    <View style={styles.practiceBodyRow}>
+                      <Image
+                        source={practice.imageKey && practiceImages[practice.imageKey] ? practiceImages[practice.imageKey] : practiceImages["generic"]}
+                        style={styles.icon}
+                        resizeMode="contain"
+                      />
+
+                      <View style={styles.practiceMetricGroup}>
+                        <Text style={styles.countText}>
+                          {t("practice.totalProgress")}: {formatCountProgress(
+                            practice.total,
+                            practice.targetCount || null
+                          )}
+                        </Text>
+
+                        <View style={styles.targetDateRow}>
+                          {isCelebrating(practice.id) && (
+                            <CelebrationOverlay
+                              fade={celebrationFade}
+                              sparkle1={sparkle1}
+                              sparkle2={sparkle2}
+                              sparkle3={sparkle3}
+                            />
+                          )}
+                          <Text style={styles.countText}>
+                            {t("practice.targetDate")}:{" "}
+                            <Text style={targetReached ? { color: colors.primary } : undefined}>
+                              {expectedTargetDate}
+                            </Text>
+                          </Text>
+
+                          {targetReached && isCelebrating(practice.id) && (
+                            <Animated.Text
+                              style={[
+                                styles.congratsText,
+                                { opacity: celebrationFade }
+                              ]}
+                            >
+                              {t("dashboard.congratulations")}
+                            </Animated.Text>
+                          )}
+                        </View>
+
+                        {hasDailyTarget ? (
+                          <DailyGoalProgress
+                            todayCount={practice.today}
+                            dailyTargetCount={dailyTargetCount ?? 0}
+                            style={styles.dailyGoalInline}
+                            labelStyle={[styles.countText, styles.dailyGoalLabel]}
+                            barStyle={styles.dailyGoalBar}
+                            textStyle={styles.dailyGoalBarText}
+                            labelNumberOfLines={1}
+                          />
+                        ) : (
+                          <EnableDailyTargetButton
+                            onPress={() => openDailyTargetPrompt(practice)}
+                            accessibilityLabel={`${t("practice.enableDailyTarget")}: ${practiceDisplayName}`}
+                          />
+                        )}
+                      </View>
+                    </View>
+                  </View>
+
+                </TouchableOpacity>
+
+                <View
+                  ref={(node) => {
+                    quickAddRefs.current[practice.id] = node;
+                  }}
+                  style={styles.quickAddContainer}
+                >
+                  <View style={styles.quickAddButton}>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.quickAddMainButton,
+                        pressed && styles.quickAddButtonPressed
+                      ]}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        void quickAdd(practice);
+                      }}
+                      onLongPress={(event) => {
+                        event.stopPropagation();
+                        openEditDefaultModal(
+                          practice.id,
+                          practiceDisplayName,
+                          practice.defaultSessionCount ?? 108
+                        );
+                      }}
+                      delayLongPress={350}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${t("practice.addDefaultSessionA11y", {
+                        count: formatNumber(practice.defaultSessionCount ?? 108),
+                      })}: ${practiceDisplayName}`}
+                    >
+                      <Text style={styles.quickAddAmountText}>
+                        +{formatNumber(practice.defaultSessionCount ?? 108)}
+                      </Text>
+
+                      <Text
+                        style={styles.quickAddLabelText}
+                        numberOfLines={1}
+                      >
+                        {t("practice.addDefaultSession")}
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.quickAddEditButton,
+                        pressed && styles.quickAddEditButtonPressed
+                      ]}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        openEditDefaultModal(
+                          practice.id,
+                          practiceDisplayName,
+                          practice.defaultSessionCount ?? 108
+                        );
+                      }}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${t("practice.editDefaultSessionCount")}: ${practiceDisplayName}`}
+                    >
+                      <MaterialIcons
+                        name="edit"
+                        size={15}
+                        color={colors.primary}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
+
+              </Reanimated.View>
+
+            );
+          })}
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.addPracticeCard,
+              pressed && styles.addPracticeCardPressed
+            ]}
+            onPress={() => router.push("/add-practice")}
+            accessibilityRole="button"
+            accessibilityLabel={t("dashboard.addPractice")}
+          >
+            <View style={styles.addPracticeCircle}>
               <MaterialIcons
-                name="local-fire-department"
-                size={streakFireSize}
+                name="add"
+                size={22}
                 color={colors.primary}
               />
             </View>
 
-            <Text style={styles.streakText}>
-              {t("dashboard.streak", {
-                count: streak,
-                unit: streak === 1
-                  ? t("dashboard.streakDay")
-                  : t("dashboard.streakDays"),
-              })}
-            </Text>
-
-            <Pressable
-              onPress={() => setInfoOpen(true)}
-              style={styles.streakInfoButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <MaterialIcons
-                name="info-outline"
-                size={18}
-                color="#6B7280"
-              />
-            </Pressable>
-          </View>
-        </View>
-        {renderedPractices.map((practice) => {
-
-          const {
-            practiceDisplayName,
-            currentCycleProgress,
-            dailyTargetCount,
-            hasDailyTarget,
-            targetReached,
-            expectedTargetDate,
-          } = getPracticeCardViewModel(practice);
-          return (
-
-            <Reanimated.View
-              key={practice.id}
-              layout={draggingPracticeId ? practiceCardLayoutTransition : undefined}
-              ref={(node) => {
-                dragReorder.cardRefs[practice.id] =
-                  node as unknown as View | null;
-              }}
-              style={[
-                styles.card,
-                draggingPracticeId === practice.id &&
-                styles.cardDraggingPlaceholder,
-              ]}
-              onLayout={(event) => {
-                dragReorder.setCardLayout(practice.id, {
-                  x: event.nativeEvent.layout.x,
-                  y: event.nativeEvent.layout.y,
-                  width: event.nativeEvent.layout.width,
-                  height: event.nativeEvent.layout.height,
-                });
-              }}
-            >
-              <TouchableOpacity
-                onPress={() => {
-                  if (dragReorder.isPressSuppressed()) return;
-
-                  router.push({
-                    pathname: "/practice",
-                    params: {
-                      id: practice.id
-                    }
-                  });
-                }}
-                onLongPress={() => openPracticeMenu(practice)}
-                delayLongPress={350}
-                accessibilityHint={t("dashboard.infoLongPressPractice")}
-              >
-
-                <View
-                  ref={(node) => {
-                    practiceRowRefs.current[practice.id] = node;
-                  }}
-                  style={styles.cardContent}
-                >
-                  <View style={styles.practiceNameRow}>
-                    <View
-                      style={styles.dragHandle}
-                      {...dragReorder.getPanHandlers(practice.id)}
-                      accessibilityRole="adjustable"
-                      accessibilityLabel={`${t("dashboard.reorderPractice")}: ${practiceDisplayName}`}
-                    >
-                      <MaterialIcons
-                        name="drag-indicator"
-                        size={22}
-                        color="#9CA3AF"
-                      />
-                    </View>
-
-                    <Text numberOfLines={1} ellipsizeMode="tail" style={styles.practiceName}>
-                      {practiceDisplayName}
-                    </Text>
-
-                    <View style={styles.practiceActionButtons}>
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.practiceActionButton,
-                          pressed && styles.practiceActionButtonPressed
-                        ]}
-                        onPress={(event) => {
-                          event.stopPropagation();
-                          practiceActions.editPractice({
-                            ...practice,
-                            name: practiceDisplayName,
-                          });
-                        }}
-                        hitSlop={6}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${t("practiceMenu.edit")}: ${practiceDisplayName}`}
-                      >
-                        <MaterialIcons
-                          name="edit"
-                          size={18}
-                          color={colors.primary}
-                        />
-                      </Pressable>
-
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.practiceActionButton,
-                          pressed && styles.practiceActionButtonPressed
-                        ]}
-                        onPress={(event) => {
-                          event.stopPropagation();
-                          practiceActions.openPracticeHistory({
-                            ...practice,
-                            name: practiceDisplayName,
-                          });
-                        }}
-                        hitSlop={6}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${t("practiceMenu.history")}: ${practiceDisplayName}`}
-                      >
-                        <MaterialIcons
-                          name="bar-chart"
-                          size={18}
-                          color={colors.primary}
-                        />
-                      </Pressable>
-
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.practiceActionButton,
-                          pressed && styles.practiceActionButtonPressed
-                        ]}
-                        onPress={(event) => {
-                          event.stopPropagation();
-                          openPracticeCalendar(practice);
-                        }}
-                        hitSlop={6}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${t("practiceMenu.calendar")}: ${practiceDisplayName}`}
-                      >
-                        <MaterialIcons
-                          name="calendar-today"
-                          size={17}
-                          color={colors.primary}
-                        />
-                      </Pressable>
-
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.practiceActionButton,
-                          pressed && styles.practiceDeleteButtonPressed
-                        ]}
-                        onPress={(event) => {
-                          event.stopPropagation();
-                          practiceActions.confirmDeletePractice({
-                            ...practice,
-                            name: practiceDisplayName,
-                          });
-                        }}
-                        hitSlop={6}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${t("practiceMenu.delete")}: ${practiceDisplayName}`}
-                      >
-                        <MaterialIcons
-                          name="delete-outline"
-                          size={18}
-                          color="#c62828"
-                        />
-                      </Pressable>
-                    </View>
-                  </View>
-
-                  <Progress.Bar
-                    progress={currentCycleProgress}
-                    width={null}
-                    height={10}
-                    color={colors.primary}
-                    unfilledColor="#E5E5E5"
-                    borderWidth={0}
-                    borderRadius={5}
-                  />
-
-                  <View style={styles.practiceBodyRow}>
-                    <Image
-                      source={practice.imageKey && practiceImages[practice.imageKey] ? practiceImages[practice.imageKey] : practiceImages["generic"]}
-                      style={styles.icon}
-                      resizeMode="contain"
-                    />
-
-                    <View style={styles.practiceMetricGroup}>
-                      <Text style={styles.countText}>
-                        {t("practice.totalProgress")}: {formatCountProgress(
-                          practice.total,
-                          practice.targetCount || null
-                        )}
-                      </Text>
-
-                      <View style={styles.targetDateRow}>
-                        {isCelebrating(practice.id) && (
-                          <CelebrationOverlay
-                            fade={celebrationFade}
-                            sparkle1={sparkle1}
-                            sparkle2={sparkle2}
-                            sparkle3={sparkle3}
-                          />
-                        )}
-                        <Text style={styles.countText}>
-                          {t("practice.targetDate")}:{" "}
-                          <Text style={targetReached ? { color: colors.primary } : undefined}>
-                            {expectedTargetDate}
-                          </Text>
-                        </Text>
-
-                        {targetReached && isCelebrating(practice.id) && (
-                          <Animated.Text
-                            style={[
-                              styles.congratsText,
-                              { opacity: celebrationFade }
-                            ]}
-                          >
-                            {t("dashboard.congratulations")}
-                          </Animated.Text>
-                        )}
-                      </View>
-
-                      {hasDailyTarget ? (
-                        <DailyGoalProgress
-                          todayCount={practice.today}
-                          dailyTargetCount={dailyTargetCount ?? 0}
-                          style={styles.dailyGoalInline}
-                          labelStyle={[styles.countText, styles.dailyGoalLabel]}
-                          barStyle={styles.dailyGoalBar}
-                          textStyle={styles.dailyGoalBarText}
-                          labelNumberOfLines={1}
-                        />
-                      ) : (
-                        <EnableDailyTargetButton
-                          onPress={() => openDailyTargetPrompt(practice)}
-                          accessibilityLabel={`${t("practice.enableDailyTarget")}: ${practiceDisplayName}`}
-                        />
-                      )}
-                    </View>
-                  </View>
-                </View>
-
-              </TouchableOpacity>
-
-              <View
-                ref={(node) => {
-                  quickAddRefs.current[practice.id] = node;
-                }}
-                style={styles.quickAddContainer}
-              >
-                <View style={styles.quickAddButton}>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.quickAddMainButton,
-                      pressed && styles.quickAddButtonPressed
-                    ]}
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      void quickAdd(practice);
-                    }}
-                    onLongPress={(event) => {
-                      event.stopPropagation();
-                      openEditDefaultModal(
-                        practice.id,
-                        practiceDisplayName,
-                        practice.defaultSessionCount ?? 108
-                      );
-                    }}
-                    delayLongPress={350}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${t("practice.addDefaultSessionA11y", {
-                      count: formatNumber(practice.defaultSessionCount ?? 108),
-                    })}: ${practiceDisplayName}`}
-                  >
-                    <Text style={styles.quickAddAmountText}>
-                      +{formatNumber(practice.defaultSessionCount ?? 108)}
-                    </Text>
-
-                    <Text
-                      style={styles.quickAddLabelText}
-                      numberOfLines={1}
-                    >
-                      {t("practice.addDefaultSession")}
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.quickAddEditButton,
-                      pressed && styles.quickAddEditButtonPressed
-                    ]}
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      openEditDefaultModal(
-                        practice.id,
-                        practiceDisplayName,
-                        practice.defaultSessionCount ?? 108
-                      );
-                    }}
-                    hitSlop={8}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${t("practice.editDefaultSessionCount")}: ${practiceDisplayName}`}
-                  >
-                    <MaterialIcons
-                      name="edit"
-                      size={15}
-                      color={colors.primary}
-                    />
-                  </Pressable>
-                </View>
-              </View>
-
-            </Reanimated.View>
-
-          );
-        })}
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.addPracticeCard,
-            pressed && styles.addPracticeCardPressed
-          ]}
-          onPress={() => router.push("/add-practice")}
-          accessibilityRole="button"
-          accessibilityLabel={t("dashboard.addPractice")}
-        >
-          <View style={styles.addPracticeCircle}>
-            <MaterialIcons
-              name="add"
-              size={22}
-              color={colors.primary}
-            />
-          </View>
-
-          <View style={styles.addPracticeTextWrapper}>
-            <Text style={styles.addPracticeText}>
-              {t("dashboard.addPractice")}
-            </Text>
-          </View>
-        </Pressable>
-
-        <QuickAddEditor
-          visible={editDefaultOpen}
-          practiceId={selectedPracticeId}
-          practiceName={selectedPracticeName}
-          defaultValue={Number(defaultSessionInput)}
-          onClose={() => setEditDefaultOpen(false)}
-        />
-
-        <PracticeActionsMenu
-          visible={menuPractice !== null}
-          anchor={menuAnchor}
-          practice={menuPractice}
-          onClose={closePracticeMenu}
-          onDeleted={refreshDashboard}
-          onCalendar={(practice) => {
-            const latestPractice =
-              practicesRef.current.find(row => row.id === practice.id);
-
-            if (latestPractice) {
-              openPracticeCalendar(latestPractice);
-            }
-          }}
-        />
-
-        {practiceActions.historyPractice && (
-          <PracticeHistoryModal
-            visible
-            onClose={practiceActions.closePracticeHistory}
-            practiceId={practiceActions.historyPractice.id}
-            total={practiceActions.historyPractice.total}
-          />
-        )}
-
-        <DailyTargetEditor
-          visible={dailyTargetPromptPractice !== null}
-          practiceName={dailyTargetPromptPractice?.name}
-          onClose={closeDailyTargetPrompt}
-          onSave={saveDailyTarget}
-        />
-
-        <PracticeCalendarModal
-          visible={calendarPractice !== null}
-          data={calendarData}
-          startDate={calendarStartDate}
-          endDate={calendarEndDate}
-          onEditDay={handleCalendarEdit}
-          onClose={closePracticeCalendar}
-        />
-
-        {showQuickAddHint && tooltipPosition && (
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => {
-              setShowQuickAddHint(false);
-              setTooltipPosition(null);
-            }}
-          >
-            <View
-              style={[
-                styles.anchoredTooltip,
-                {
-                  top: tooltipPosition.top,
-                  left: tooltipPosition.left,
-                }
-              ]}
-            >
-              <Text style={styles.anchoredTooltipText}>
-                {t("dashboard.quickAddTip")}
+            <View style={styles.addPracticeTextWrapper}>
+              <Text style={styles.addPracticeText}>
+                {t("dashboard.addPractice")}
               </Text>
             </View>
           </Pressable>
-        )}
 
-        <Modal
-          visible={infoOpen}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setInfoOpen(false)}
-        >
-          <Pressable
-            style={styles.infoOverlay}
-            onPress={() => setInfoOpen(false)}
+          <QuickAddEditor
+            visible={editDefaultOpen}
+            practiceId={selectedPracticeId}
+            practiceName={selectedPracticeName}
+            defaultValue={Number(defaultSessionInput)}
+            onClose={() => setEditDefaultOpen(false)}
+          />
+
+          <PracticeActionsMenu
+            visible={menuPractice !== null}
+            anchor={menuAnchor}
+            practice={menuPractice}
+            onClose={closePracticeMenu}
+            onDeleted={refreshDashboard}
+            onCalendar={(practice) => {
+              const latestPractice =
+                practicesRef.current.find(row => row.id === practice.id);
+
+              if (latestPractice) {
+                openPracticeCalendar(latestPractice);
+              }
+            }}
+          />
+
+          {practiceActions.historyPractice && (
+            <PracticeHistoryModal
+              visible
+              onClose={practiceActions.closePracticeHistory}
+              practiceId={practiceActions.historyPractice.id}
+              total={practiceActions.historyPractice.total}
+            />
+          )}
+
+          <DailyTargetEditor
+            visible={dailyTargetPromptPractice !== null}
+            practiceName={dailyTargetPromptPractice?.name}
+            onClose={closeDailyTargetPrompt}
+            onSave={saveDailyTarget}
+          />
+
+          <PracticeCalendarModal
+            visible={calendarPractice !== null}
+            data={calendarData}
+            startDate={calendarStartDate}
+            endDate={calendarEndDate}
+            onEditDay={handleCalendarEdit}
+            onClose={closePracticeCalendar}
+          />
+
+          {showQuickAddHint && tooltipPosition && (
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => {
+                setShowQuickAddHint(false);
+                setTooltipPosition(null);
+              }}
+            >
+              <View
+                style={[
+                  styles.anchoredTooltip,
+                  {
+                    top: tooltipPosition.top,
+                    left: tooltipPosition.left,
+                  }
+                ]}
+              >
+                <Text style={styles.anchoredTooltipText}>
+                  {t("dashboard.quickAddTip")}
+                </Text>
+              </View>
+            </Pressable>
+          )}
+
+          <Modal
+            visible={infoOpen}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setInfoOpen(false)}
           >
             <Pressable
-              style={styles.infoModal}
-              onPress={() => { }}
+              style={styles.infoOverlay}
+              onPress={() => setInfoOpen(false)}
             >
-              <Text style={styles.infoTitle}>
-                {t("dashboard.infoTitle")}
-              </Text>
-
-              <Text style={styles.infoText}>
-                {t("dashboard.infoStreak")}
-              </Text>
-
-              <Text style={styles.infoText}>
-                {t("dashboard.infoQuickAdd")}
-              </Text>
-
-              <Text style={styles.infoText}>
-                {t("dashboard.infoLongPressPractice")}
-              </Text>
-
               <Pressable
-                style={styles.infoButton}
-                onPress={() => setInfoOpen(false)}
+                style={styles.infoModal}
+                onPress={() => { }}
               >
-                <Text style={styles.infoButtonText}>
-                  {t("common.ok")}
+                <Text style={styles.infoTitle}>
+                  {t("dashboard.infoTitle")}
                 </Text>
+
+                <Text style={styles.infoText}>
+                  {t("dashboard.infoStreak")}
+                </Text>
+
+                <Text style={styles.infoText}>
+                  {t("dashboard.infoLongPressPractice")}
+                </Text>
+
+                <Pressable
+                  style={styles.infoButton}
+                  onPress={() => setInfoOpen(false)}
+                >
+                  <Text style={styles.infoButtonText}>
+                    {t("common.ok")}
+                  </Text>
+                </Pressable>
+
               </Pressable>
-
             </Pressable>
-          </Pressable>
-        </Modal>
+          </Modal>
 
-      </View>
-      <WelcomeModal
-        visible={welcomeOpen}
-        onClose={() => setWelcomeOpen(false)}
-      />
+        </View>
+        <WelcomeModal
+          visible={welcomeOpen}
+          onClose={() => setWelcomeOpen(false)}
+        />
       </ScrollView>
 
       {renderPracticeDragOverlay()}
