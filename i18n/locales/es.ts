@@ -278,7 +278,7 @@ export const es: Record<TranslationKey, string> = {
     "calendar.sundayShort": "D",
     "calendar.thursdayShort": "J",
     "calendar.tuesdayShort": "M",
-    "calendar.wednesdayShort": "X",
+    "calendar.wednesdayShort": "M",
 
     "welcome.begin": "Empezar práctica",
     "welcome.enjoy": "¡Disfruta!",
