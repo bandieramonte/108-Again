@@ -215,7 +215,7 @@ async function showOptionalUpdatePrompt(availableVersionCode: number) {
         ]
     );
 
-    void AsyncStorage.setItem(
+    await AsyncStorage.setItem(
         PROMPTED_VERSION_KEY,
         String(availableVersionCode)
     );
@@ -224,7 +224,10 @@ async function showOptionalUpdatePrompt(availableVersionCode: number) {
 async function maybeShowOptionalPrompt(
     requirement: UpdateRequirement
 ) {
-    if (requirement.kind !== "optional") return;
+    if (requirement.kind !== "optional") {
+        await AsyncStorage.removeItem(PROMPTED_VERSION_KEY);
+        return;
+    }
 
     const lastPromptedVersion =
         await AsyncStorage.getItem(PROMPTED_VERSION_KEY);
@@ -339,9 +342,7 @@ export async function verifyRemoteSyncAccess(): Promise<RemoteSyncAccess> {
         const appUpdateModule = getAppUpdateModule();
         currentVersionCode =
             await getCurrentAndroidVersionCode(appUpdateModule);
-        const policy = await fetchRemotePolicy({
-            allowRecent: true,
-        });
+        const policy = await fetchRemotePolicy();
 
         if (!policy) {
             throw new Error("Android app update policy is not configured");
@@ -354,6 +355,7 @@ export async function verifyRemoteSyncAccess(): Promise<RemoteSyncAccess> {
         });
 
         applyUpdateRequirement(requirement);
+        await maybeShowOptionalPrompt(requirement);
         return requirement.kind === "required" ? "blocked" : "allowed";
     } catch (error) {
         if (currentVersionCode != null) {
