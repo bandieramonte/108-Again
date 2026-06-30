@@ -20,16 +20,16 @@ type Props = {
     isAuthenticated: boolean;
     firstName: string | null;
     onSignOut: () => void;
-    hideAccountIcon?: boolean;
+    disableAccountIcon?: boolean;
 };
 
 const PLAY_STORE_URL =
     "https://play.google.com/store/apps/details?id=com.bandieramonte.app108again";
 
 export default function HeaderMenu({
+    disableAccountIcon,
     isAuthenticated,
     onSignOut,
-    hideAccountIcon,
 }: Props) {
     const router = useRouter();
     const { language, setLanguage, t } = useI18n();
@@ -97,26 +97,25 @@ export default function HeaderMenu({
                 </Text>
             </Pressable>
 
-            {!hideAccountIcon ? (
-                <Pressable
-                    onPress={() => {
-                        if (isAuthenticated) {
-                            router.push("/account");
-                        } else {
-                            setAccountOpen(true);
-                        }
-                    }}
-                    hitSlop={10}
-                    style={({ pressed }) => [
-                        styles.iconButton,
-                        pressed && { opacity: 0.5 }
-                    ]}
-                >
-                    <MaterialIcons name="account-circle" size={24} />
-                </Pressable>
-            ) : (
-                <View style={{ width: 32 }} />
-            )}
+            <Pressable
+                onPress={() => {
+                    if (disableAccountIcon) return;
+
+                    if (isAuthenticated) {
+                        router.push("/account");
+                    } else {
+                        setAccountOpen(true);
+                    }
+                }}
+                disabled={disableAccountIcon}
+                hitSlop={10}
+                style={({ pressed }) => [
+                    styles.iconButton,
+                    pressed && !disableAccountIcon && { opacity: 0.5 }
+                ]}
+            >
+                <MaterialIcons name="account-circle" size={24} />
+            </Pressable>
 
             <Pressable
                 ref={moreButtonRef}

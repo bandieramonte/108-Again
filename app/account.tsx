@@ -211,7 +211,7 @@ export default function AccountScreen() {
                 options={{
                     headerRight: () => (
                         <HeaderMenu
-                            hideAccountIcon
+                            disableAccountIcon
                             isAuthenticated={authState.isAuthenticated}
                             firstName={authState.firstName}
                             onSignOut={() => { }}
