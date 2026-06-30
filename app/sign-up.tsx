@@ -17,6 +17,7 @@ import {
 import { useI18n } from "../i18n";
 import * as authService from "../services/authService";
 import { globalStyles } from "../styles/global";
+import { getLocalizedAuthErrorMessage } from "../utils/authErrorText";
 
 export default function SignUpScreen() {
     const { t } = useI18n();
@@ -46,7 +47,7 @@ export default function SignUpScreen() {
         } catch (error: any) {
             Alert.alert(
                 t("auth.accountCreationFailed"),
-                error?.message ?? t("common.unknownError")
+                getLocalizedAuthErrorMessage(error, t)
             );
         } finally {
             setSubmitting(false);

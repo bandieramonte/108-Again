@@ -21,6 +21,7 @@ import {
 } from "../services/authAccountActions";
 import * as authService from "../services/authService";
 import { globalStyles } from "../styles/global";
+import { getLocalizedAuthErrorMessage } from "../utils/authErrorText";
 
 function getSearchParam(value?: string | string[]) {
     return Array.isArray(value) ? value[0] : value;
@@ -147,11 +148,12 @@ export default function ResetPasswordScreen() {
             await authService.signOut();
             router.replace("/sign-in");
         } catch (error: any) {
+            const rawMessage = String(error?.message ?? "");
 
             const message =
-                error?.message?.toLowerCase().includes("session")
+                rawMessage.toLowerCase().includes("session")
                     ? t("auth.resetLinkExpired")
-                    : error?.message ?? t("common.unknownError");
+                    : getLocalizedAuthErrorMessage(error, t);
 
             Alert.alert(t("auth.resetFailed"), message);
         } finally {

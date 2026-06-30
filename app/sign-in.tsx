@@ -18,6 +18,7 @@ import {
 import { useI18n } from "../i18n";
 import * as authService from "../services/authService";
 import { globalStyles } from "../styles/global";
+import { getLocalizedAuthErrorMessage } from "../utils/authErrorText";
 
 export default function SignInScreen() {
     const { t } = useI18n();
@@ -51,7 +52,7 @@ export default function SignInScreen() {
         } catch (error: any) {
             Alert.alert(
                 t("auth.loginFailed"),
-                error?.message ?? t("common.unknownError")
+                getLocalizedAuthErrorMessage(error, t)
             );
         } finally {
             setSubmitting(false);
@@ -82,7 +83,7 @@ export default function SignInScreen() {
         } catch (error: any) {
             Alert.alert(
                 t("auth.resetFailed"),
-                error?.message ?? t("common.unknownError")
+                getLocalizedAuthErrorMessage(error, t)
             );
         } finally {
             setSendingReset(false);

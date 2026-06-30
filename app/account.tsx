@@ -16,6 +16,7 @@ import * as authService from "../services/authService";
 import { getIsOnline } from "../services/networkService";
 import * as syncService from "../services/syncService";
 import { globalStyles } from "../styles/global";
+import { getLocalizedAuthErrorMessage } from "../utils/authErrorText";
 import { subscribeAuth, subscribeSync } from "../utils/events";
 
 export default function AccountScreen() {
@@ -77,7 +78,7 @@ export default function AccountScreen() {
         } catch (error: any) {
             Alert.alert(
                 t("account.logOutFailed"),
-                error?.message ?? t("common.unknownError")
+                getLocalizedAuthErrorMessage(error, t)
             );
         }
     }
@@ -187,7 +188,10 @@ export default function AccountScreen() {
                             );
 
                         } catch (e: any) {
-                            Alert.alert(t("account.errorTitle"), e.message);
+                            Alert.alert(
+                                t("account.errorTitle"),
+                                getLocalizedAuthErrorMessage(e, t)
+                            );
                         } finally {
                             setDeleting(false);
                         }

@@ -168,8 +168,12 @@ const { redirectSystemPath } =
   require("../.build/app/+native-intent.js");
 const { establishPasswordRecoverySessionCore } =
   require("../.build/services/authAccountActions.js");
+const { ONE_ACCOUNT_PER_DEVICE_MESSAGE } =
+  require("../.build/services/authAccountGuard.js");
 const { isUnrecoverableRefreshTokenError } =
   require("../.build/services/authSessionPolicy.js");
+const { getLocalizedAuthErrorMessage } =
+  require("../.build/utils/authErrorText.js");
 const { determineUpdateRequirement } =
   require("../.build/services/appUpdatePolicy.js");
 const { createLastPracticeScreenService } =
@@ -523,6 +527,40 @@ await test(
       /Invalid or expired password reset link/
     );
     assert.deepEqual(recoveryFlowChanges, [true, true, false]);
+  }
+);
+
+await test(
+  "known auth errors use localized app messages",
+  () => {
+    const t = (key) => `translated:${key}`;
+
+    assert.equal(
+      getLocalizedAuthErrorMessage(
+        { message: ONE_ACCOUNT_PER_DEVICE_MESSAGE },
+        t
+      ),
+      "translated:auth.oneAccountPerDeviceMessage"
+    );
+    assert.equal(
+      getLocalizedAuthErrorMessage(
+        { message: "New password should be different from the old password." },
+        t
+      ),
+      "translated:auth.passwordMustDifferFromOld"
+    );
+    assert.equal(
+      getLocalizedAuthErrorMessage({ message: "Email is required." }, t),
+      "translated:auth.emailRequired"
+    );
+    assert.equal(
+      getLocalizedAuthErrorMessage({ message: "" }, t),
+      "translated:common.unknownError"
+    );
+    assert.equal(
+      getLocalizedAuthErrorMessage({ message: "Remote auth error" }, t),
+      "Remote auth error"
+    );
   }
 );
 

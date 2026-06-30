@@ -1,4 +1,5 @@
 import { AUTH_FIELD_LIMITS } from "@/constants/authFieldLimits";
+import { getRuntimeI18n } from "@/i18n";
 import { getSupabase } from "@/lib/supabase";
 import * as appMetaRepo from "@/repositories/appMetaRepo";
 import * as profileRepo from "@/repositories/profileRepo";
@@ -110,10 +111,11 @@ export async function initializeAuth() {
         
         subscribeAuthInvalid(async () => {
             console.log("Auth invalid — signing out");
+            const { t } = await getRuntimeI18n();
 
             Alert.alert(
-                "Account removed",
-                "Your account was deleted on another device."
+                t("account.accountRemovedTitle"),
+                t("account.accountRemovedMessage")
             );
 
             await signOutDeletedAccount();
@@ -328,10 +330,14 @@ export async function deleteAccount() {
         isUserDeleted: syncService.isUserDeleted,
         logger: console,
         onAccountDeletedDespiteInvokeError: () => {
+            void (async () => {
+                const { t } = await getRuntimeI18n();
+
                 Alert.alert(
-                    "Account deleted",
-                    "Your account has been deleted."
+                    t("account.accountDeletedTitle"),
+                    t("account.accountDeletedMessage")
                 );
+            })();
         },
         signOutDeletedAccount,
         withTimeout: syncService.withTimeout,
