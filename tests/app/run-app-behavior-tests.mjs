@@ -604,6 +604,46 @@ await test(
 );
 
 await test(
+  "update policy fallback message keys use localized app fallbacks",
+  () => {
+    assert.deepEqual(
+      determineUpdateRequirement({
+        currentVersionCode: 24,
+        policy: {
+          ...basePolicy,
+          message: "update.requiredMessage",
+        },
+        playUpdate: null,
+      }),
+      {
+        kind: "required",
+        reason: "minimum-version",
+        availableVersionCode: 30,
+        message: null,
+      }
+    );
+
+    assert.deepEqual(
+      determineUpdateRequirement({
+        currentVersionCode: 30,
+        policy: {
+          ...basePolicy,
+          maintenanceMode: true,
+          message: "update.maintenanceMessage",
+        },
+        playUpdate: null,
+      }),
+      {
+        kind: "required",
+        reason: "maintenance",
+        availableVersionCode: null,
+        message: null,
+      }
+    );
+  }
+);
+
+await test(
   "only unrecoverable refresh-token errors invalidate the local session",
   () => {
     assert.equal(

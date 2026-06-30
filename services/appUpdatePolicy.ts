@@ -35,6 +35,19 @@ type DetermineUpdateRequirementOptions = {
     playUpdate: PlayUpdateAvailability | null;
 };
 
+function getPolicyMessage(message: string | null | undefined) {
+    const trimmed = message?.trim();
+
+    if (
+        trimmed === "update.maintenanceMessage" ||
+        trimmed === "update.requiredMessage"
+    ) {
+        return null;
+    }
+
+    return trimmed || null;
+}
+
 export function determineUpdateRequirement({
     currentVersionCode,
     policy,
@@ -53,7 +66,7 @@ export function determineUpdateRequirement({
                 availableVersionCode > currentVersionCode
                     ? availableVersionCode
                     : null,
-            message: policy.message?.trim() || null,
+            message: getPolicyMessage(policy.message),
         };
     }
 
@@ -68,7 +81,7 @@ export function determineUpdateRequirement({
                 availableVersionCode > currentVersionCode
                     ? availableVersionCode
                     : policy.minimumSupportedVersionCode,
-            message: policy.message?.trim() || null,
+            message: getPolicyMessage(policy.message),
         };
     }
 
