@@ -554,8 +554,7 @@ await test(
         kind: "required",
         reason: "minimum-version",
         availableVersionCode: 30,
-        message:
-          "This version of 108 Again is no longer supported. Please update to continue.",
+        message: null,
       }
     );
 

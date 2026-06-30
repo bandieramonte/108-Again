@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { Alert, Linking, NativeModules, Platform } from "react-native";
+import { getRuntimeI18n } from "../i18n";
 import { getSupabase } from "../lib/supabase";
 import {
     type AppUpdatePolicy,
@@ -194,17 +195,19 @@ export async function openPlayStore() {
     }
 }
 
-function showOptionalUpdatePrompt(availableVersionCode: number) {
+async function showOptionalUpdatePrompt(availableVersionCode: number) {
+    const { t } = await getRuntimeI18n();
+
     Alert.alert(
-        "Update available",
-        "A newer version of 108 Again is available. Please update for stability improvements and the latest features.",
+        t("update.optionalTitle"),
+        t("update.optionalMessage"),
         [
             {
-                text: "Later",
+                text: t("update.optionalLater"),
                 style: "cancel",
             },
             {
-                text: "Update",
+                text: t("update.optionalUpdate"),
                 onPress: () => {
                     void openPlayStore();
                 },
@@ -233,7 +236,7 @@ async function maybeShowOptionalPrompt(
         return;
     }
 
-    showOptionalUpdatePrompt(requirement.availableVersionCode);
+    await showOptionalUpdatePrompt(requirement.availableVersionCode);
 }
 
 async function getPlayUpdateAvailability(

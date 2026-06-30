@@ -263,7 +263,13 @@ export const ru: Record<TranslationKey, string> = {
     "targetDateEditor.title": "Изменить целевую дату",
 
     "update.checkAgain": "Проверить снова",
+    "update.maintenanceMessage": "108 Again временно недоступно, пока готовится важное обновление. Попробуйте снова чуть позже.",
     "update.maintenanceTitle": "Временно недоступно",
+    "update.optionalLater": "Позже",
+    "update.optionalMessage": "Доступна новая версия 108 Again. Обновите приложение, чтобы получить улучшения стабильности и последние функции.",
+    "update.optionalTitle": "Доступно обновление",
+    "update.optionalUpdate": "Обновить",
+    "update.requiredMessage": "Эта версия 108 Again больше не поддерживается. Обновите приложение, чтобы продолжить.",
     "update.requiredTitle": "Требуется обновление",
     "update.updateA11y": "Обновить 108 Again",
     "update.updateNow": "Обновить сейчас",

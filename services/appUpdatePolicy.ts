@@ -26,7 +26,7 @@ export type UpdateRequirement =
         kind: "required";
         reason: "maintenance" | "minimum-version";
         availableVersionCode: number | null;
-        message: string;
+        message: string | null;
     };
 
 type DetermineUpdateRequirementOptions = {
@@ -34,11 +34,6 @@ type DetermineUpdateRequirementOptions = {
     policy: AppUpdatePolicy | null;
     playUpdate: PlayUpdateAvailability | null;
 };
-
-const DEFAULT_MAINTENANCE_MESSAGE =
-    "108 Again is temporarily unavailable while an important update is being prepared. Please try again shortly.";
-const DEFAULT_UPDATE_MESSAGE =
-    "This version of 108 Again is no longer supported. Please update to continue.";
 
 export function determineUpdateRequirement({
     currentVersionCode,
@@ -58,8 +53,7 @@ export function determineUpdateRequirement({
                 availableVersionCode > currentVersionCode
                     ? availableVersionCode
                     : null,
-            message: policy.message?.trim() ||
-                DEFAULT_MAINTENANCE_MESSAGE,
+            message: policy.message?.trim() || null,
         };
     }
 
@@ -74,7 +68,7 @@ export function determineUpdateRequirement({
                 availableVersionCode > currentVersionCode
                     ? availableVersionCode
                     : policy.minimumSupportedVersionCode,
-            message: policy.message?.trim() || DEFAULT_UPDATE_MESSAGE,
+            message: policy.message?.trim() || null,
         };
     }
 

@@ -261,7 +261,13 @@ export const es: Record<TranslationKey, string> = {
     "targetDateEditor.title": "Editar fecha objetivo",
 
     "update.checkAgain": "Comprobar de nuevo",
+    "update.maintenanceMessage": "108 Again no está disponible temporalmente mientras se prepara una actualización importante. Inténtalo de nuevo dentro de poco.",
     "update.maintenanceTitle": "Temporalmente no disponible",
+    "update.optionalLater": "Más tarde",
+    "update.optionalMessage": "Hay una versión más reciente de 108 Again disponible. Actualiza para obtener mejoras de estabilidad y las funciones más recientes.",
+    "update.optionalTitle": "Actualización disponible",
+    "update.optionalUpdate": "Actualizar",
+    "update.requiredMessage": "Esta versión de 108 Again ya no es compatible. Actualiza para continuar.",
     "update.requiredTitle": "Actualización requerida",
     "update.updateA11y": "Actualizar 108 Again",
     "update.updateNow": "Actualizar ahora",

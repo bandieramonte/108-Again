@@ -259,7 +259,13 @@ export const en = {
     "targetDateEditor.title": "Edit target date",
 
     "update.checkAgain": "Check again",
+    "update.maintenanceMessage": "108 Again is temporarily unavailable while an important update is being prepared. Please try again shortly.",
     "update.maintenanceTitle": "Temporarily unavailable",
+    "update.optionalLater": "Later",
+    "update.optionalMessage": "A newer version of 108 Again is available. Please update for stability improvements and the latest features.",
+    "update.optionalTitle": "Update available",
+    "update.optionalUpdate": "Update",
+    "update.requiredMessage": "This version of 108 Again is no longer supported. Please update to continue.",
     "update.requiredTitle": "Update required",
     "update.updateA11y": "Update 108 Again",
     "update.updateNow": "Update now",

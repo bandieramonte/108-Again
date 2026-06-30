@@ -34,6 +34,12 @@ export default function UpdateRequiredScreen({
 }: Props) {
     const { t } = useI18n();
     const isMaintenance = requirement.reason === "maintenance";
+    const message = requirement.message ??
+        (
+            isMaintenance
+                ? t("update.maintenanceMessage")
+                : t("update.requiredMessage")
+        );
 
     useEffect(() => {
         const subscription = BackHandler.addEventListener(
@@ -60,7 +66,7 @@ export default function UpdateRequiredScreen({
                 </Text>
 
                 <Text style={styles.message}>
-                    {requirement.message}
+                    {message}
                 </Text>
 
                 {!isMaintenance && (
