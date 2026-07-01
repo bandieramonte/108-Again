@@ -9,7 +9,6 @@ const seedPracticeNameKeyById: Record<string, TranslationKey> = {
     "11111111-1111-1111-1111-111111111003": "seedPractice.diamondMind",
     "11111111-1111-1111-1111-111111111004": "seedPractice.mandala",
     "11111111-1111-1111-1111-111111111005": "seedPractice.guruYoga",
-    "11111111-1111-1111-1111-111111111006": "seedPractice.amitabha",
 };
 
 const defaultSeedNameById = new Map(

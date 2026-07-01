@@ -2,7 +2,13 @@ import React, { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useI18n } from "../i18n";
 import * as practiceService from "../services/practiceService";
-import { digitsOnly, validateRepetitionCount } from "../utils/numberUtils";
+import {
+    digitsOnly,
+    formatNumberInput,
+    MAX_REPETITIONS_PER_DAY,
+    parseFormattedNumberInput,
+    validateRepetitionCount,
+} from "../utils/numberUtils";
 
 type Props = {
     visible: boolean;
@@ -20,14 +26,15 @@ export default function QuickAddEditor({
     onClose
 }: Props) {
 
-    const { t } = useI18n();
-    const [value, setValue] = useState(String(defaultValue));
+    const { locale, t } = useI18n();
+    const [value, setValue] =
+        useState(formatNumberInput(String(defaultValue), locale));
 
     useEffect(() => {
         if (visible) {
-            setValue(String(defaultValue));
+            setValue(formatNumberInput(String(defaultValue), locale));
         }
-    }, [visible, defaultValue]);
+    }, [visible, defaultValue, locale]);
 
     function save() {
 
@@ -44,7 +51,7 @@ export default function QuickAddEditor({
             return;
         }
 
-        const num = Number(value);
+        const num = parseFormattedNumberInput(value);
 
         practiceService.updatePracticeDefaultSessionCount(
             practiceId,
@@ -74,7 +81,11 @@ export default function QuickAddEditor({
 
                     <TextInput
                         value={value}
-                        onChangeText={(v) => setValue(digitsOnly(v))}
+                        onChangeText={(v) => {
+                            const clean = digitsOnly(v);
+                            if (Number(clean) > MAX_REPETITIONS_PER_DAY) return;
+                            setValue(formatNumberInput(clean, locale));
+                        }}
                         keyboardType="numeric"
                         style={styles.input}
                     />

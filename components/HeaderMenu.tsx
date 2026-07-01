@@ -9,7 +9,7 @@ import * as authService from "@/services/authService";
 import { exportBackup, importBackup } from "@/utils/backup";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
     Alert,
     Modal,
@@ -37,7 +37,7 @@ export default function HeaderMenu({
     onSignOut,
 }: Props) {
     const router = useRouter();
-    const { language, setLanguage, t } = useI18n();
+    const { language, locale, setLanguage, t } = useI18n();
     const [moreOpen, setMoreOpen] = useState(false);
     const [accountOpen, setAccountOpen] = useState(false);
     const [languageOpen, setLanguageOpen] = useState(false);
@@ -52,6 +52,17 @@ export default function HeaderMenu({
     const selectedLanguage =
         languageOptions.find(option => option.code === language) ??
         languageOptions[0];
+    const sortedLanguageOptions = useMemo(
+        () =>
+            [...languageOptions].sort((left, right) =>
+                t(left.labelKey).localeCompare(
+                    t(right.labelKey),
+                    locale,
+                    { sensitivity: "base" }
+                )
+            ),
+        [locale, t]
+    );
 
     function handleRestoreDefaults() {
         Alert.alert(
@@ -244,7 +255,7 @@ export default function HeaderMenu({
                     onPress={() => setLanguageOpen(false)}
                 >
                     <View style={styles.languageMenu}>
-                        {languageOptions.map(option => {
+                        {sortedLanguageOptions.map(option => {
                             const selected = option.code === language;
 
                             return (

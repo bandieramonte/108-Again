@@ -188,7 +188,11 @@ const { resolveInitialLanguagePreference } =
   require("../.build/i18n/languagePreference.js");
 const { formatMonthDayYear } =
   require("../.build/utils/dateUtils.js");
-const { formatCountProgress } =
+const {
+  formatCountProgress,
+  formatNumberInput,
+  parseFormattedNumberInput,
+} =
   require("../.build/utils/numberUtils.js");
 const { getPracticeReminderSettingsFromPractice } =
   require("../.build/utils/practiceReminderState.js");
@@ -560,6 +564,23 @@ await test(
     assert.equal(
       getLocalizedAuthErrorMessage({ message: "Email is required." }, t),
       "translated:auth.emailRequired"
+    );
+    assert.equal(
+      getLocalizedAuthErrorMessage(
+        {
+          message:
+            "Unable to validate email address: invalid format",
+        },
+        t
+      ),
+      "translated:auth.invalidEmailFormat"
+    );
+    assert.equal(
+      getLocalizedAuthErrorMessage(
+        { message: "Invalid login credentials" },
+        t
+      ),
+      "translated:auth.invalidLoginCredentials"
     );
     assert.equal(
       getLocalizedAuthErrorMessage({ message: "" }, t),
@@ -1164,7 +1185,7 @@ await test(
       20000,
       null,
       54,
-      "loving-eyes"
+      "chenrezig"
     );
     const activeIds =
       source.practiceRepo.getAllPractices().map(practice => practice.id);
@@ -1183,7 +1204,7 @@ await test(
     );
     assert.equal(
       source.practiceRepo.getPracticeById(secondPracticeId).imageKey,
-      "loving-eyes"
+      "chenrezig"
     );
 
     const backup = source.operations.getBackupData();
@@ -1191,7 +1212,7 @@ await test(
       practice => practice.id === secondPracticeId
     );
 
-    assert.equal(exportedSecondPractice.imageKey, "loving-eyes");
+    assert.equal(exportedSecondPractice.imageKey, "chenrezig");
     assert.equal(exportedSecondPractice.orderIndex, 1);
     assert.doesNotThrow(() => validateBackup(backup));
 
@@ -1206,17 +1227,17 @@ await test(
     );
     assert.equal(
       destination.practiceRepo.getPracticeById(secondPracticeId).imageKey,
-      "loving-eyes"
+      "chenrezig"
     );
   }
 );
 
 await test(
-  "custom practice images can be edited while seed images stay fixed",
+  "practice images stay fixed after creation",
   async () => {
     const device = makeLocalDevice();
     const practiceId = device.operations.createPractice(
-      "Editable Image Practice",
+      "Fixed Image Practice",
       10000,
       null,
       108,
@@ -1227,17 +1248,19 @@ await test(
     assert.equal(editData.imageKey, "green-tara");
     assert.equal(editData.isSeedPractice, false);
 
-    device.operations.updatePractice(
-      practiceId,
-      "Editable Image Practice",
-      10000,
-      0,
-      "white-liberatrice"
+    assert.throws(
+      () => device.operations.updatePractice(
+        practiceId,
+        "Fixed Image Practice",
+        10000,
+        0,
+        "white-tara"
+      ),
+      /Practice images cannot be changed/
     );
-
     assert.equal(
       device.practiceRepo.getPracticeById(practiceId).imageKey,
-      "white-liberatrice"
+      "green-tara"
     );
 
     await device.operations.restoreDefaults();
@@ -1254,7 +1277,7 @@ await test(
         0,
         "green-tara"
       ),
-      /Default practice images cannot be changed/
+      /Practice images cannot be changed/
     );
     assert.equal(
       device.practiceRepo.getPracticeById(seedPractice.id).imageKey,
@@ -1601,6 +1624,45 @@ await test(
       formatCountProgress(1234, 108000),
       `${numberFormatter.format(1234)} / ${numberFormatter.format(108000)}`,
       "Both values use the shared localized number formatting"
+    );
+
+    const germanFormatter = new Intl.NumberFormat("de-DE");
+
+    assert.equal(
+      formatCountProgress(1234, 108000, "de-DE"),
+      `${germanFormatter.format(1234)} / ${germanFormatter.format(108000)}`,
+      "Both values can be formatted with the active app locale"
+    );
+  }
+);
+
+await test(
+  "number inputs format with locale separators and parse back to counts",
+  async () => {
+    const germanFormatter = new Intl.NumberFormat("de-DE");
+
+    assert.equal(
+      formatNumberInput("1234567", "de-DE"),
+      germanFormatter.format(1234567),
+      "German input formatting uses German thousands separators"
+    );
+
+    assert.equal(
+      formatNumberInput("1.234.567", "de-DE"),
+      germanFormatter.format(1234567),
+      "Already formatted input is normalized while editing"
+    );
+
+    assert.equal(
+      parseFormattedNumberInput(germanFormatter.format(1234567)),
+      1234567,
+      "Formatted input parses back to a plain count"
+    );
+
+    assert.equal(
+      formatNumberInput("", "de-DE"),
+      "",
+      "Empty editable fields stay empty"
     );
   }
 );

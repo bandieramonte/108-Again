@@ -1,6 +1,7 @@
 import { Image, Pressable, Text, View } from "react-native";
 import {
     extraPracticeImageOptions,
+    normalizePracticeImageKey,
     practiceImages,
 } from "../constants/practiceImages";
 import { useI18n } from "../i18n";
@@ -20,6 +21,8 @@ export default function PracticeImagePicker({
     onSelect,
 }: Props) {
     const { t } = useI18n();
+    const normalizedSelectedImageKey =
+        normalizePracticeImageKey(selectedImageKey) ?? selectedImageKey;
     const options = [
         {
             key: CUSTOM_PRACTICE_IMAGE_FALLBACK,
@@ -41,7 +44,7 @@ export default function PracticeImagePicker({
 
             <View style={globalStyles.formImageOptionGrid}>
                 {options.map(option => {
-                    const selected = selectedImageKey === option.key;
+                    const selected = normalizedSelectedImageKey === option.key;
 
                     return (
                         <Pressable

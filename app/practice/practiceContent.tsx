@@ -31,7 +31,15 @@ import * as sessionService from "../../services/sessionService";
 import { APP_SIDE_PADDING } from "../../styles/global";
 import { colors, containers } from "../../styles/theme";
 import { subscribeData } from "../../utils/events";
-import { digitsOnly, formatCountProgress, formatNumber, MAX_REPETITIONS_PER_DAY, validateNonNegativeInteger } from "../../utils/numberUtils";
+import {
+    digitsOnly,
+    formatCountProgress,
+    formatNumber,
+    formatNumberInput,
+    MAX_REPETITIONS_PER_DAY,
+    parseFormattedNumberInput,
+    validateNonNegativeInteger,
+} from "../../utils/numberUtils";
 import { getPracticeReminderSettingsFromPractice } from "../../utils/practiceReminderState";
 import { formatReminderTimeForLocale } from "../../utils/reminderTime";
 
@@ -352,12 +360,12 @@ export default function PracticeContent({
             return;
         }
 
-        const value = Number(customAmount);
+        const value = parseFormattedNumberInput(customAmount);
 
         if (value > MAX_REPETITIONS_PER_DAY) {
             alert(
                 t("practice.customAmountTooHigh", {
-                    count: formatNumber(MAX_REPETITIONS_PER_DAY),
+                    count: formatNumber(MAX_REPETITIONS_PER_DAY, locale),
                 })
             );
             return;
@@ -369,7 +377,7 @@ export default function PracticeContent({
                 value
             );
             customAnimRef.current?.trigger(
-                `+${formatNumber(value)}\n${t("common.added")}`
+                `+${formatNumber(value, locale)}\n${t("common.added")}`
             );
             schedulePracticeRefresh();
             closeCustomAmountModal();
@@ -620,7 +628,8 @@ export default function PracticeContent({
                                     <Text style={styles.statsCardValue}>
                                         {formatCountProgress(
                                             total,
-                                            targetCount || null
+                                            targetCount || null,
+                                            locale
                                         )}
                                     </Text>
                                 </Pressable>
@@ -751,7 +760,7 @@ export default function PracticeContent({
                                             color={colors.primary}
                                         />
                                         <Text style={styles.defaultSessionEditText}>
-                                            {formatNumber(defaultSessionCount)}
+                                            {formatNumber(defaultSessionCount, locale)}
                                         </Text>
                                     </Pressable>
                                 </View>
@@ -770,7 +779,7 @@ export default function PracticeContent({
                                                     Number(defaultSessionCount)
                                                 );
                                                 dailyAnimRef.current?.trigger(
-                                                    `+${formatNumber(defaultSessionCount)}\n${t("common.added")}`
+                                                    `+${formatNumber(defaultSessionCount, locale)}\n${t("common.added")}`
                                                 );
                                                 schedulePracticeRefresh();
                                             } catch (error: any) {
@@ -780,11 +789,11 @@ export default function PracticeContent({
                                         onLongPress={() => setQuickAddOpen(true)}
                                         accessibilityRole="button"
                                         accessibilityLabel={t("practice.addDefaultSessionA11y", {
-                                            count: formatNumber(defaultSessionCount),
+                                            count: formatNumber(defaultSessionCount, locale),
                                         })}
                                     >
                                         <Text style={styles.addSessionActionValue}>
-                                            +{formatNumber(defaultSessionCount)}
+                                            +{formatNumber(defaultSessionCount, locale)}
                                         </Text>
                                         <Text style={styles.addSessionActionLabel}>
                                             {t("practice.defaultSession")}
@@ -851,7 +860,11 @@ export default function PracticeContent({
                                     <TextInput
                                         value={customAmount}
                                         onChangeText={(text) => {
-                                            setCustomAmount(digitsOnly(text));
+                                            const clean = digitsOnly(text);
+                                            if (Number(clean) > MAX_REPETITIONS_PER_DAY) return;
+                                            setCustomAmount(
+                                                formatNumberInput(clean, locale)
+                                            );
                                         }}
                                         keyboardType="numeric"
                                         returnKeyType="done"
@@ -859,7 +872,6 @@ export default function PracticeContent({
                                         placeholder={t("practice.enterAmount")}
                                         placeholderTextColor="#999"
                                         style={styles.customAmountInput}
-                                        maxLength={String(MAX_REPETITIONS_PER_DAY).length}
                                         autoFocus
                                     />
 

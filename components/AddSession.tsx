@@ -2,6 +2,10 @@ import { useState } from "react";
 import { Button, StyleSheet, Text, TextInput, View } from "react-native";
 import { useI18n } from "../i18n";
 import * as sessionService from "../services/sessionService";
+import {
+    formatNumberInput,
+    parseFormattedNumberInput,
+} from "../utils/numberUtils";
 
 type Props = {
     practiceId: string;
@@ -10,7 +14,7 @@ type Props = {
 
 export default function AddSession({ practiceId, onSaved }: Props) {
 
-    const { t } = useI18n();
+    const { locale, t } = useI18n();
     const [customValue, setCustomValue] = useState("");
 
     function addSession(count: number) {
@@ -34,13 +38,15 @@ export default function AddSession({ practiceId, onSaved }: Props) {
                 placeholder={t("practice.customAmount")}
                 keyboardType="numeric"
                 value={customValue}
-                onChangeText={setCustomValue}
+                onChangeText={(value) => {
+                    setCustomValue(formatNumberInput(value, locale));
+                }}
                 style={styles.input}
             />
 
             <Button
                 title={t("common.add")}
-                onPress={() => addSession(Number(customValue))}
+                onPress={() => addSession(parseFormattedNumberInput(customValue))}
             />
 
         </View>

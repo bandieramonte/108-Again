@@ -20,7 +20,7 @@ export function validateRepetitionCount(
 
     if (baseError) return baseError;
 
-    const num = Number(value);
+    const num = parseFormattedNumberInput(value);
 
     if (num > MAX_REPETITIONS_PER_DAY) {
         return `${label} cannot exceed ${MAX_REPETITIONS_PER_DAY.toLocaleString()}`;
@@ -33,8 +33,26 @@ export function digitsOnly(value: string) {
     return value.replace(/[^0-9]/g, "");
 }
 
+export function parseFormattedNumberInput(value: string): number {
+    const clean = digitsOnly(value);
+
+    if (!clean) return 0;
+
+    const num = Number(clean);
+
+    return Number.isFinite(num) ? num : 0;
+}
+
+export function formatNumberInput(value: string, locale?: string): string {
+    const clean = digitsOnly(value);
+
+    if (!clean) return "";
+
+    return formatNumber(Number(clean), locale);
+}
+
 export function parsePositiveInt(value: string): number {
-    const num = Number(value);
+    const num = parseFormattedNumberInput(value);
 
     if (!Number.isFinite(num)) return 0;
     if (!Number.isInteger(num)) return 0;
@@ -52,7 +70,11 @@ export function validateNonNegativeInteger(
         return `${label} is required`;
     }
 
-    const num = Number(value);
+    if (!digitsOnly(value)) {
+        return `${label} must be a number`;
+    }
+
+    const num = parseFormattedNumberInput(value);
 
     if (!Number.isFinite(num)) {
         return `${label} must be a number`;
@@ -74,7 +96,7 @@ export function validateTargetCount(value: string): string | null {
     const baseError = validateNonNegativeInteger(value, "Target count");
     if (baseError) return baseError;
 
-    const num = Number(value);
+    const num = parseFormattedNumberInput(value);
 
     if (num > MAX_TARGET_COUNT) {
         return `Target count cannot exceed ${MAX_TARGET_COUNT.toLocaleString()}`;
@@ -83,24 +105,31 @@ export function validateTargetCount(value: string): string | null {
     return null;
 }
 
-export function formatNumber(value: number | string): string {
+export function formatNumber(value: number | string, locale?: string): string {
     const num =
         typeof value === "string"
-            ? Number(value)
+            ? (() => {
+                const clean = digitsOnly(value);
+
+                if (!clean) return Number.NaN;
+
+                return Number(clean);
+            })()
             : value;
 
     if (!Number.isFinite(num)) return String(value);
 
-    return new Intl.NumberFormat().format(num);
+    return new Intl.NumberFormat(locale).format(num);
 }
 
 export function formatCountProgress(
     current: number | string,
-    target?: number | string | null
+    target?: number | string | null,
+    locale?: string
 ): string {
-    const currentText = formatNumber(current);
+    const currentText = formatNumber(current, locale);
 
     if (target == null) return currentText;
 
-    return `${currentText} / ${formatNumber(target)}`;
+    return `${currentText} / ${formatNumber(target, locale)}`;
 }

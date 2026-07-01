@@ -4,7 +4,9 @@ import { useI18n } from "../i18n";
 import { colors } from "../styles/theme";
 import {
     digitsOnly,
+    formatNumberInput,
     MAX_REPETITIONS_PER_DAY,
+    parseFormattedNumberInput,
     validateRepetitionCount,
 } from "../utils/numberUtils";
 
@@ -23,7 +25,7 @@ export default function DailyTargetEditor({
     onClose,
     onSave,
 }: Props) {
-    const { t } = useI18n();
+    const { locale, t } = useI18n();
     const [input, setInput] = useState("");
 
     useEffect(() => {
@@ -32,9 +34,9 @@ export default function DailyTargetEditor({
         setInput(
             initialValue == null || initialValue === ""
                 ? ""
-                : String(initialValue)
+                : formatNumberInput(String(initialValue), locale)
         );
-    }, [visible, initialValue]);
+    }, [visible, initialValue, locale]);
 
     function save() {
         const error =
@@ -48,7 +50,7 @@ export default function DailyTargetEditor({
             return;
         }
 
-        const value = Number(input);
+        const value = parseFormattedNumberInput(input);
 
         if (value <= 0) {
             alert(t("dashboard.dailyTargetPositive"));
@@ -93,7 +95,7 @@ export default function DailyTargetEditor({
                         onChangeText={(value) => {
                             const clean = digitsOnly(value);
                             if (Number(clean) > MAX_REPETITIONS_PER_DAY) return;
-                            setInput(clean);
+                            setInput(formatNumberInput(clean, locale));
                         }}
                         keyboardType="numeric"
                         returnKeyType="done"
@@ -101,7 +103,6 @@ export default function DailyTargetEditor({
                         placeholder={t("dashboard.dailyTarget")}
                         placeholderTextColor="#999"
                         style={styles.input}
-                        maxLength={String(MAX_REPETITIONS_PER_DAY).length}
                         autoFocus
                     />
 

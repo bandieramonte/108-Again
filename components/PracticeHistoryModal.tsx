@@ -99,7 +99,7 @@ export default function PracticeHistoryModal({
             stepValue * steps;
 
         const digitCount =
-            String(maxYAxisLabel).length;
+            formatNumber(maxYAxisLabel, locale).length;
 
         const leftPadding =
             digitCount >= 7
@@ -171,7 +171,7 @@ export default function PracticeHistoryModal({
                                 textAnchor="end"
                                 fill="#666"
                             >
-                                {value}
+                                {formatNumber(value, locale)}
                             </SvgText>
                         );
                     })}
@@ -297,7 +297,7 @@ export default function PracticeHistoryModal({
                                         fill="#fff"
                                         fontWeight="bold"
                                     >
-                                        {d.total}
+                                        {formatNumber(d.total, locale)}
                                     </SvgText>
 
                                     <SvgText
@@ -409,14 +409,18 @@ export default function PracticeHistoryModal({
                             <Text style={styles.statLabel}>
                                 {t("history.averageSessionSize")}
                             </Text>
-                            <Text style={styles.statValue}>{formatNumber(stats.averageSessionSize)}</Text>
+                            <Text style={styles.statValue}>
+                                {formatNumber(stats.averageSessionSize, locale)}
+                            </Text>
                         </View>
 
                         <View style={styles.statRowInner}>
                             <Text style={styles.statLabel}>
                                 {t("history.largestSession")}
                             </Text>
-                            <Text style={styles.statValue}>{formatNumber(stats.largestSession)}</Text>
+                            <Text style={styles.statValue}>
+                                {formatNumber(stats.largestSession, locale)}
+                            </Text>
                         </View>
 
                         <View style={styles.statRowInner}>

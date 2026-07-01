@@ -492,7 +492,8 @@ export default function Dashboard() {
                 <Text style={styles.countText}>
                   {t("practice.totalProgress")}: {formatCountProgress(
                     dragOverlayPractice.total,
-                    dragOverlayPractice.targetCount || null
+                    dragOverlayPractice.targetCount || null,
+                    locale
                   )}
                 </Text>
 
@@ -533,7 +534,7 @@ export default function Dashboard() {
             <View style={styles.quickAddButton}>
               <View style={styles.quickAddMainButton}>
                 <Text style={styles.quickAddAmountText}>
-                  +{formatNumber(defaultSessionCount)}
+                  +{formatNumber(defaultSessionCount, locale)}
                 </Text>
 
                 <Text
@@ -838,7 +839,8 @@ export default function Dashboard() {
                         <Text style={styles.countText}>
                           {t("practice.totalProgress")}: {formatCountProgress(
                             practice.total,
-                            practice.targetCount || null
+                            practice.targetCount || null,
+                            locale
                           )}
                         </Text>
 
@@ -919,11 +921,17 @@ export default function Dashboard() {
                       delayLongPress={350}
                       accessibilityRole="button"
                       accessibilityLabel={`${t("practice.addDefaultSessionA11y", {
-                        count: formatNumber(practice.defaultSessionCount ?? 108),
+                        count: formatNumber(
+                          practice.defaultSessionCount ?? 108,
+                          locale
+                        ),
                       })}: ${practiceDisplayName}`}
                     >
                       <Text style={styles.quickAddAmountText}>
-                        +{formatNumber(practice.defaultSessionCount ?? 108)}
+                        +{formatNumber(
+                          practice.defaultSessionCount ?? 108,
+                          locale
+                        )}
                       </Text>
 
                       <Text

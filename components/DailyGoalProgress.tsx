@@ -36,7 +36,7 @@ export default function DailyGoalProgress({
     textStyle,
     labelNumberOfLines,
 }: Props) {
-    const { t } = useI18n();
+    const { locale, t } = useI18n();
     const safeTodayCount = Number.isFinite(todayCount)
         ? todayCount
         : 0;
@@ -97,7 +97,8 @@ export default function DailyGoalProgress({
                             ? t("dailyGoal.finished")
                             : formatCountProgress(
                                 safeTodayCount,
-                                safeTargetCount
+                                safeTargetCount,
+                                locale
                             )}
                     </Text>
                 </View>

@@ -68,6 +68,8 @@ export const en = {
     "auth.firstNameRequired": "First name is required.",
     "auth.forgotPassword": "Forgot password?",
     "auth.haveAccount": "Already have an account? Log In",
+    "auth.invalidEmailFormat": "Please enter a valid email address.",
+    "auth.invalidLoginCredentials": "Invalid email or password.",
     "auth.loginFailed": "Log in failed",
     "auth.missingEmailMessage": "Please enter your email first.",
     "auth.missingEmailTitle": "Missing email",
@@ -107,8 +109,8 @@ export const en = {
     "form.totalCount": "Total count",
     "form.totalCountSoFar": "Total count so far",
 
-    "addPractice.customInstead": "Custom instead",
-    "addPractice.customPractice": "Create custom practice",
+    "addPractice.customInstead": "Mantra Counter instead",
+    "addPractice.customPractice": "Add a Mantra Counter",
     "addPractice.customPracticeDescription": "Add a new practice with your own name, target, default session count, and optional image.",
     "addPractice.fixedSeedImage": "Seed practice image is fixed.",
     "addPractice.noImageSelected": "Optional. If you do not choose one, the generic image will be used.",
@@ -241,6 +243,8 @@ export const en = {
     "practice.valueCannotBeNegative": "Value cannot be negative",
 
     "practiceImage.generic": "Default image",
+    "practiceImage.other": "Other",
+    "practiceImage.sixteenthKarmapa": "16th Karmapa",
     "practiceImage.greenTara": "Green Tara",
     "practiceImage.lovingEyes": "Chenrezig",
     "practiceImage.whiteLiberatrice": "White Tara",

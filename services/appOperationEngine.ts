@@ -477,8 +477,17 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
             );
         }
 
-        if (imageKey !== undefined && SEEDED_IDS.has(id)) {
-            throw new Error("Default practice images cannot be changed.");
+        const currentPractice = deps.practiceRepo.getPracticeById(id);
+
+        if (!currentPractice) {
+            throw new Error(`Practice not found: ${id}`);
+        }
+
+        if (
+            imageKey !== undefined &&
+            (imageKey ?? null) !== (currentPractice.imageKey ?? null)
+        ) {
+            throw new Error("Practice images cannot be changed.");
         }
 
         const currentTotal = deps.sessionRepo.getPracticeTotal(id).total;
@@ -494,8 +503,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         );
 
         if (difference !== 0) {
-            const practice = deps.practiceRepo.getPracticeById(id);
-            const currentOffset = practice?.totalOffset ?? 0;
+            const currentOffset = currentPractice.totalOffset ?? 0;
             const newOffset = currentOffset + difference;
 
             deps.practiceRepo.updatePracticeTotalOffset(

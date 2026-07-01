@@ -70,6 +70,8 @@ export const ru: Record<TranslationKey, string> = {
     "auth.firstNameRequired": "Укажите имя.",
     "auth.forgotPassword": "Забыли пароль?",
     "auth.haveAccount": "Уже есть аккаунт? Войти",
+    "auth.invalidEmailFormat": "Введите корректный email.",
+    "auth.invalidLoginCredentials": "Неверный email или пароль.",
     "auth.loginFailed": "Не удалось войти",
     "auth.missingEmailMessage": "Сначала введите email.",
     "auth.missingEmailTitle": "Email не указан",
@@ -109,8 +111,8 @@ export const ru: Record<TranslationKey, string> = {
     "form.totalCount": "Общее количество",
     "form.totalCountSoFar": "Общее количество сейчас",
 
-    "addPractice.customInstead": "Своя практика",
-    "addPractice.customPractice": "Создать свою практику",
+    "addPractice.customInstead": "Вместо этого счётчик мантр",
+    "addPractice.customPractice": "Добавить счётчик мантр",
     "addPractice.customPracticeDescription": "Добавьте новую практику со своим названием, целью, количеством в сеансе и необязательной картинкой.",
     "addPractice.fixedSeedImage": "Картинка исходной практики фиксирована.",
     "addPractice.noImageSelected": "Необязательно. Если ничего не выбрать, будет использована стандартная картинка.",
@@ -245,6 +247,8 @@ export const ru: Record<TranslationKey, string> = {
     "practice.valueCannotBeNegative": "Значение не может быть отрицательным",
 
     "practiceImage.generic": "Стандартная картинка",
+    "practiceImage.other": "Другое",
+    "practiceImage.sixteenthKarmapa": "16-й Кармапа",
     "practiceImage.greenTara": "Зелёная Тара",
     "practiceImage.lovingEyes": "Любящие Глаза",
     "practiceImage.whiteLiberatrice": "Белая Тара",

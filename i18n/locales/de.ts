@@ -70,6 +70,8 @@ export const de: Record<TranslationKey, string> = {
     "auth.firstNameRequired": "Vorname ist erforderlich.",
     "auth.forgotPassword": "Passwort vergessen?",
     "auth.haveAccount": "Du hast schon ein Konto? Anmelden",
+    "auth.invalidEmailFormat": "Bitte gib eine gültige E-Mail-Adresse ein.",
+    "auth.invalidLoginCredentials": "E-Mail oder Passwort ist ungültig.",
     "auth.loginFailed": "Anmeldung fehlgeschlagen",
     "auth.missingEmailMessage": "Bitte gib zuerst deine E-Mail ein.",
     "auth.missingEmailTitle": "E-Mail fehlt",
@@ -109,8 +111,8 @@ export const de: Record<TranslationKey, string> = {
     "form.totalCount": "Gesamtanzahl",
     "form.totalCountSoFar": "Gesamtanzahl bisher",
 
-    "addPractice.customInstead": "Eigene Praxis",
-    "addPractice.customPractice": "Eigene Praxis erstellen",
+    "addPractice.customInstead": "Stattdessen Mantra-Zähler",
+    "addPractice.customPractice": "Mantra-Zähler hinzufügen",
     "addPractice.customPracticeDescription": "Füge eine neue Praxis mit eigenem Namen, Ziel, Standardanzahl pro Sitzung und optionalem Bild hinzu.",
     "addPractice.fixedSeedImage": "Das Bild der Standardpraxis ist festgelegt.",
     "addPractice.noImageSelected": "Optional. Wenn du keines auswählst, wird das Standardbild verwendet.",
@@ -186,7 +188,7 @@ export const de: Record<TranslationKey, string> = {
     "seedPractice.amitabha": "Amitabha",
     "seedPractice.diamondMind": "Diamantgeist",
     "seedPractice.guruYoga": "Guru Yoga",
-    "seedPractice.mandala": "Mandala-Opfergaben",
+    "seedPractice.mandala": "Mandala-Gaben",
     "seedPractice.prostrations": "Verbeugungen",
     "seedPractice.shortRefuge": "Kurze Zuflucht",
 
@@ -243,6 +245,8 @@ export const de: Record<TranslationKey, string> = {
     "practice.valueCannotBeNegative": "Der Wert darf nicht negativ sein",
 
     "practiceImage.generic": "Standardbild",
+    "practiceImage.other": "Andere",
+    "practiceImage.sixteenthKarmapa": "16. Karmapa",
     "practiceImage.greenTara": "Grüne Tara",
     "practiceImage.lovingEyes": "Chenrezig",
     "practiceImage.whiteLiberatrice": "Weiße Tara",

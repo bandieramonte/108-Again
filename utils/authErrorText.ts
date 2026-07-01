@@ -36,6 +36,17 @@ export function getLocalizedAuthErrorMessage(
         return t("auth.passwordMustDifferFromOld");
     }
 
+    if (
+        normalized.includes("unable to validate email address") &&
+        normalized.includes("invalid format")
+    ) {
+        return t("auth.invalidEmailFormat");
+    }
+
+    if (normalized === "invalid login credentials") {
+        return t("auth.invalidLoginCredentials");
+    }
+
     switch (message) {
         case "First name is required.":
             return t("auth.firstNameRequired");

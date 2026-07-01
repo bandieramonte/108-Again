@@ -70,6 +70,8 @@ export const hu: Record<TranslationKey, string> = {
     "auth.firstNameRequired": "Keresztnév megadása kötelező.",
     "auth.forgotPassword": "Elfelejtetted a jelszavad?",
     "auth.haveAccount": "Már van fiókod? Jelentkezz be",
+    "auth.invalidEmailFormat": "Adj meg érvényes email címet.",
+    "auth.invalidLoginCredentials": "Érvénytelen email vagy jelszó.",
     "auth.loginFailed": "Bejelentkezés sikertelen",
     "auth.missingEmailMessage": "Először add meg az emailed.",
     "auth.missingEmailTitle": "Hiányzó email",
@@ -109,8 +111,8 @@ export const hu: Record<TranslationKey, string> = {
     "form.totalCount": "Összes mennyiség",
     "form.totalCountSoFar": "Összes mennyiség eddig",
 
-    "addPractice.customInstead": "Egyéni gyakorlat",
-    "addPractice.customPractice": "Egyéni gyakorlat létrehozása",
+    "addPractice.customInstead": "Inkább mantraszámláló",
+    "addPractice.customPractice": "Mantraszámláló hozzáadása",
     "addPractice.customPracticeDescription": "Adj hozzá új gyakorlatot saját névvel, céllal, alapértelmezett ülésmennyiséggel és opcionális képpel.",
     "addPractice.fixedSeedImage": "Az alapgyakorlat képe rögzített.",
     "addPractice.noImageSelected": "Opcionális. Ha nem választasz képet, az alapértelmezett kép lesz használva.",
@@ -243,6 +245,8 @@ export const hu: Record<TranslationKey, string> = {
     "practice.valueCannotBeNegative": "Az érték nem lehet negatív",
 
     "practiceImage.generic": "Alapértelmezett kép",
+    "practiceImage.other": "Egyéb",
+    "practiceImage.sixteenthKarmapa": "16. Karmapa",
     "practiceImage.greenTara": "Zöld Tara",
     "practiceImage.lovingEyes": "Chenrezig",
     "practiceImage.whiteLiberatrice": "Fehér Tara",

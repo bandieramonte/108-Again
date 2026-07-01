@@ -1,43 +1,47 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import PracticeImagePicker, {
-    CUSTOM_PRACTICE_IMAGE_FALLBACK,
-} from "../components/PracticeImagePicker";
 import { useI18n } from "../i18n";
 import * as practiceService from "../services/practiceService";
 import { globalStyles } from "../styles/global";
-import { digitsOnly, MAX_PRACTICE_NAME, MAX_REPETITIONS_PER_DAY, MAX_TARGET_COUNT, validateNonNegativeInteger, validateRepetitionCount, validateTargetCount } from "../utils/numberUtils";
+import {
+    digitsOnly,
+    formatNumberInput,
+    MAX_PRACTICE_NAME,
+    MAX_REPETITIONS_PER_DAY,
+    MAX_TARGET_COUNT,
+    parseFormattedNumberInput,
+    validateNonNegativeInteger,
+    validateRepetitionCount,
+    validateTargetCount,
+} from "../utils/numberUtils";
 
 export default function EditPractice() {
 
     const { id } = useLocalSearchParams();
     const router = useRouter();
-    const { t } = useI18n();
+    const { locale, t } = useI18n();
 
     const [name, setName] = useState("");
     const [target, setTarget] = useState("");
     const [total, setTotal] = useState("");
     const [dailyTarget, setDailyTarget] = useState("");
     const [defaultSession, setDefaultSession] = useState("");
-    const [imageKey, setImageKey] =
-        useState(CUSTOM_PRACTICE_IMAGE_FALLBACK);
-    const [isSeedPractice, setIsSeedPractice] = useState(false);
 
     useEffect(() => {
         const data = practiceService.getPracticeEditData(id as string);
         setName(data.name);
-        setTarget(String(data.targetCount));
-        setTotal(String(data.total));
+        setTarget(formatNumberInput(String(data.targetCount), locale));
+        setTotal(formatNumberInput(String(data.total), locale));
         setDailyTarget(
             data.dailyTargetCount == null
                 ? ""
-                : String(data.dailyTargetCount)
+                : formatNumberInput(String(data.dailyTargetCount), locale)
         );
-        setDefaultSession(String(data.defaultSessionCount ?? 108));
-        setImageKey(data.imageKey ?? CUSTOM_PRACTICE_IMAGE_FALLBACK);
-        setIsSeedPractice(data.isSeedPractice);
-    }, [id]);
+        setDefaultSession(
+            formatNumberInput(String(data.defaultSessionCount ?? 108), locale)
+        );
+    }, [id, locale]);
 
     function save() {
 
@@ -75,7 +79,10 @@ export default function EditPractice() {
             return;
         }
 
-        if (dailyTarget.trim() && Number(dailyTarget) <= 0) {
+        if (
+            dailyTarget.trim() &&
+            parseFormattedNumberInput(dailyTarget) <= 0
+        ) {
             alert(t("dashboard.dailyTargetPositive"));
             return;
         }
@@ -95,19 +102,18 @@ export default function EditPractice() {
             practiceService.updatePractice(
                 id as string,
                 name,
-                Number(target),
-                Number(total),
-                isSeedPractice ? undefined : imageKey
+                parseFormattedNumberInput(target),
+                parseFormattedNumberInput(total)
             );
             practiceService.updatePracticeDailyTargetCount(
                 id as string,
                 dailyTarget.trim()
-                    ? Number(dailyTarget)
+                    ? parseFormattedNumberInput(dailyTarget)
                     : null
             );
             practiceService.updatePracticeDefaultSessionCount(
                 id as string,
-                Number(defaultSession)
+                parseFormattedNumberInput(defaultSession)
             );
         } catch (error: any) {
             alert(error.message);
@@ -153,7 +159,7 @@ export default function EditPractice() {
                         onChangeText={(v) => {
                             const clean = digitsOnly(v);
                             if (Number(clean) > MAX_TARGET_COUNT) return;
-                            setTarget(clean);
+                            setTarget(formatNumberInput(clean, locale));
                         }}
                         keyboardType="numeric"
                         style={globalStyles.formInput}
@@ -167,7 +173,7 @@ export default function EditPractice() {
                         onChangeText={(v) => {
                             const clean = digitsOnly(v);
                             if (Number(clean) > MAX_TARGET_COUNT) return;
-                            setTotal(clean);
+                            setTotal(formatNumberInput(clean, locale));
                         }}
                         keyboardType="numeric"
                         style={globalStyles.formInput}
@@ -181,7 +187,7 @@ export default function EditPractice() {
                         onChangeText={(v) => {
                             const clean = digitsOnly(v);
                             if (Number(clean) > MAX_REPETITIONS_PER_DAY) return;
-                            setDailyTarget(clean);
+                            setDailyTarget(formatNumberInput(clean, locale));
                         }}
                         keyboardType="numeric"
                         placeholder={t("form.disabled")}
@@ -197,19 +203,12 @@ export default function EditPractice() {
                         onChangeText={(v) => {
                             const clean = digitsOnly(v);
                             if (Number(clean) > MAX_REPETITIONS_PER_DAY) return;
-                            setDefaultSession(clean);
+                            setDefaultSession(formatNumberInput(clean, locale));
                         }}
                         keyboardType="numeric"
                         style={globalStyles.formInput}
                     />
 
-                    {!isSeedPractice && (
-                        <PracticeImagePicker
-                            selectedImageKey={imageKey}
-                            title={t("addPractice.optionalImage")}
-                            onSelect={setImageKey}
-                        />
-                    )}
                 </View>
 
                 <Pressable

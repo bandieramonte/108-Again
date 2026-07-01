@@ -3,7 +3,9 @@ import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-nativ
 import { useI18n } from "../i18n";
 import {
     digitsOnly,
+    formatNumberInput,
     MAX_TARGET_COUNT,
+    parseFormattedNumberInput,
     validateNonNegativeInteger,
     validateTargetCount,
 } from "../utils/numberUtils";
@@ -25,16 +27,18 @@ export default function PracticeProgressEditor({
     onClose,
     onSave,
 }: Props) {
-    const { t } = useI18n();
-    const [totalValue, setTotalValue] = useState(String(total));
-    const [targetValue, setTargetValue] = useState(String(targetCount));
+    const { locale, t } = useI18n();
+    const [totalValue, setTotalValue] =
+        useState(formatNumberInput(String(total), locale));
+    const [targetValue, setTargetValue] =
+        useState(formatNumberInput(String(targetCount), locale));
 
     useEffect(() => {
         if (!visible) return;
 
-        setTotalValue(String(total));
-        setTargetValue(String(targetCount));
-    }, [visible, total, targetCount]);
+        setTotalValue(formatNumberInput(String(total), locale));
+        setTargetValue(formatNumberInput(String(targetCount), locale));
+    }, [visible, total, targetCount, locale]);
 
     function save() {
         const totalError =
@@ -56,7 +60,10 @@ export default function PracticeProgressEditor({
             return;
         }
 
-        onSave(Number(totalValue), Number(targetValue));
+        onSave(
+            parseFormattedNumberInput(totalValue),
+            parseFormattedNumberInput(targetValue)
+        );
         onClose();
     }
 
@@ -66,7 +73,7 @@ export default function PracticeProgressEditor({
     ) {
         const clean = digitsOnly(nextValue);
         if (Number(clean) > MAX_TARGET_COUNT) return;
-        setter(clean);
+        setter(formatNumberInput(clean, locale));
     }
 
     return (
@@ -97,7 +104,6 @@ export default function PracticeProgressEditor({
                         keyboardType="numeric"
                         returnKeyType="next"
                         style={styles.input}
-                        maxLength={String(MAX_TARGET_COUNT).length}
                     />
 
                     <Text style={styles.label}>
@@ -112,7 +118,6 @@ export default function PracticeProgressEditor({
                         returnKeyType="done"
                         onSubmitEditing={save}
                         style={styles.input}
-                        maxLength={String(MAX_TARGET_COUNT).length}
                     />
 
                     <View style={styles.buttons}>

@@ -70,6 +70,8 @@ export const es: Record<TranslationKey, string> = {
     "auth.firstNameRequired": "El nombre es obligatorio.",
     "auth.forgotPassword": "¿Olvidaste tu contraseña?",
     "auth.haveAccount": "¿Ya tienes cuenta? Inicia sesión",
+    "auth.invalidEmailFormat": "Introduce una dirección de email válida.",
+    "auth.invalidLoginCredentials": "Email o contraseña no válidos.",
     "auth.loginFailed": "No se pudo iniciar sesión",
     "auth.missingEmailMessage": "Introduce tu email primero.",
     "auth.missingEmailTitle": "Falta email",
@@ -109,8 +111,8 @@ export const es: Record<TranslationKey, string> = {
     "form.totalCount": "Conteo total",
     "form.totalCountSoFar": "Conteo total hasta ahora",
 
-    "addPractice.customInstead": "Personalizada",
-    "addPractice.customPractice": "Crear práctica personalizada",
+    "addPractice.customInstead": "Contador de mantra en su lugar",
+    "addPractice.customPractice": "Añadir contador de mantra",
     "addPractice.customPracticeDescription": "Añade una nueva práctica con tu propio nombre, objetivo, sesión predeterminada e imagen opcional.",
     "addPractice.fixedSeedImage": "La imagen de la práctica semilla es fija.",
     "addPractice.noImageSelected": "Opcional. Si no eliges una, se usará la imagen genérica.",
@@ -243,6 +245,8 @@ export const es: Record<TranslationKey, string> = {
     "practice.valueCannotBeNegative": "El valor no puede ser negativo",
 
     "practiceImage.generic": "Imagen predeterminada",
+    "practiceImage.other": "Otro",
+    "practiceImage.sixteenthKarmapa": "16to Karmapa",
     "practiceImage.greenTara": "Tara Verde",
     "practiceImage.lovingEyes": "Ojos Amorosos",
     "practiceImage.whiteLiberatrice": "Tara Blanca",

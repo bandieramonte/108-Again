@@ -11,6 +11,11 @@ import {
 } from "react-native";
 import { useI18n } from "../i18n";
 import { colors } from "../styles/theme";
+import {
+    formatNumber,
+    formatNumberInput,
+    parseFormattedNumberInput,
+} from "../utils/numberUtils";
 
 type DayData = {
     date: string;
@@ -410,7 +415,14 @@ export default function PracticeCalendar({
                                                     if (!isEditable(day.date)) return;
 
                                                     setEditingDate(day.date);
-                                                    setEditingValue(String(day.count || ""));
+                                                    setEditingValue(
+                                                        day.count
+                                                            ? formatNumberInput(
+                                                                String(day.count),
+                                                                locale
+                                                            )
+                                                            : ""
+                                                    );
                                                 }}
                                                 style={[
                                                     styles.day,
@@ -434,7 +446,14 @@ export default function PracticeCalendar({
                                                 {editingDate === day.date ? (
                                                     <TextInput
                                                         value={editingValue}
-                                                        onChangeText={setEditingValue}
+                                                        onChangeText={(value) => {
+                                                            setEditingValue(
+                                                                formatNumberInput(
+                                                                    value,
+                                                                    locale
+                                                                )
+                                                            );
+                                                        }}
                                                         keyboardType="numeric"
                                                         autoFocus
                                                         numberOfLines={1}
@@ -443,7 +462,8 @@ export default function PracticeCalendar({
                                                             editingValue.length >= 5 && styles.dayCountSmall,
                                                             editingValue.length >= 7 && styles.dayCountVerySmall
                                                         ]} onBlur={() => {
-                                                            const value = Number(editingValue) || 0;
+                                                            const value =
+                                                                parseFormattedNumberInput(editingValue);
                                                             onEditDay(day.date, value);
                                                             setEditingDate(null);
                                                         }}
@@ -459,7 +479,7 @@ export default function PracticeCalendar({
                                                             !editable && styles.futureDayText
                                                         ]}
                                                     >
-                                                        {day.count}
+                                                        {formatNumber(day.count, locale)}
                                                     </Text>
                                                 )}
                                             </Pressable>

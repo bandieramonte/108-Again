@@ -70,6 +70,8 @@ export const cs: Record<TranslationKey, string> = {
     "auth.firstNameRequired": "Jméno je povinné.",
     "auth.forgotPassword": "Zapomněl(a) jsi heslo?",
     "auth.haveAccount": "Už máš účet? Přihlásit se",
+    "auth.invalidEmailFormat": "Zadej prosím platnou emailovou adresu.",
+    "auth.invalidLoginCredentials": "Neplatný email nebo heslo.",
     "auth.loginFailed": "Přihlášení selhalo",
     "auth.missingEmailMessage": "Nejprve zadej svůj email.",
     "auth.missingEmailTitle": "Chybí email",
@@ -109,8 +111,8 @@ export const cs: Record<TranslationKey, string> = {
     "form.totalCount": "Celkový počet",
     "form.totalCountSoFar": "Celkový počet zatím",
 
-    "addPractice.customInstead": "Vlastní praxe",
-    "addPractice.customPractice": "Vytvořit vlastní praxi",
+    "addPractice.customInstead": "Místo toho počítadlo manter",
+    "addPractice.customPractice": "Přidat počítadlo manter",
     "addPractice.customPracticeDescription": "Přidej novou praxi s vlastním názvem, cílem, výchozím počtem v sezení a volitelným obrázkem.",
     "addPractice.fixedSeedImage": "Obrázek výchozí praxe je pevně daný.",
     "addPractice.noImageSelected": "Volitelné. Pokud žádný nevybereš, použije se výchozí obrázek.",
@@ -185,8 +187,8 @@ export const cs: Record<TranslationKey, string> = {
 
     "seedPractice.amitabha": "Amitabha",
     "seedPractice.diamondMind": "Diamantová mysl",
-    "seedPractice.guruYoga": "Guru Yoga",
-    "seedPractice.mandala": "Obětiny mandaly",
+    "seedPractice.guruYoga": "Gurujóga",
+    "seedPractice.mandala": "Darování Mandaly",
     "seedPractice.prostrations": "Poklony",
     "seedPractice.shortRefuge": "Krátké útočiště",
 
@@ -243,6 +245,8 @@ export const cs: Record<TranslationKey, string> = {
     "practice.valueCannotBeNegative": "Hodnota nemůže být záporná",
 
     "practiceImage.generic": "Výchozí obrázek",
+    "practiceImage.other": "Jiné",
+    "practiceImage.sixteenthKarmapa": "16. Karmapa",
     "practiceImage.greenTara": "Zelená Tara",
     "practiceImage.lovingEyes": "Chenrezig",
     "practiceImage.whiteLiberatrice": "Bílá Tara",

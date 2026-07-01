@@ -70,6 +70,8 @@ export const pl: Record<TranslationKey, string> = {
     "auth.firstNameRequired": "Imię jest wymagane.",
     "auth.forgotPassword": "Nie pamiętasz hasła?",
     "auth.haveAccount": "Masz już konto? Zaloguj się",
+    "auth.invalidEmailFormat": "Wpisz prawidłowy adres email.",
+    "auth.invalidLoginCredentials": "Nieprawidłowy email lub hasło.",
     "auth.loginFailed": "Logowanie nie powiodło się",
     "auth.missingEmailMessage": "Najpierw wpisz swój email.",
     "auth.missingEmailTitle": "Brak emaila",
@@ -109,8 +111,8 @@ export const pl: Record<TranslationKey, string> = {
     "form.totalCount": "Łączna liczba",
     "form.totalCountSoFar": "Łączna liczba dotąd",
 
-    "addPractice.customInstead": "Własna praktyka",
-    "addPractice.customPractice": "Utwórz własną praktykę",
+    "addPractice.customInstead": "Zamiast tego licznik mantr",
+    "addPractice.customPractice": "Dodaj licznik mantr",
     "addPractice.customPracticeDescription": "Dodaj nową praktykę z własną nazwą, celem, domyślną liczbą w sesji i opcjonalnym obrazem.",
     "addPractice.fixedSeedImage": "Obraz praktyki domyślnej jest stały.",
     "addPractice.noImageSelected": "Opcjonalne. Jeśli nic nie wybierzesz, zostanie użyty obraz domyślny.",
@@ -186,7 +188,7 @@ export const pl: Record<TranslationKey, string> = {
     "seedPractice.amitabha": "Amitabha",
     "seedPractice.diamondMind": "Diamentowy Umysł",
     "seedPractice.guruYoga": "Guru Yoga",
-    "seedPractice.mandala": "Ofiary mandali",
+    "seedPractice.mandala": "Podarowanie Mandali",
     "seedPractice.prostrations": "Pokłony",
     "seedPractice.shortRefuge": "Krótkie Schronienie",
 
@@ -243,6 +245,8 @@ export const pl: Record<TranslationKey, string> = {
     "practice.valueCannotBeNegative": "Wartość nie może być ujemna",
 
     "practiceImage.generic": "Obraz domyślny",
+    "practiceImage.other": "Inne",
+    "practiceImage.sixteenthKarmapa": "16. Karmapa",
     "practiceImage.greenTara": "Zielona Tara",
     "practiceImage.lovingEyes": "Chenrezig",
     "practiceImage.whiteLiberatrice": "Biała Tara",
