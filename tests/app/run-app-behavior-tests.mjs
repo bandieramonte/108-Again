@@ -196,6 +196,12 @@ const {
   roundUpToNextHalfHour,
 } =
   require("../.build/utils/reminderTime.js");
+const {
+  buildVerificationUrl,
+  getAuthEmailLanguage,
+  renderAuthEmail,
+} =
+  require("../.build/supabase/functions/send-auth-email/renderAuthEmail.js");
 
 Module._load = originalLoad;
 
@@ -561,6 +567,88 @@ await test(
       getLocalizedAuthErrorMessage({ message: "Remote auth error" }, t),
       "Remote auth error"
     );
+  }
+);
+
+await test(
+  "auth email renderer localizes templates and verification links",
+  () => {
+    assert.equal(
+      getAuthEmailLanguage({
+        redirectTo: "app108again://sign-in?confirmed=true&lang=es",
+        userMetadata: { preferred_language: "en" },
+      }),
+      "es",
+      "Redirect language should override stored metadata"
+    );
+    assert.equal(
+      getAuthEmailLanguage({
+        redirectTo: "app108again://sign-in?confirmed=true",
+        userMetadata: { preferred_language: "ru" },
+      }),
+      "ru"
+    );
+    assert.equal(
+      getAuthEmailLanguage({
+        redirectTo: "app108again://sign-in?confirmed=true&lang=it",
+        userMetadata: { preferred_language: "it" },
+      }),
+      "en",
+      "Unsupported languages should fall back to English"
+    );
+
+    const verificationUrl = buildVerificationUrl({
+      actionType: "signup",
+      redirectTo: "app108again://sign-in?confirmed=true&lang=es",
+      supabaseUrl: "https://project.supabase.co",
+      tokenHash: "token-hash",
+    });
+    const parsedUrl = new URL(verificationUrl);
+
+    assert.equal(
+      `${parsedUrl.origin}${parsedUrl.pathname}`,
+      "https://project.supabase.co/auth/v1/verify"
+    );
+    assert.equal(parsedUrl.searchParams.get("token"), "token-hash");
+    assert.equal(parsedUrl.searchParams.get("type"), "signup");
+    assert.equal(
+      parsedUrl.searchParams.get("redirect_to"),
+      "app108again://sign-in?confirmed=true&lang=es"
+    );
+
+    const spanishEmail = renderAuthEmail({
+      actionType: "signup",
+      firstName: "Gianpi",
+      language: "es",
+      token: "123456",
+      verificationUrl,
+    });
+
+    assert.equal(spanishEmail.subject, "Confirma tu email");
+    assert.match(spanishEmail.html, /Confirmar email/);
+    assert.match(spanishEmail.text, /Gianpi, Sigue el enlace/);
+    assert.match(spanishEmail.text, /123456/);
+
+    const russianEmail = renderAuthEmail({
+      actionType: "recovery",
+      firstName: "Иван",
+      language: "ru",
+      token: "654321",
+      verificationUrl,
+    });
+
+    assert.equal(russianEmail.subject, "Сброс пароля");
+    assert.match(russianEmail.html, /Сбросить пароль/);
+    assert.match(russianEmail.text, /Иван, Перейдите/);
+    assert.match(russianEmail.text, /654321/);
+
+    const fallbackEmail = renderAuthEmail({
+      actionType: "unknown_action",
+      language: "en",
+      verificationUrl,
+    });
+
+    assert.equal(fallbackEmail.subject, "Continue with 108 Again");
   }
 );
 

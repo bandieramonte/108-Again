@@ -20,7 +20,7 @@ import { globalStyles } from "../styles/global";
 import { getLocalizedAuthErrorMessage } from "../utils/authErrorText";
 
 export default function SignUpScreen() {
-    const { t } = useI18n();
+    const { language, t } = useI18n();
     const [firstName, setFirstName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -32,7 +32,13 @@ export default function SignUpScreen() {
 
         try {
             setSubmitting(true);
-            const result = await authService.signUp(firstName, email, password);
+            const result =
+                await authService.signUp(
+                    firstName,
+                    email,
+                    password,
+                    language
+                );
 
             if (result?.needsEmailConfirmation) {
                 Alert.alert(

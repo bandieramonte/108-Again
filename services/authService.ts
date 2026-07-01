@@ -1,5 +1,5 @@
 import { AUTH_FIELD_LIMITS } from "@/constants/authFieldLimits";
-import { getRuntimeI18n } from "@/i18n";
+import { getRuntimeI18n, type LanguageCode } from "@/i18n";
 import { getSupabase } from "@/lib/supabase";
 import * as appMetaRepo from "@/repositories/appMetaRepo";
 import * as profileRepo from "@/repositories/profileRepo";
@@ -164,7 +164,8 @@ export async function initializeAuth() {
 export async function signUp(
     firstName: string,
     email: string,
-    password: string
+    password: string,
+    preferredLanguage?: LanguageCode
 ) {
     const trimmedFirstName = firstName.trim();
     const trimmedEmail = email.trim().toLowerCase();
@@ -207,9 +208,13 @@ export async function signUp(
             email: trimmedEmail,
             password,
             options: {
-                emailRedirectTo: `${Constants.expoConfig?.scheme ?? 'app108again'}://sign-in?confirmed=true`,
+                emailRedirectTo: appendAuthRedirectLanguage(
+                    `${Constants.expoConfig?.scheme ?? 'app108again'}://sign-in?confirmed=true`,
+                    preferredLanguage
+                ),
                 data: {
                     first_name: trimmedFirstName,
+                    preferred_language: preferredLanguage,
                 },
             },
         });
@@ -344,9 +349,23 @@ export async function deleteAccount() {
     });
 }
 
-export async function resetPassword(email: string) {
+function appendAuthRedirectLanguage(url: string, language?: LanguageCode) {
+    if (!language) return url;
 
-    const redirectTo = `${Constants.expoConfig?.scheme ?? 'app108again'}://reset-password`;
+    const separator = url.includes("?") ? "&" : "?";
+
+    return `${url}${separator}lang=${encodeURIComponent(language)}`;
+}
+
+export async function resetPassword(
+    email: string,
+    preferredLanguage?: LanguageCode
+) {
+
+    const redirectTo = appendAuthRedirectLanguage(
+        `${Constants.expoConfig?.scheme ?? 'app108again'}://reset-password`,
+        preferredLanguage
+    );
 
     await resetPasswordCore(
         {
@@ -359,4 +378,18 @@ export async function resetPassword(email: string) {
         },
         email
     );
+}
+
+export async function updatePreferredLanguage(language: LanguageCode) {
+    if (!isAuthenticated()) return;
+
+    const { error } = await getSupabase().auth.updateUser({
+        data: {
+            preferred_language: language,
+        },
+    });
+
+    if (error) {
+        throw error;
+    }
 }

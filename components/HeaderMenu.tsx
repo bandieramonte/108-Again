@@ -1,6 +1,11 @@
 import PrivacyModal from "@/components/PrivacyModal";
-import { languageOptions, useI18n } from "@/i18n";
+import {
+    languageOptions,
+    useI18n,
+    type LanguageCode,
+} from "@/i18n";
 import * as appService from "@/services/appService";
+import * as authService from "@/services/authService";
 import { exportBackup, importBackup } from "@/utils/backup";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -78,6 +83,19 @@ export default function HeaderMenu({
                 error?.message ?? t("menu.shareUnavailable")
             );
         }
+    }
+
+    function handleLanguageSelect(nextLanguage: LanguageCode) {
+        setLanguageOpen(false);
+        void setLanguage(nextLanguage)
+            .then(() => {
+                if (!isAuthenticated) return;
+
+                return authService.updatePreferredLanguage(nextLanguage);
+            })
+            .catch(error => {
+                console.warn("Failed to update preferred language", error);
+            });
     }
 
     return (
@@ -237,8 +255,7 @@ export default function HeaderMenu({
                                         selected && styles.languageItemSelected
                                     ]}
                                     onPress={() => {
-                                        setLanguageOpen(false);
-                                        void setLanguage(option.code);
+                                        handleLanguageSelect(option.code);
                                     }}
                                 >
                                     <Text style={styles.languageFlag}>

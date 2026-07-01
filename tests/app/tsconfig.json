@@ -39,6 +39,7 @@
     "../../services/practiceReminderService.ts",
     "../../services/syncCoordinator.ts",
     "../../services/syncEngine.ts",
+    "../../supabase/functions/send-auth-email/renderAuthEmail.ts",
     "../../types/sync.ts",
     "../../utils/authErrorText.ts",
     "../../utils/dateUtils.ts",

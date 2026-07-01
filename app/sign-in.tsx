@@ -21,7 +21,7 @@ import { globalStyles } from "../styles/global";
 import { getLocalizedAuthErrorMessage } from "../utils/authErrorText";
 
 export default function SignInScreen() {
-    const { t } = useI18n();
+    const { language, t } = useI18n();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [submitting, setSubmitting] = useState(false);
@@ -74,7 +74,7 @@ export default function SignInScreen() {
 
             await AsyncStorage.setItem("reset_email", email);
 
-            await authService.resetPassword(email);
+            await authService.resetPassword(email, language);
 
             Alert.alert(
                 t("auth.checkEmailTitle"),
