@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button, StyleSheet, Text, TextInput, View } from "react-native";
+import { useI18n } from "../i18n";
 import * as sessionService from "../services/sessionService";
 
 type Props = {
@@ -9,6 +10,7 @@ type Props = {
 
 export default function AddSession({ practiceId, onSaved }: Props) {
 
+    const { t } = useI18n();
     const [customValue, setCustomValue] = useState("");
 
     function addSession(count: number) {
@@ -20,7 +22,7 @@ export default function AddSession({ practiceId, onSaved }: Props) {
 
         <View style={styles.container}>
 
-            <Text style={styles.title}>Add repetitions</Text>
+            <Text style={styles.title}>{t("practice.customAmount")}</Text>
 
             <View style={styles.buttons}>
                 <Button title="+1" onPress={() => addSession(1)} />
@@ -29,7 +31,7 @@ export default function AddSession({ practiceId, onSaved }: Props) {
             </View>
 
             <TextInput
-                placeholder="Custom count"
+                placeholder={t("practice.customAmount")}
                 keyboardType="numeric"
                 value={customValue}
                 onChangeText={setCustomValue}
@@ -37,7 +39,7 @@ export default function AddSession({ practiceId, onSaved }: Props) {
             />
 
             <Button
-                title="Add custom"
+                title={t("common.add")}
                 onPress={() => addSession(Number(customValue))}
             />
 

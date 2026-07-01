@@ -118,6 +118,10 @@ export const en = {
     "addPractice.seedPracticeDescription": "Choose a deleted default practice to add it again with its original image and default name.",
 
     "language.english": "English",
+    "language.german": "German",
+    "language.polish": "Polish",
+    "language.czech": "Czech",
+    "language.hungarian": "Hungarian",
     "language.russian": "Russian",
     "language.spanish": "Spanish",
     "language.switch": "Switch language",
@@ -238,7 +242,7 @@ export const en = {
 
     "practiceImage.generic": "Default image",
     "practiceImage.greenTara": "Green Tara",
-    "practiceImage.lovingEyes": "Loving Eyes",
+    "practiceImage.lovingEyes": "Chenrezig",
     "practiceImage.whiteLiberatrice": "White Tara",
 
     "practiceMenu.calendar": "Practice calendar",

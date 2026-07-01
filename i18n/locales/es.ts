@@ -120,6 +120,10 @@ export const es: Record<TranslationKey, string> = {
     "addPractice.seedPracticeDescription": "Elige una práctica predeterminada eliminada para añadirla de nuevo con su imagen y nombre originales.",
 
     "language.english": "Inglés",
+    "language.german": "Alemán",
+    "language.polish": "Polaco",
+    "language.czech": "Checo",
+    "language.hungarian": "Húngaro",
     "language.russian": "Ruso",
     "language.spanish": "Español",
     "language.switch": "Cambiar idioma",
@@ -181,7 +185,7 @@ export const es: Record<TranslationKey, string> = {
 
     "seedPractice.amitabha": "Amitabha",
     "seedPractice.diamondMind": "Mente de Diamante",
-    "seedPractice.guruYoga": "Meditación en el Lama",
+    "seedPractice.guruYoga": "Guru Yoga",
     "seedPractice.mandala": "Ofrendas del Mandala",
     "seedPractice.prostrations": "Prostraciones",
     "seedPractice.shortRefuge": "Refugio Corto",

@@ -1,4 +1,4 @@
-export type LanguageCode = "en" | "es" | "ru";
+export type LanguageCode = "en" | "es" | "ru" | "de" | "pl" | "cs" | "hu";
 
 type LocaleLike = {
     languageCode?: string | null;
@@ -17,6 +17,10 @@ export function detectSupportedLanguageFromLocale(
 
     if (primaryLanguage === "es") return "es";
     if (primaryLanguage === "ru") return "ru";
+    if (primaryLanguage === "de") return "de";
+    if (primaryLanguage === "pl") return "pl";
+    if (primaryLanguage === "cs") return "cs";
+    if (primaryLanguage === "hu") return "hu";
 
     return "en";
 }

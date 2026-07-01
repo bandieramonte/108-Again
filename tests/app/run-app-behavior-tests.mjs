@@ -184,6 +184,8 @@ const { createSyncEngine } =
   require("../.build/services/syncEngine.js");
 const { detectSupportedLanguageFromLocale } =
   require("../.build/i18n/languageDetection.js");
+const { resolveInitialLanguagePreference } =
+  require("../.build/i18n/languagePreference.js");
 const { formatMonthDayYear } =
   require("../.build/utils/dateUtils.js");
 const { formatCountProgress } =
@@ -590,6 +592,34 @@ await test(
     );
     assert.equal(
       getAuthEmailLanguage({
+        redirectTo: "app108again://sign-in?confirmed=true&lang=de",
+        userMetadata: { preferred_language: "en" },
+      }),
+      "de"
+    );
+    assert.equal(
+      getAuthEmailLanguage({
+        redirectTo: "app108again://sign-in?confirmed=true&lang=pl",
+        userMetadata: { preferred_language: "en" },
+      }),
+      "pl"
+    );
+    assert.equal(
+      getAuthEmailLanguage({
+        redirectTo: "app108again://sign-in?confirmed=true&lang=cs",
+        userMetadata: { preferred_language: "en" },
+      }),
+      "cs"
+    );
+    assert.equal(
+      getAuthEmailLanguage({
+        redirectTo: "app108again://sign-in?confirmed=true&lang=hu",
+        userMetadata: { preferred_language: "en" },
+      }),
+      "hu"
+    );
+    assert.equal(
+      getAuthEmailLanguage({
         redirectTo: "app108again://sign-in?confirmed=true&lang=it",
         userMetadata: { preferred_language: "it" },
       }),
@@ -641,6 +671,23 @@ await test(
     assert.match(russianEmail.html, /Сбросить пароль/);
     assert.match(russianEmail.text, /Иван, Перейдите/);
     assert.match(russianEmail.text, /654321/);
+
+    const newLanguageEmails = [
+      ["de", "Passwort zurücksetzen"],
+      ["pl", "Zresetuj hasło"],
+      ["cs", "Reset hesla"],
+      ["hu", "Jelszó visszaállítása"],
+    ];
+
+    for (const [language, expectedSubject] of newLanguageEmails) {
+      const email = renderAuthEmail({
+        actionType: "recovery",
+        language,
+        verificationUrl,
+      });
+
+      assert.equal(email.subject, expectedSubject);
+    }
 
     const fallbackEmail = renderAuthEmail({
       actionType: "unknown_action",
@@ -1638,6 +1685,30 @@ await test(
       }),
       "ru"
     );
+    assert.equal(
+      detectSupportedLanguageFromLocale({
+        languageCode: "de",
+      }),
+      "de"
+    );
+    assert.equal(
+      detectSupportedLanguageFromLocale({
+        languageTag: "pl-PL",
+      }),
+      "pl"
+    );
+    assert.equal(
+      detectSupportedLanguageFromLocale({
+        languageCode: "cs",
+      }),
+      "cs"
+    );
+    assert.equal(
+      detectSupportedLanguageFromLocale({
+        languageTag: "hu-HU",
+      }),
+      "hu"
+    );
 
     assert.equal(
       detectSupportedLanguageFromLocale({
@@ -1652,6 +1723,102 @@ await test(
         languageCode: "it",
       }),
       "en"
+    );
+  }
+);
+
+await test(
+  "initial language preference respects first installs and one-time locale migration",
+  () => {
+    assert.deepEqual(
+      resolveInitialLanguagePreference({
+        detectedLanguage: "de",
+        migrationApplied: false,
+        savedLanguage: null,
+        savedLanguageSource: null,
+      }),
+      {
+        language: "de",
+        source: "auto",
+        shouldMarkMigration: true,
+        shouldPersistLanguage: true,
+      },
+      "Fresh installs should use a supported device language"
+    );
+
+    assert.deepEqual(
+      resolveInitialLanguagePreference({
+        detectedLanguage: "de",
+        migrationApplied: false,
+        savedLanguage: "en",
+        savedLanguageSource: null,
+      }),
+      {
+        language: "de",
+        source: "auto",
+        shouldMarkMigration: true,
+        shouldPersistLanguage: true,
+      },
+      "Legacy auto-English installs should migrate once to supported non-English languages"
+    );
+
+    assert.equal(
+      resolveInitialLanguagePreference({
+        detectedLanguage: "es",
+        migrationApplied: false,
+        savedLanguage: "en",
+        savedLanguageSource: null,
+      }).language,
+      "es",
+      "The one-time migration also covers existing supported locales"
+    );
+
+    assert.deepEqual(
+      resolveInitialLanguagePreference({
+        detectedLanguage: "pl",
+        migrationApplied: false,
+        savedLanguage: "en",
+        savedLanguageSource: "manual",
+      }),
+      {
+        language: "en",
+        source: "manual",
+        shouldMarkMigration: true,
+        shouldPersistLanguage: false,
+      },
+      "Manual English choices should not be auto-overridden"
+    );
+
+    assert.deepEqual(
+      resolveInitialLanguagePreference({
+        detectedLanguage: "hu",
+        migrationApplied: true,
+        savedLanguage: "en",
+        savedLanguageSource: null,
+      }),
+      {
+        language: "en",
+        source: "auto",
+        shouldMarkMigration: false,
+        shouldPersistLanguage: true,
+      },
+      "The locale migration should not keep running after it is marked"
+    );
+
+    assert.deepEqual(
+      resolveInitialLanguagePreference({
+        detectedLanguage: "cs",
+        migrationApplied: false,
+        savedLanguage: "es",
+        savedLanguageSource: null,
+      }),
+      {
+        language: "es",
+        source: "auto",
+        shouldMarkMigration: true,
+        shouldPersistLanguage: true,
+      },
+      "Existing non-English supported choices should be preserved"
     );
   }
 );

@@ -13,9 +13,17 @@ import {
     detectSupportedLanguageFromLocale,
     type LanguageCode,
 } from "./languageDetection";
+import {
+    resolveInitialLanguagePreference,
+    type StoredLanguageSource,
+} from "./languagePreference";
 import { en, type TranslationKey } from "./locales/en";
 import { es } from "./locales/es";
 import { ru } from "./locales/ru";
+import { de } from "./locales/de";
+import { pl } from "./locales/pl";
+import { cs } from "./locales/cs";
+import { hu } from "./locales/hu";
 
 export type { LanguageCode } from "./languageDetection";
 
@@ -29,17 +37,31 @@ type I18nContextValue = {
 };
 
 const LANGUAGE_STORAGE_KEY = "preferredLanguage";
+const LANGUAGE_SOURCE_STORAGE_KEY = "preferredLanguageSource";
+const LANGUAGE_LOCALE_MIGRATION_KEY =
+    "preferredLanguageLocaleMigrationApplied";
+const LEGACY_LANGUAGE_LOCALE_MIGRATION_KEY =
+    "preferredLanguageLocaleMigration.v1";
+const TRUE_STORAGE_VALUE = "true";
 
 const resources: Record<LanguageCode, Record<TranslationKey, string>> = {
     en,
     es,
     ru,
+    de,
+    pl,
+    cs,
+    hu,
 };
 
 const localeByLanguage: Record<LanguageCode, string> = {
     en: "en-GB",
     es: "es-ES",
     ru: "ru-RU",
+    de: "de-DE",
+    pl: "pl-PL",
+    cs: "cs-CZ",
+    hu: "hu-HU",
 };
 
 export const languageOptions: {
@@ -62,14 +84,100 @@ export const languageOptions: {
             flag: "🇷🇺",
             labelKey: "language.russian",
         },
+        {
+            code: "de",
+            flag: "🇩🇪",
+            labelKey: "language.german",
+        },
+        {
+            code: "pl",
+            flag: "🇵🇱",
+            labelKey: "language.polish",
+        },
+        {
+            code: "cs",
+            flag: "🇨🇿",
+            labelKey: "language.czech",
+        },
+        {
+            code: "hu",
+            flag: "🇭🇺",
+            labelKey: "language.hungarian",
+        },
     ];
-
-function isLanguageCode(value: string | null): value is LanguageCode {
-    return value === "en" || value === "es" || value === "ru";
-}
 
 function detectDeviceLanguage(): LanguageCode {
     return detectSupportedLanguageFromLocale(Localization.getLocales()[0]);
+}
+
+async function persistLanguagePreference(
+    language: LanguageCode,
+    source: StoredLanguageSource
+) {
+    await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    await AsyncStorage.setItem(LANGUAGE_SOURCE_STORAGE_KEY, source);
+}
+
+async function markLanguageLocaleMigrationApplied() {
+    await AsyncStorage.setItem(
+        LANGUAGE_LOCALE_MIGRATION_KEY,
+        TRUE_STORAGE_VALUE
+    );
+}
+
+async function resolveStoredOrDetectedLanguage() {
+    const detectedLanguage = detectDeviceLanguage();
+
+    try {
+        const [
+            savedLanguage,
+            savedLanguageSource,
+            migrationAppliedValue,
+            legacyMigrationAppliedValue,
+        ] = await Promise.all([
+            AsyncStorage.getItem(LANGUAGE_STORAGE_KEY),
+            AsyncStorage.getItem(LANGUAGE_SOURCE_STORAGE_KEY),
+            AsyncStorage.getItem(LANGUAGE_LOCALE_MIGRATION_KEY),
+            AsyncStorage.getItem(LEGACY_LANGUAGE_LOCALE_MIGRATION_KEY),
+        ]);
+        const migrationApplied =
+            migrationAppliedValue === TRUE_STORAGE_VALUE ||
+            legacyMigrationAppliedValue === TRUE_STORAGE_VALUE;
+        const preference = resolveInitialLanguagePreference({
+            detectedLanguage,
+            migrationApplied,
+            savedLanguage,
+            savedLanguageSource,
+        });
+        const writes: Promise<void>[] = [];
+
+        if (preference.shouldPersistLanguage) {
+            writes.push(
+                persistLanguagePreference(
+                    preference.language,
+                    preference.source
+                )
+            );
+        }
+
+        if (
+            preference.shouldMarkMigration ||
+            (
+                migrationApplied &&
+                migrationAppliedValue !== TRUE_STORAGE_VALUE
+            )
+        ) {
+            writes.push(markLanguageLocaleMigrationApplied());
+        }
+
+        if (writes.length > 0) {
+            await Promise.all(writes);
+        }
+
+        return preference.language;
+    } catch {
+        return detectedLanguage;
+    }
 }
 
 function interpolate(template: string, params?: TranslationParams) {
@@ -102,34 +210,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
         let active = true;
 
         void (async () => {
-            let savedLanguage: string | null = null;
-
-            try {
-                savedLanguage =
-                    await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
-            } catch {
-                savedLanguage = null;
-            }
+            const nextLanguage =
+                await resolveStoredOrDetectedLanguage();
 
             if (!active) return;
 
-            if (isLanguageCode(savedLanguage)) {
-                setLanguageState(savedLanguage);
-                return;
-            }
-
-            const detectedLanguage = detectDeviceLanguage();
-            setLanguageState(detectedLanguage);
-
-            try {
-                await AsyncStorage.setItem(
-                    LANGUAGE_STORAGE_KEY,
-                    detectedLanguage
-                );
-            } catch {
-                // The in-memory language has already been selected; storage
-                // can try again when the user manually changes language.
-            }
+            setLanguageState(nextLanguage);
         })();
 
         return () => {
@@ -139,10 +225,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
     const setLanguage = useCallback(async (nextLanguage: LanguageCode) => {
         setLanguageState(nextLanguage);
-        await AsyncStorage.setItem(
-            LANGUAGE_STORAGE_KEY,
-            nextLanguage
-        );
+
+        await persistLanguagePreference(nextLanguage, "manual");
+        await markLanguageLocaleMigrationApplied();
     }, []);
 
     const value = useMemo<I18nContextValue>(() => {
@@ -189,19 +274,7 @@ export function translateForLanguage(
 }
 
 export async function getStoredOrDetectedLanguage(): Promise<LanguageCode> {
-    try {
-        const savedLanguage =
-            await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
-
-        if (isLanguageCode(savedLanguage)) {
-            return savedLanguage;
-        }
-    } catch {
-        // Fall through to device detection. The provider uses the same
-        // fallback, so background services stay aligned with visible UI.
-    }
-
-    return detectDeviceLanguage();
+    return resolveStoredOrDetectedLanguage();
 }
 
 export async function getRuntimeI18n() {

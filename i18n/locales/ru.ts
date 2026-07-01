@@ -120,6 +120,10 @@ export const ru: Record<TranslationKey, string> = {
     "addPractice.seedPracticeDescription": "Выберите удалённую практику по умолчанию, чтобы добавить её снова с исходной картинкой и названием.",
 
     "language.english": "Английский",
+    "language.german": "Немецкий",
+    "language.polish": "Польский",
+    "language.czech": "Чешский",
+    "language.hungarian": "Венгерский",
     "language.russian": "Русский",
     "language.spanish": "Испанский",
     "language.switch": "Сменить язык",
