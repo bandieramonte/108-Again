@@ -3,7 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { useI18n } from "../i18n";
 import * as practiceService from "../services/practiceService";
-import { colors } from "../styles/theme";
+import { useAppTheme } from "../styles/theme";
 
 type Props = {
     visible: boolean;
@@ -27,6 +27,7 @@ export default function TargetDateEditor({
     onSave
 }: Props) {
 
+    const { colors } = useAppTheme();
     const { t } = useI18n();
     const [selectedDate, setSelectedDate] = useState(
         currentTargetDate
@@ -68,14 +69,20 @@ export default function TargetDateEditor({
         >
 
             <Pressable
-                style={styles.overlay}
+                style={[
+                    styles.overlay,
+                    { backgroundColor: colors.overlay },
+                ]}
                 onPress={onClose}
             >
                 <Pressable
-                    style={styles.card}
+                    style={[
+                        styles.card,
+                        { backgroundColor: colors.surfaceElevated },
+                    ]}
                     onPress={() => { }}
                 >
-                    <Text style={styles.title}>
+                    <Text style={[styles.title, { color: colors.textPrimary }]}>
                         {t("targetDateEditor.title")}
                     </Text>
 
@@ -100,7 +107,11 @@ export default function TargetDateEditor({
 
                                 arrowColor: colors.primary,
 
-                                monthTextColor: "#111",
+                                backgroundColor: colors.surfaceElevated,
+                                calendarBackground: colors.surfaceElevated,
+                                dayTextColor: colors.textPrimary,
+                                monthTextColor: colors.textPrimary,
+                                textDisabledColor: colors.inputPlaceholder,
 
                                 textDayFontWeight: "500",
                                 textMonthFontWeight: "600",
@@ -111,11 +122,15 @@ export default function TargetDateEditor({
 
                     <View style={styles.buttons}>
                         <Pressable onPress={onClose}>
-                            <Text>{t("common.cancel")}</Text>
+                            <Text style={{ color: colors.textSecondary }}>
+                                {t("common.cancel")}
+                            </Text>
                         </Pressable>
 
                         <Pressable onPress={save}>
-                            <Text>{t("common.save")}</Text>
+                            <Text style={{ color: colors.primary }}>
+                                {t("common.save")}
+                            </Text>
                         </Pressable>
                     </View>
 

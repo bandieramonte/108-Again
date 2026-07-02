@@ -3,6 +3,7 @@ import type { TranslationKey } from "./en";
 export const hu: Record<TranslationKey, string> = {
     "common.add": "Hozzáadás",
     "common.added": "hozzáadva!",
+    "common.back": "Vissza",
     "common.cancel": "Mégse",
     "common.close": "Bezárás",
     "common.delete": "Törlés",
@@ -10,6 +11,9 @@ export const hu: Record<TranslationKey, string> = {
     "common.restore": "Visszaállítás",
     "common.save": "Mentés",
     "common.unknownError": "Ismeretlen hiba",
+
+    "theme.switchToDark": "Váltás sötét témára",
+    "theme.switchToLight": "Váltás világos témára",
 
     "about.contact": "Kapcsolat",
     "about.developer": "Fejlesztő",

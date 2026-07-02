@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text } from "react-native";
 import { useI18n } from "../i18n";
-import { colors } from "../styles/theme";
+import { useAppTheme } from "../styles/theme";
 
 type Props = {
     accessibilityLabel?: string;
@@ -12,12 +12,14 @@ export default function EnableDailyTargetButton({
     accessibilityLabel,
     onPress,
 }: Props) {
+    const { colors } = useAppTheme();
     const { t } = useI18n();
 
     return (
         <Pressable
             style={({ pressed }) => [
                 styles.button,
+                { borderColor: colors.borderStrong },
                 pressed && styles.buttonPressed,
             ]}
             onPress={onPress}
@@ -29,7 +31,7 @@ export default function EnableDailyTargetButton({
                 size={17}
                 color={colors.primary}
             />
-            <Text style={styles.text}>
+            <Text style={[styles.text, { color: colors.textPrimary }]}>
                 {t("practice.enableDailyTarget")}
             </Text>
         </Pressable>
@@ -57,6 +59,5 @@ const styles = StyleSheet.create({
     text: {
         fontSize: 14,
         fontWeight: "400",
-        color: "#111",
     },
 });

@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useI18n } from "../i18n";
 import type { TranslationKey } from "../i18n/locales/en";
+import { useAppTheme } from "../styles/theme";
 
 const privacySections: {
   titleKey: TranslationKey;
@@ -58,25 +59,26 @@ const privacySections: {
 ];
 
 export function PrivacyContent() {
+  const { colors } = useAppTheme();
   const { t } = useI18n();
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>
+      <Text style={[styles.heading, { color: colors.textPrimary }]}>
         {t("privacy.title")}
       </Text>
 
-      <Text style={styles.text}>
+      <Text style={[styles.text, { color: colors.textSecondary }]}>
         {t("privacy.intro")}
       </Text>
 
       {privacySections.map(section => (
         <React.Fragment key={section.titleKey}>
-          <Text style={styles.heading}>
+          <Text style={[styles.heading, { color: colors.textPrimary }]}>
             {t(section.titleKey)}
           </Text>
 
-          <Text style={styles.text}>
+          <Text style={[styles.text, { color: colors.textSecondary }]}>
             {t(section.bodyKey)}
           </Text>
         </React.Fragment>

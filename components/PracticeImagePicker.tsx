@@ -5,7 +5,7 @@ import {
     practiceImages,
 } from "../constants/practiceImages";
 import { useI18n } from "../i18n";
-import { globalStyles } from "../styles/global";
+import { useGlobalStyles } from "../styles/theme";
 
 export const CUSTOM_PRACTICE_IMAGE_FALLBACK = "generic";
 
@@ -20,6 +20,7 @@ export default function PracticeImagePicker({
     title,
     onSelect,
 }: Props) {
+    const globalStyles = useGlobalStyles();
     const { t } = useI18n();
     const normalizedSelectedImageKey =
         normalizePracticeImageKey(selectedImageKey) ?? selectedImageKey;

@@ -11,8 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useI18n } from "../i18n";
 import type { UpdateRequirement } from "../services/appUpdatePolicy";
-import { globalStyles } from "../styles/global";
-import { colors } from "../styles/theme";
+import { useAppTheme, useGlobalStyles } from "../styles/theme";
 
 type RequiredUpdate = Extract<
     UpdateRequirement,
@@ -32,6 +31,8 @@ export default function UpdateRequiredScreen({
     onRetry,
     onUpdate,
 }: Props) {
+    const globalStyles = useGlobalStyles();
+    const { colors } = useAppTheme();
     const { t } = useI18n();
     const isMaintenance = requirement.reason === "maintenance";
     const message = requirement.message ??
@@ -51,7 +52,13 @@ export default function UpdateRequiredScreen({
     }, []);
 
     return (
-        <SafeAreaView style={[globalStyles.sidePadding, styles.screen]}>
+        <SafeAreaView
+            style={[
+                globalStyles.sidePadding,
+                styles.screen,
+                { backgroundColor: colors.background },
+            ]}
+        >
             <View style={styles.card}>
                 <MaterialIcons
                     name={isMaintenance ? "build" : "system-update"}
@@ -59,13 +66,13 @@ export default function UpdateRequiredScreen({
                     color={colors.primary}
                 />
 
-                <Text style={styles.title}>
+                <Text style={[styles.title, { color: colors.textPrimary }]}>
                     {isMaintenance
                         ? t("update.maintenanceTitle")
                         : t("update.requiredTitle")}
                 </Text>
 
-                <Text style={styles.message}>
+                <Text style={[styles.message, { color: colors.textSecondary }]}>
                     {message}
                 </Text>
 
@@ -73,6 +80,7 @@ export default function UpdateRequiredScreen({
                     <Pressable
                         style={({ pressed }) => [
                             styles.primaryButton,
+                            { backgroundColor: colors.primary },
                             pressed && styles.buttonPressed,
                         ]}
                         onPress={onUpdate}
@@ -98,7 +106,12 @@ export default function UpdateRequiredScreen({
                     {checking ? (
                         <ActivityIndicator color={colors.primary} />
                     ) : (
-                        <Text style={styles.retryButtonText}>
+                        <Text
+                            style={[
+                                styles.retryButtonText,
+                                { color: colors.primary },
+                            ]}
+                        >
                             {t("update.checkAgain")}
                         </Text>
                     )}
@@ -111,7 +124,6 @@ export default function UpdateRequiredScreen({
 const styles = StyleSheet.create({
     screen: {
         flex: 1,
-        backgroundColor: colors.background,
         alignItems: "center",
         justifyContent: "center",
         paddingVertical: 17,
@@ -125,13 +137,11 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 24,
         fontWeight: "700",
-        color: colors.textPrimary,
         textAlign: "center",
     },
     message: {
         fontSize: 16,
         lineHeight: 23,
-        color: colors.textSecondary,
         textAlign: "center",
         marginBottom: 8,
     },
@@ -141,7 +151,6 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: colors.primary,
     },
     primaryButtonText: {
         color: "white",
@@ -156,7 +165,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 18,
     },
     retryButtonText: {
-        color: colors.primary,
         fontSize: 15,
         fontWeight: "600",
     },

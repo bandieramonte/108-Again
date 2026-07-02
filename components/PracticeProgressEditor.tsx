@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useI18n } from "../i18n";
+import { useAppTheme } from "../styles/theme";
 import {
     digitsOnly,
     formatNumberInput,
@@ -27,6 +28,7 @@ export default function PracticeProgressEditor({
     onClose,
     onSave,
 }: Props) {
+    const { colors } = useAppTheme();
     const { locale, t } = useI18n();
     const [totalValue, setTotalValue] =
         useState(formatNumberInput(String(total), locale));
@@ -83,17 +85,27 @@ export default function PracticeProgressEditor({
             animationType="fade"
             onRequestClose={onClose}
         >
-            <View style={styles.overlay}>
-                <View style={styles.card}>
-                    <Text style={styles.title}>
+            <View
+                style={[
+                    styles.overlay,
+                    { backgroundColor: colors.overlay },
+                ]}
+            >
+                <View
+                    style={[
+                        styles.card,
+                        { backgroundColor: colors.surfaceElevated },
+                    ]}
+                >
+                    <Text style={[styles.title, { color: colors.textPrimary }]}>
                         {t("practice.totalProgress")}
                     </Text>
 
-                    <Text style={styles.subtitle}>
+                    <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                         {practiceName}
                     </Text>
 
-                    <Text style={styles.label}>
+                    <Text style={[styles.label, { color: colors.textPrimary }]}>
                         {t("form.totalCountSoFar")}
                     </Text>
                     <TextInput
@@ -103,10 +115,18 @@ export default function PracticeProgressEditor({
                         }}
                         keyboardType="numeric"
                         returnKeyType="next"
-                        style={styles.input}
+                        placeholderTextColor={colors.inputPlaceholder}
+                        style={[
+                            styles.input,
+                            {
+                                backgroundColor: colors.inputBackground,
+                                borderColor: colors.inputBorder,
+                                color: colors.inputText,
+                            },
+                        ]}
                     />
 
-                    <Text style={styles.label}>
+                    <Text style={[styles.label, { color: colors.textPrimary }]}>
                         {t("form.targetCount")}
                     </Text>
                     <TextInput
@@ -117,16 +137,28 @@ export default function PracticeProgressEditor({
                         keyboardType="numeric"
                         returnKeyType="done"
                         onSubmitEditing={save}
-                        style={styles.input}
+                        placeholderTextColor={colors.inputPlaceholder}
+                        style={[
+                            styles.input,
+                            {
+                                backgroundColor: colors.inputBackground,
+                                borderColor: colors.inputBorder,
+                                color: colors.inputText,
+                            },
+                        ]}
                     />
 
                     <View style={styles.buttons}>
                         <Pressable onPress={onClose}>
-                            <Text>{t("common.cancel")}</Text>
+                            <Text style={{ color: colors.textSecondary }}>
+                                {t("common.cancel")}
+                            </Text>
                         </Pressable>
 
                         <Pressable onPress={save}>
-                            <Text>{t("common.save")}</Text>
+                            <Text style={{ color: colors.primary }}>
+                                {t("common.save")}
+                            </Text>
                         </Pressable>
                     </View>
                 </View>

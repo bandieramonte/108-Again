@@ -16,10 +16,12 @@ import {
 } from "react-native";
 import { useI18n } from "../i18n";
 import * as authService from "../services/authService";
-import { globalStyles } from "../styles/global";
+import { useAppTheme, useGlobalStyles } from "../styles/theme";
 import { getLocalizedAuthErrorMessage } from "../utils/authErrorText";
 
 export default function SignUpScreen() {
+    const globalStyles = useGlobalStyles();
+    const { colors } = useAppTheme();
     const { language, t } = useI18n();
     const [firstName, setFirstName] = useState("");
     const [email, setEmail] = useState("");
@@ -69,23 +71,38 @@ export default function SignUpScreen() {
                 contentContainerStyle={[
                     globalStyles.sidePadding,
                     styles.container,
+                    { backgroundColor: colors.background },
                 ]}
                 keyboardShouldPersistTaps="handled"
             >
-                <Text style={styles.title}>{t("menu.createAccount")}</Text>
+                <Text style={[styles.title, { color: colors.textPrimary }]}>
+                    {t("menu.createAccount")}
+                </Text>
 
-                <Text style={styles.label}>{t("account.firstName")}</Text>
+                <Text style={[styles.label, { color: colors.textPrimary }]}>
+                    {t("account.firstName")}
+                </Text>
                 <TextInput
                     value={firstName}
                     onChangeText={setFirstName}
                     maxLength={AUTH_FIELD_LIMITS.firstName}
                     autoCapitalize="words"
                     autoCorrect={false}
-                    style={styles.input}
+                    style={[
+                        styles.input,
+                        {
+                            backgroundColor: colors.inputBackground,
+                            borderColor: colors.inputBorder,
+                            color: colors.inputText,
+                        },
+                    ]}
                     placeholder={t("auth.firstNamePlaceholder")}
+                    placeholderTextColor={colors.inputPlaceholder}
                 />
 
-                <Text style={styles.label}>{t("account.email")}</Text>
+                <Text style={[styles.label, { color: colors.textPrimary }]}>
+                    {t("account.email")}
+                </Text>
                 <TextInput
                     value={email}
                     onChangeText={setEmail}
@@ -93,19 +110,37 @@ export default function SignUpScreen() {
                     autoCapitalize="none"
                     autoCorrect={false}
                     keyboardType="email-address"
-                    style={styles.input}
+                    style={[
+                        styles.input,
+                        {
+                            backgroundColor: colors.inputBackground,
+                            borderColor: colors.inputBorder,
+                            color: colors.inputText,
+                        },
+                    ]}
                     placeholder={t("auth.emailPlaceholder")}
+                    placeholderTextColor={colors.inputPlaceholder}
                 />
 
-                <Text style={styles.label}>{t("auth.password")}</Text>
+                <Text style={[styles.label, { color: colors.textPrimary }]}>
+                    {t("auth.password")}
+                </Text>
                 <View style={styles.passwordContainer}>
                     <TextInput
                         value={password}
                         onChangeText={setPassword}
                         maxLength={AUTH_FIELD_LIMITS.password}
                         secureTextEntry={!showPassword}
-                        style={styles.passwordInput}
+                        style={[
+                            styles.passwordInput,
+                            {
+                                backgroundColor: colors.inputBackground,
+                                borderColor: colors.inputBorder,
+                                color: colors.inputText,
+                            },
+                        ]}
                         placeholder={t("auth.createPasswordPlaceholder")}
+                        placeholderTextColor={colors.inputPlaceholder}
                     />
 
                     <Pressable
@@ -115,7 +150,7 @@ export default function SignUpScreen() {
                         <Ionicons
                             name={showPassword ? "eye-off" : "eye"}
                             size={20}
-                            color="#666"
+                            color={colors.iconMuted}
                         />
                     </Pressable>
                 </View>
@@ -123,6 +158,7 @@ export default function SignUpScreen() {
                 <Pressable
                     style={({ pressed }) => [
                         styles.button,
+                        { backgroundColor: colors.surface },
                         pressed && styles.buttonPressed,
                         submitting && styles.buttonDisabled,
                     ]}
@@ -132,7 +168,12 @@ export default function SignUpScreen() {
                     {submitting ? (
                         <ActivityIndicator />
                     ) : (
-                        <Text style={styles.buttonText}>
+                        <Text
+                            style={[
+                                styles.buttonText,
+                                { color: colors.textPrimary },
+                            ]}
+                        >
                             {t("menu.createAccount")}
                         </Text>
                     )}
@@ -142,7 +183,12 @@ export default function SignUpScreen() {
                     onPress={() => router.push("/sign-in")}
                     style={styles.linkButton}
                 >
-                    <Text style={styles.linkText}>
+                    <Text
+                        style={[
+                            styles.linkText,
+                            { color: colors.textSecondary },
+                        ]}
+                    >
                         {t("auth.haveAccount")}
                     </Text>
                 </Pressable>

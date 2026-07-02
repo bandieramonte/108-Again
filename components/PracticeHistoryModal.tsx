@@ -15,6 +15,7 @@ import Svg, {
 } from "react-native-svg";
 import { useI18n } from "../i18n";
 import * as sessionService from "../services/sessionService";
+import { useAppTheme } from "../styles/theme";
 
 type DailyData = {
     date: string;
@@ -34,6 +35,7 @@ export default function PracticeHistoryModal({
     practiceId,
     total,
 }: Props) {
+    const { colors } = useAppTheme();
     const { locale, t } = useI18n();
     const [selectedIndex, setSelectedIndex] =
         useState<number | null>(null);
@@ -169,7 +171,7 @@ export default function PracticeHistoryModal({
                                 y={y + 4}
                                 fontSize="12"
                                 textAnchor="end"
-                                fill="#666"
+                                fill={colors.textSecondary}
                             >
                                 {formatNumber(value, locale)}
                             </SvgText>
@@ -193,7 +195,7 @@ export default function PracticeHistoryModal({
                                     }
                                     y1={y}
                                     y2={y}
-                                    stroke="#ddd"
+                                    stroke={colors.borderSubtle}
                                     strokeDasharray="3,3"
                                 />
                             );
@@ -224,8 +226,8 @@ export default function PracticeHistoryModal({
                                 height={barHeight}
                                 fill={
                                     selectedIndex === i
-                                        ? "#144DA6"
-                                        : "#1A5FCC"
+                                        ? colors.accent
+                                        : colors.primary
                                 }
                                 onPress={() =>
                                     setSelectedIndex(
@@ -285,7 +287,7 @@ export default function PracticeHistoryModal({
                                             tooltipHeight
                                         }
                                         rx={4}
-                                        fill="#111"
+                                        fill={colors.tooltipBackground}
                                         opacity={0.85}
                                     />
 
@@ -294,7 +296,7 @@ export default function PracticeHistoryModal({
                                         y={yTooltip + 14}
                                         fontSize="11"
                                         textAnchor="middle"
-                                        fill="#fff"
+                                        fill={colors.background}
                                         fontWeight="bold"
                                     >
                                         {formatNumber(d.total, locale)}
@@ -305,7 +307,7 @@ export default function PracticeHistoryModal({
                                         y={yTooltip + 28}
                                         fontSize="9"
                                         textAnchor="middle"
-                                        fill="#fff"
+                                        fill={colors.background}
                                     >
                                         {formatShortDate(d.date)}
                                     </SvgText>
@@ -334,7 +336,7 @@ export default function PracticeHistoryModal({
                                 y={height - 10}
                                 fontSize="12"
                                 textAnchor="middle"
-                                fill="#444"
+                                fill={colors.textSecondary}
                             >
                                 {formatShortDate(
                                     d.date
@@ -355,14 +357,20 @@ export default function PracticeHistoryModal({
             animationType="slide"
         >
             <Pressable
-                style={styles.overlay}
+                style={[
+                    styles.overlay,
+                    { backgroundColor: colors.overlay },
+                ]}
                 onPress={onClose}
             >
                 <Pressable
-                    style={styles.modal}
+                    style={[
+                        styles.modal,
+                        { backgroundColor: colors.surfaceElevated },
+                    ]}
                     onPress={() => { }}
                 >
-                    <Text style={styles.title}>
+                    <Text style={[styles.title, { color: colors.textPrimary }]}>
                         {t("history.title")}
                     </Text>
 
@@ -373,8 +381,15 @@ export default function PracticeHistoryModal({
                                 onPress={() => setRangeDays(days)}
                                 style={[
                                     styles.rangeButton,
+                                    {
+                                        backgroundColor: colors.inputBackground,
+                                        borderColor: colors.inputBorder,
+                                    },
                                     rangeDays === days &&
-                                    styles.rangeButtonActive
+                                    {
+                                        backgroundColor: colors.primary,
+                                        borderColor: colors.primary,
+                                    },
                                 ]}
                             >
                                 <Text
@@ -382,6 +397,7 @@ export default function PracticeHistoryModal({
                                     adjustsFontSizeToFit
                                     style={[
                                         styles.rangeButtonText,
+                                        { color: colors.textSecondary },
                                         rangeDays === days &&
                                         styles.rangeButtonTextActive
                                     ]}
@@ -395,48 +411,53 @@ export default function PracticeHistoryModal({
                     {dailyData.length > 0 ? (
                         renderChart()
                     ) : (
-                        <Text style={styles.empty}>
+                        <Text style={[styles.empty, { color: colors.textSecondary }]}>
                             {t("history.empty")}
                         </Text>
                     )}
 
-                    <View style={styles.statsSection}>
-                        <Text style={styles.statsTitle}>
+                    <View
+                        style={[
+                            styles.statsSection,
+                            { borderTopColor: colors.borderSubtle },
+                        ]}
+                    >
+                        <Text style={[styles.statsTitle, { color: colors.textPrimary }]}>
                             {t("history.allTimeStatistics")}
                         </Text>
 
                         <View style={styles.statRowInner}>
-                            <Text style={styles.statLabel}>
+                            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
                                 {t("history.averageSessionSize")}
                             </Text>
-                            <Text style={styles.statValue}>
+                            <Text style={[styles.statValue, { color: colors.textPrimary }]}>
                                 {formatNumber(stats.averageSessionSize, locale)}
                             </Text>
                         </View>
 
                         <View style={styles.statRowInner}>
-                            <Text style={styles.statLabel}>
+                            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
                                 {t("history.largestSession")}
                             </Text>
-                            <Text style={styles.statValue}>
+                            <Text style={[styles.statValue, { color: colors.textPrimary }]}>
                                 {formatNumber(stats.largestSession, locale)}
                             </Text>
                         </View>
 
                         <View style={styles.statRowInner}>
-                            <Text style={styles.statLabel}>
+                            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
                                 {t("history.longestStreak")}
                             </Text>
-                            <Text style={styles.statValue}>
+                            <Text style={[styles.statValue, { color: colors.textPrimary }]}>
                                 {t("history.days", { count: stats.longestStreak })}
                             </Text>
                         </View>
 
                         <View style={styles.statRowInner}>
-                            <Text style={styles.statLabel}>
+                            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
                                 {t("history.currentStreak")}
                             </Text>
-                            <Text style={styles.statValue}>
+                            <Text style={[styles.statValue, { color: colors.textPrimary }]}>
                                 {t("history.days", { count: stats.currentStreak })}
                             </Text>
                         </View>
@@ -447,7 +468,12 @@ export default function PracticeHistoryModal({
                         style={styles.button}
                         onPress={onClose}
                     >
-                        <Text style={styles.buttonText}>
+                        <Text
+                            style={[
+                                styles.buttonText,
+                                { color: colors.primary },
+                            ]}
+                        >
                             {t("common.close")}
                         </Text>
                     </Pressable>

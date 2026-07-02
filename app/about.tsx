@@ -2,9 +2,11 @@ import Constants from "expo-constants";
 import { Stack } from "expo-router";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useI18n } from "../i18n";
-import { globalStyles } from "../styles/global";
+import { useAppTheme, useGlobalStyles } from "../styles/theme";
 
 export default function AboutScreen() {
+    const globalStyles = useGlobalStyles();
+    const { colors } = useAppTheme();
     const { t } = useI18n();
     const version = Constants.expoConfig?.version ?? "1.0.0";
 
@@ -16,43 +18,55 @@ export default function AboutScreen() {
                 contentContainerStyle={[
                     globalStyles.sidePadding,
                     styles.container,
+                    { backgroundColor: colors.background },
                 ]}
             >
-                <Text style={styles.title}>108 Again</Text>
+                <Text style={[styles.title, { color: colors.textPrimary }]}>
+                    108 Again
+                </Text>
 
-                <Text style={styles.version}>
+                <Text style={[styles.version, { color: colors.textSecondary }]}>
                     {t("about.version", { version })}
                 </Text>
 
-                <Text style={styles.section}>
+                <Text style={[styles.section, { color: colors.textPrimary }]}>
                     {t("about.text1")}
                 </Text>
 
-                <Text style={styles.section}>
+                <Text style={[styles.section, { color: colors.textPrimary }]}>
                     {t("about.text2")}
                 </Text>
 
-                <Text style={styles.section}>
+                <Text style={[styles.section, { color: colors.textPrimary }]}>
                     {t("about.text3")}
                 </Text>
 
-                <Text style={styles.section}>
+                <Text style={[styles.section, { color: colors.textPrimary }]}>
                     {t("about.text4")}
                 </Text>
 
-                <Text style={styles.value}>
+                <Text style={[styles.value, { color: colors.textSecondary }]}>
                     {t("about.feedback")}
                 </Text>
 
-                <View style={styles.separator} />
+                <View
+                    style={[
+                        styles.separator,
+                        { backgroundColor: colors.borderSubtle },
+                    ]}
+                />
 
-                <Text style={styles.label}>{t("about.developer")}</Text>
-                <Text style={styles.value}>
+                <Text style={[styles.label, { color: colors.textPrimary }]}>
+                    {t("about.developer")}
+                </Text>
+                <Text style={[styles.value, { color: colors.textSecondary }]}>
                     Gian Piero Bandieramonte
                 </Text>
 
-                <Text style={styles.label}>{t("about.contact")}</Text>
-                <Text style={styles.value}>
+                <Text style={[styles.label, { color: colors.textPrimary }]}>
+                    {t("about.contact")}
+                </Text>
+                <Text style={[styles.value, { color: colors.textSecondary }]}>
                     gian@bandieramonte.com
                 </Text>
             </ScrollView>

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useI18n } from "../i18n";
 import * as practiceService from "../services/practiceService";
-import { globalStyles } from "../styles/global";
+import { useAppTheme, useGlobalStyles } from "../styles/theme";
 import {
     digitsOnly,
     formatNumberInput,
@@ -20,6 +20,8 @@ export default function EditPractice() {
 
     const { id } = useLocalSearchParams();
     const router = useRouter();
+    const globalStyles = useGlobalStyles();
+    const { colors } = useAppTheme();
     const { locale, t } = useI18n();
 
     const [name, setName] = useState("");
@@ -191,7 +193,7 @@ export default function EditPractice() {
                         }}
                         keyboardType="numeric"
                         placeholder={t("form.disabled")}
-                        placeholderTextColor="#999"
+                        placeholderTextColor={colors.inputPlaceholder}
                         style={globalStyles.formInput}
                     />
 

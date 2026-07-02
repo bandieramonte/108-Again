@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n";
-import { colors } from "../styles/theme";
+import { useAppTheme } from "../styles/theme";
 import { formatCountProgress } from "../utils/numberUtils";
 
 type Props = {
@@ -44,6 +44,7 @@ export default function DailyGoalProgress({
     textStyle,
     labelNumberOfLines,
 }: Props) {
+    const { colors, isDark } = useAppTheme();
     const { locale, t } = useI18n();
     const [showFinishedMessage, setShowFinishedMessage] = useState(false);
     const safeTodayCount = Number.isFinite(todayCount)
@@ -200,7 +201,12 @@ export default function DailyGoalProgress({
                 <View
                     style={[
                         styles.fill,
-                        { width: `${progress * 100}%` },
+                        {
+                            width: `${progress * 100}%`,
+                            backgroundColor: isDark
+                                ? "rgba(110, 168, 255, 0.48)"
+                                : "rgba(107, 114, 128, 0.28)",
+                        },
                     ]}
                 />
 
@@ -225,8 +231,9 @@ export default function DailyGoalProgress({
                                 lineHeight: height,
                                 opacity: countOpacity,
                             },
-                            isFinished && styles.barTextFinished,
+                            isFinished && { color: colors.primary },
                             textStyle,
+                            isDark && styles.barTextDark,
                         ]}
                     >
                         {progressText}
@@ -242,8 +249,9 @@ export default function DailyGoalProgress({
                                     lineHeight: height,
                                     opacity: finishedOpacity,
                                 },
-                                styles.barTextFinished,
+                                { color: colors.primary },
                                 textStyle,
+                                isDark && styles.barTextDark,
                             ]}
                         >
                             {t("dailyGoal.finished")}
@@ -286,7 +294,6 @@ const styles = StyleSheet.create({
         left: 0,
         top: 0,
         bottom: 0,
-        backgroundColor: "rgba(107, 114, 128, 0.28)",
     },
 
     textOverlay: {
@@ -314,7 +321,7 @@ const styles = StyleSheet.create({
         right: 0,
     },
 
-    barTextFinished: {
-        color: colors.primary,
+    barTextDark: {
+        color: "white",
     },
 });

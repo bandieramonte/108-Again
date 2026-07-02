@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useI18n } from "../i18n";
 import * as practiceService from "../services/practiceService";
+import { useAppTheme } from "../styles/theme";
 import {
     digitsOnly,
     formatNumberInput,
@@ -26,6 +27,7 @@ export default function QuickAddEditor({
     onClose
 }: Props) {
 
+    const { colors } = useAppTheme();
     const { locale, t } = useI18n();
     const [value, setValue] =
         useState(formatNumberInput(String(defaultValue), locale));
@@ -68,14 +70,24 @@ export default function QuickAddEditor({
             animationType="fade"
             onRequestClose={onClose}
         >
-            <View style={styles.overlay}>
-                <View style={styles.card}>
+            <View
+                style={[
+                    styles.overlay,
+                    { backgroundColor: colors.overlay },
+                ]}
+            >
+                <View
+                    style={[
+                        styles.card,
+                        { backgroundColor: colors.surfaceElevated },
+                    ]}
+                >
 
-                    <Text style={styles.title}>
+                    <Text style={[styles.title, { color: colors.textPrimary }]}>
                         {t("quickAddEditor.title")}
                     </Text>
 
-                    <Text style={styles.subtitle}>
+                    <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                         {practiceName}
                     </Text>
 
@@ -87,16 +99,28 @@ export default function QuickAddEditor({
                             setValue(formatNumberInput(clean, locale));
                         }}
                         keyboardType="numeric"
-                        style={styles.input}
+                        placeholderTextColor={colors.inputPlaceholder}
+                        style={[
+                            styles.input,
+                            {
+                                backgroundColor: colors.inputBackground,
+                                borderColor: colors.inputBorder,
+                                color: colors.inputText,
+                            },
+                        ]}
                     />
 
                     <View style={styles.buttons}>
                         <Pressable onPress={onClose}>
-                            <Text>{t("common.cancel")}</Text>
+                            <Text style={{ color: colors.textSecondary }}>
+                                {t("common.cancel")}
+                            </Text>
                         </Pressable>
 
                         <Pressable onPress={save}>
-                            <Text>{t("common.save")}</Text>
+                            <Text style={{ color: colors.primary }}>
+                                {t("common.save")}
+                            </Text>
                         </Pressable>
                     </View>
 

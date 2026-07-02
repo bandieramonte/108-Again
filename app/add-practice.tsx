@@ -21,8 +21,7 @@ import {
 import { useI18n } from "../i18n";
 import { getPracticeDisplayName } from "../i18n/practiceNames";
 import * as practiceService from "../services/practiceService";
-import { globalStyles } from "../styles/global";
-import { colors } from "../styles/theme";
+import { useAppTheme, useGlobalStyles } from "../styles/theme";
 import {
     digitsOnly,
     formatNumberInput,
@@ -37,6 +36,8 @@ import {
 export default function AddPractice() {
 
     const router = useRouter();
+    const globalStyles = useGlobalStyles();
+    const { colors } = useAppTheme();
     const { locale, t } = useI18n();
 
     const [name, setName] = useState("");
@@ -228,7 +229,18 @@ export default function AddPractice() {
                                         key={seedPractice.id}
                                         style={({ pressed }) => [
                                             styles.seedOption,
+                                            {
+                                                backgroundColor:
+                                                    colors.inputBackground,
+                                                borderColor:
+                                                    colors.borderSubtle,
+                                            },
                                             selected && styles.selectedOption,
+                                            selected && {
+                                                backgroundColor:
+                                                    colors.surfaceSelected,
+                                                borderColor: colors.primary,
+                                            },
                                             pressed &&
                                                 globalStyles.formOptionPressed,
                                         ]}
@@ -247,7 +259,10 @@ export default function AddPractice() {
                                             resizeMode="contain"
                                         />
                                         <Text
-                                            style={styles.seedName}
+                                            style={[
+                                                styles.seedName,
+                                                { color: colors.textPrimary },
+                                            ]}
                                             numberOfLines={2}
                                         >
                                             {seedDisplayName}
@@ -269,13 +284,19 @@ export default function AddPractice() {
                             <Pressable
                                 style={({ pressed }) => [
                                     styles.customModeButton,
+                                    { borderColor: colors.primary },
                                     pressed && globalStyles.formOptionPressed,
                                 ]}
                                 onPress={selectCustomPractice}
                                 accessibilityRole="button"
                                 accessibilityLabel={t("addPractice.customPractice")}
                             >
-                                <Text style={styles.customModeButtonText}>
+                                <Text
+                                    style={[
+                                        styles.customModeButtonText,
+                                        { color: colors.primary },
+                                    ]}
+                                >
                                     {t("addPractice.customInstead")}
                                 </Text>
                             </Pressable>
@@ -283,7 +304,15 @@ export default function AddPractice() {
                     )}
 
                     {isSeedMode && selectedSeedPractice ? (
-                        <View style={styles.fixedSeedPreview}>
+                        <View
+                            style={[
+                                styles.fixedSeedPreview,
+                                {
+                                    backgroundColor: colors.surfaceSelected,
+                                    borderColor: colors.quickAddBorder,
+                                },
+                            ]}
+                        >
                             <Image
                                 source={
                                     selectedSeedPractice.imageKey &&
@@ -295,7 +324,12 @@ export default function AddPractice() {
                                 resizeMode="contain"
                             />
                             <View style={styles.fixedSeedText}>
-                                <Text style={styles.fixedSeedName}>
+                                <Text
+                                    style={[
+                                        styles.fixedSeedName,
+                                        { color: colors.textPrimary },
+                                    ]}
+                                >
                                     {getPracticeDisplayName(
                                         selectedSeedPractice.id,
                                         selectedSeedPractice.name,
@@ -319,7 +353,18 @@ export default function AddPractice() {
                                             key={option.key}
                                             style={({ pressed }) => [
                                                 styles.seedOption,
+                                                {
+                                                    backgroundColor:
+                                                        colors.inputBackground,
+                                                    borderColor:
+                                                        colors.borderSubtle,
+                                                },
                                                 selected && styles.selectedOption,
+                                                selected && {
+                                                    backgroundColor:
+                                                        colors.surfaceSelected,
+                                                    borderColor: colors.primary,
+                                                },
                                                 pressed &&
                                                     globalStyles.formOptionPressed,
                                             ]}
@@ -333,7 +378,13 @@ export default function AddPractice() {
                                                 resizeMode="contain"
                                             />
                                             <Text
-                                                style={styles.seedName}
+                                                style={[
+                                                    styles.seedName,
+                                                    {
+                                                        color:
+                                                            colors.textPrimary,
+                                                    },
+                                                ]}
                                                 numberOfLines={2}
                                             >
                                                 {optionName}
@@ -350,7 +401,7 @@ export default function AddPractice() {
                     </Text>
                     <TextInput
                         placeholder={t("form.practiceName")}
-                        placeholderTextColor="#999"
+                        placeholderTextColor={colors.inputPlaceholder}
                         value={name}
                         onChangeText={(text) => setName(text.slice(0, MAX_PRACTICE_NAME))}
                         maxLength={25}
@@ -366,7 +417,7 @@ export default function AddPractice() {
                     </Text>
                     <TextInput
                         placeholder={t("form.targetCount")}
-                        placeholderTextColor="#999"
+                        placeholderTextColor={colors.inputPlaceholder}
                         value={target}
                         onChangeText={(v) => {
                             const clean = digitsOnly(v);
@@ -382,7 +433,7 @@ export default function AddPractice() {
                     </Text>
                     <TextInput
                         placeholder={t("form.defaultSessionCount")}
-                        placeholderTextColor="#999"
+                        placeholderTextColor={colors.inputPlaceholder}
                         value={defaultSession}
                         onChangeText={(v) => {
                             const clean = digitsOnly(v);
@@ -442,7 +493,6 @@ const styles = StyleSheet.create({
     },
 
     selectedOption: {
-        borderColor: colors.primary,
         backgroundColor: "#EEF2FF",
     },
 
@@ -462,14 +512,12 @@ const styles = StyleSheet.create({
 
     customModeButton: {
         borderWidth: 1,
-        borderColor: colors.primary,
         borderRadius: 999,
         paddingVertical: 6,
         paddingHorizontal: 12,
     },
 
     customModeButtonText: {
-        color: colors.primary,
         fontSize: 13,
         fontWeight: "700",
     },

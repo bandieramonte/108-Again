@@ -10,7 +10,7 @@ import {
     View,
 } from "react-native";
 import { useI18n } from "../i18n";
-import { colors } from "../styles/theme";
+import { useAppTheme } from "../styles/theme";
 import {
     formatNumber,
     formatNumberInput,
@@ -53,8 +53,15 @@ export default function PracticeCalendar({
     onEditDay
 }: Props) {
 
+    const { colors, isDark } = useAppTheme();
     const { locale, t } = useI18n();
     const { width } = useWindowDimensions();
+    const editableDayBackground = isDark
+        ? colors.background
+        : colors.inputBackground;
+    const futureDayBackground = isDark
+        ? colors.inputReadOnlyBackground
+        : colors.surface;
 
     const WEEK_HEIGHT =
         width < 380 ? 44 :
@@ -316,8 +323,8 @@ export default function PracticeCalendar({
                             style={styles.monthArrow}
                         >
                             <View style={styles.doubleArrow}>
-                                <Text style={styles.fastArrowGlyph}>▲</Text>
-                                <Text style={styles.fastArrowGlyph}>▲</Text>
+                                <Text style={[styles.fastArrowGlyph, { color: colors.iconMuted }]}>▲</Text>
+                                <Text style={[styles.fastArrowGlyph, { color: colors.iconMuted }]}>▲</Text>
                             </View>
                         </Pressable>
 
@@ -326,14 +333,14 @@ export default function PracticeCalendar({
                             hitSlop={ARROW_HIT_SLOP}
                             style={styles.monthArrow}
                         >
-                            <Text style={styles.monthArrowText}>
+                            <Text style={[styles.monthArrowText, { color: colors.iconMuted }]}>
                                 ▲
                             </Text>
                         </Pressable>
 
                     </View>
 
-                    <Text style={styles.monthHeader}>
+                    <Text style={[styles.monthHeader, { color: colors.textPrimary }]}>
                         {visibleMonth}
                     </Text>
 
@@ -344,7 +351,7 @@ export default function PracticeCalendar({
                             hitSlop={ARROW_HIT_SLOP}
                             style={styles.monthArrow}
                         >
-                            <Text style={styles.monthArrowText}>
+                            <Text style={[styles.monthArrowText, { color: colors.iconMuted }]}>
                                 ▼
                             </Text>
                         </Pressable>
@@ -355,8 +362,8 @@ export default function PracticeCalendar({
                             style={styles.monthArrow}
                         >
                             <View style={styles.doubleArrow}>
-                                <Text style={styles.fastArrowGlyph}>▼</Text>
-                                <Text style={styles.fastArrowGlyph}>▼</Text>
+                                <Text style={[styles.fastArrowGlyph, { color: colors.iconMuted }]}>▼</Text>
+                                <Text style={[styles.fastArrowGlyph, { color: colors.iconMuted }]}>▼</Text>
                             </View>
                         </Pressable>
 
@@ -366,7 +373,13 @@ export default function PracticeCalendar({
 
                 <View style={styles.weekHeader}>
                     {weekDayLabels.map((d, i) => (
-                        <Text key={i} style={styles.weekHeaderText}>
+                        <Text
+                            key={i}
+                            style={[
+                                styles.weekHeaderText,
+                                { color: colors.textSecondary },
+                            ]}
+                        >
                             {d}
                         </Text>
                     ))}
@@ -426,18 +439,59 @@ export default function PracticeCalendar({
                                                 }}
                                                 style={[
                                                     styles.day,
-                                                    editable ? styles.editableDay : styles.futureDay,
+                                                    { borderColor: colors.borderSubtle },
+                                                    editable
+                                                        ? {
+                                                            backgroundColor:
+                                                                editableDayBackground,
+                                                        }
+                                                        : [
+                                                            !isDark &&
+                                                            styles.futureDay,
+                                                            {
+                                                                backgroundColor:
+                                                                    futureDayBackground,
+                                                            },
+                                                        ],
                                                     isFirstColumn && styles.firstColumn,
                                                     isFirstRow && styles.firstRow,
-                                                    isToday && styles.today,
-                                                    isTargetDate && styles.targetDate
+                                                    isToday && [
+                                                        styles.today,
+                                                        { borderColor: colors.primary },
+                                                    ],
+                                                    isTargetDate && [
+                                                        styles.targetDate,
+                                                        {
+                                                            borderColor:
+                                                                colors.warning,
+                                                            backgroundColor:
+                                                                colors.surfaceSelected,
+                                                        },
+                                                    ],
                                                 ]}
                                             >
-                                                {editable && <View style={styles.editableAccent} />}
+                                                {editable && (
+                                                    <View
+                                                        style={[
+                                                            styles.editableAccent,
+                                                            {
+                                                                backgroundColor:
+                                                                    colors.primary,
+                                                            },
+                                                        ]}
+                                                    />
+                                                )}
                                                 <Text
                                                     style={[
                                                         styles.dayNumber,
-                                                        !editable && styles.futureDayText
+                                                        {
+                                                            color:
+                                                                colors.textSecondary,
+                                                        },
+                                                        !editable && {
+                                                            color:
+                                                                colors.inputPlaceholder,
+                                                        },
                                                     ]}
                                                 >
                                                     {day.date.slice(-2)}
@@ -457,8 +511,15 @@ export default function PracticeCalendar({
                                                         keyboardType="numeric"
                                                         autoFocus
                                                         numberOfLines={1}
+                                                        underlineColorAndroid="transparent"
                                                         style={[
                                                             styles.dayCountInput,
+                                                            {
+                                                                backgroundColor:
+                                                                    "transparent",
+                                                                color:
+                                                                    colors.primary,
+                                                            },
                                                             editingValue.length >= 5 && styles.dayCountSmall,
                                                             editingValue.length >= 7 && styles.dayCountVerySmall
                                                         ]} onBlur={() => {
@@ -475,8 +536,15 @@ export default function PracticeCalendar({
                                                         minimumFontScale={0.6}
                                                         style={[
                                                             styles.dayCount,
-                                                            day.count === 0 && styles.dayCountEmpty,
-                                                            !editable && styles.futureDayText
+                                                            { color: colors.primary },
+                                                            day.count === 0 && {
+                                                                color:
+                                                                    colors.inputPlaceholder,
+                                                            },
+                                                            !editable && {
+                                                                color:
+                                                                    colors.inputPlaceholder,
+                                                            },
                                                         ]}
                                                     >
                                                         {formatNumber(day.count, locale)}
@@ -554,7 +622,7 @@ const styles = StyleSheet.create({
         textAlign: "center",
         width: "100%",
         includeFontPadding: false,
-        color: colors.primary
+        color: "#1A5FCC"
     },
 
     monthHeader: {
@@ -566,7 +634,7 @@ const styles = StyleSheet.create({
     },
 
     today: {
-        borderColor: colors.primary,
+        borderColor: "#1A5FCC",
         borderLeftWidth: borderWidth,
         borderTopWidth: borderWidth,
         borderBottomWidth: borderWidth,
@@ -603,7 +671,7 @@ const styles = StyleSheet.create({
         textAlignVertical: "center",
         paddingVertical: 0,
         includeFontPadding: false,
-        color: colors.primary
+        color: "#1A5FCC"
     },
 
     dayCountSmall: {
@@ -660,7 +728,7 @@ const styles = StyleSheet.create({
         width: 18,
         height: 2,
         borderRadius: 2,
-        backgroundColor: colors.primary,
+        backgroundColor: "#1A5FCC",
         opacity: 0.35,
     },
 

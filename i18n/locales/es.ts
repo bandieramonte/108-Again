@@ -3,6 +3,7 @@ import type { TranslationKey } from "./en";
 export const es: Record<TranslationKey, string> = {
     "common.add": "Añadir",
     "common.added": "¡añadido!",
+    "common.back": "Volver",
     "common.cancel": "Cancelar",
     "common.close": "Cerrar",
     "common.delete": "Eliminar",
@@ -10,6 +11,9 @@ export const es: Record<TranslationKey, string> = {
     "common.restore": "Restaurar",
     "common.save": "Guardar",
     "common.unknownError": "Error desconocido",
+
+    "theme.switchToDark": "Cambiar a tema oscuro",
+    "theme.switchToLight": "Cambiar a tema claro",
 
     "about.contact": "Contacto",
     "about.developer": "Desarrollador",

@@ -9,7 +9,7 @@ import {
     View,
 } from "react-native";
 import { useI18n } from "../i18n";
-import { colors } from "../styles/theme";
+import { useAppTheme } from "../styles/theme";
 import {
     buildReminderTimeOptions,
     formatReminderTimeForLocale,
@@ -38,6 +38,7 @@ export default function PracticeReminderEditor({
     onDisable,
     onSave,
 }: Props) {
+    const { colors } = useAppTheme();
     const { locale, t } = useI18n();
     const timeLocale =
         Localization.getLocales()[0]?.languageTag ?? locale;
@@ -95,32 +96,44 @@ export default function PracticeReminderEditor({
             onRequestClose={onClose}
         >
             <Pressable
-                style={styles.overlay}
+                style={[
+                    styles.overlay,
+                    { backgroundColor: colors.overlay },
+                ]}
                 onPress={onClose}
             >
                 <Pressable
-                    style={styles.card}
+                    style={[
+                        styles.card,
+                        { backgroundColor: colors.surfaceElevated },
+                    ]}
                     onPress={() => { }}
                 >
-                    <Text style={styles.title}>
+                    <Text style={[styles.title, { color: colors.textPrimary }]}>
                         {t("reminderEditor.title")}
                     </Text>
 
-                    <Text style={styles.subtitle}>
+                    <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                         {practiceName}
                     </Text>
 
-                    <Text style={styles.description}>
+                    <Text style={[styles.description, { color: colors.textSecondary }]}>
                         {t("reminderEditor.description")}
                     </Text>
 
-                    <Text style={styles.label}>
+                    <Text style={[styles.label, { color: colors.textPrimary }]}>
                         {t("reminderEditor.reminderTime")}
                     </Text>
 
                     <ScrollView
                         ref={scrollRef}
-                        style={styles.timeList}
+                        style={[
+                            styles.timeList,
+                            {
+                                backgroundColor: colors.inputBackground,
+                                borderColor: colors.inputBorder,
+                            },
+                        ]}
                         contentContainerStyle={styles.timeListContent}
                     >
                         {timeOptions.map(option => {
@@ -136,7 +149,9 @@ export default function PracticeReminderEditor({
                                     key={option.key}
                                     style={[
                                         styles.timeOption,
-                                        selected && styles.timeOptionSelected,
+                                        selected && {
+                                            backgroundColor: colors.primary,
+                                        },
                                     ]}
                                     accessibilityRole="button"
                                     accessibilityState={{ selected }}
@@ -148,6 +163,7 @@ export default function PracticeReminderEditor({
                                     <Text
                                         style={[
                                             styles.timeOptionText,
+                                            { color: colors.textPrimary },
                                             selected &&
                                                 styles.timeOptionTextSelected,
                                         ]}
@@ -169,7 +185,12 @@ export default function PracticeReminderEditor({
                                 style={styles.secondaryButton}
                                 onPress={onDisable}
                             >
-                                <Text style={styles.secondaryText}>
+                                <Text
+                                    style={[
+                                        styles.secondaryText,
+                                        { color: colors.textSecondary },
+                                    ]}
+                                >
                                     {t("reminderEditor.turnOff")}
                                 </Text>
                             </Pressable>
@@ -181,13 +202,21 @@ export default function PracticeReminderEditor({
                             style={styles.secondaryButton}
                             onPress={onClose}
                         >
-                            <Text style={styles.secondaryText}>
+                            <Text
+                                style={[
+                                    styles.secondaryText,
+                                    { color: colors.textSecondary },
+                                ]}
+                            >
                                 {t("common.cancel")}
                             </Text>
                         </Pressable>
 
                         <Pressable
-                            style={styles.primaryButton}
+                            style={[
+                                styles.primaryButton,
+                                { backgroundColor: colors.primary },
+                            ]}
                             onPress={save}
                         >
                             <Text style={styles.primaryText}>
@@ -265,7 +294,6 @@ const styles = StyleSheet.create({
     },
 
     timeOptionSelected: {
-        backgroundColor: colors.primary,
     },
 
     timeOptionText: {
@@ -303,7 +331,7 @@ const styles = StyleSheet.create({
         paddingVertical: 9,
         paddingHorizontal: 16,
         borderRadius: 8,
-        backgroundColor: colors.primary,
+        backgroundColor: "#1A5FCC",
     },
 
     primaryText: {

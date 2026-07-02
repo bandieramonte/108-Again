@@ -17,10 +17,12 @@ import {
 } from "react-native";
 import { useI18n } from "../i18n";
 import * as authService from "../services/authService";
-import { globalStyles } from "../styles/global";
+import { useAppTheme, useGlobalStyles } from "../styles/theme";
 import { getLocalizedAuthErrorMessage } from "../utils/authErrorText";
 
 export default function SignInScreen() {
+    const globalStyles = useGlobalStyles();
+    const { colors } = useAppTheme();
     const { language, t } = useI18n();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -99,20 +101,38 @@ export default function SignInScreen() {
                 contentContainerStyle={[
                     globalStyles.sidePadding,
                     styles.container,
+                    { backgroundColor: colors.background },
                 ]}
                 keyboardShouldPersistTaps="handled"
             >
-                <Text style={styles.title}>{t("menu.logIn")}</Text>
+                <Text style={[styles.title, { color: colors.textPrimary }]}>
+                    {t("menu.logIn")}
+                </Text>
 
                 {showConfirmedBanner && (
-                    <View style={styles.successBanner}>
-                        <Text style={styles.successBannerText}>
+                    <View
+                        style={[
+                            styles.successBanner,
+                            {
+                                backgroundColor: colors.successSurface,
+                                borderColor: colors.success,
+                            },
+                        ]}
+                    >
+                        <Text
+                            style={[
+                                styles.successBannerText,
+                                { color: colors.success },
+                            ]}
+                        >
                             {t("auth.emailConfirmed")}
                         </Text>
                     </View>
                 )}
 
-                <Text style={styles.label}>{t("account.email")}</Text>
+                <Text style={[styles.label, { color: colors.textPrimary }]}>
+                    {t("account.email")}
+                </Text>
                 <TextInput
                     value={email}
                     onChangeText={setEmail}
@@ -120,11 +140,21 @@ export default function SignInScreen() {
                     autoCapitalize="none"
                     autoCorrect={false}
                     keyboardType="email-address"
-                    style={styles.input}
+                    style={[
+                        styles.input,
+                        {
+                            backgroundColor: colors.inputBackground,
+                            borderColor: colors.inputBorder,
+                            color: colors.inputText,
+                        },
+                    ]}
                     placeholder={t("auth.emailPlaceholder")}
+                    placeholderTextColor={colors.inputPlaceholder}
                 />
 
-                <Text style={styles.label}>{t("auth.password")}</Text>
+                <Text style={[styles.label, { color: colors.textPrimary }]}>
+                    {t("auth.password")}
+                </Text>
                 <View style={styles.passwordContainer}>
                     <TextInput
                         value={password}
@@ -133,8 +163,16 @@ export default function SignInScreen() {
                         secureTextEntry={!showPassword}
                         autoCapitalize="none"
                         autoCorrect={false}
-                        style={styles.passwordInput}
+                        style={[
+                            styles.passwordInput,
+                            {
+                                backgroundColor: colors.inputBackground,
+                                borderColor: colors.inputBorder,
+                                color: colors.inputText,
+                            },
+                        ]}
                         placeholder={t("auth.passwordPlaceholder")}
+                        placeholderTextColor={colors.inputPlaceholder}
                     />
 
                     <Pressable
@@ -144,7 +182,7 @@ export default function SignInScreen() {
                         <Ionicons
                             name={showPassword ? "eye-off" : "eye"}
                             size={20}
-                            color="#666"
+                            color={colors.iconMuted}
                         />
                     </Pressable>
                 </View>
@@ -159,11 +197,21 @@ export default function SignInScreen() {
                     disabled={sendingReset}
                 >
                     {sendingReset ? (
-                        <Text style={styles.forgotText}>
-                            {t("auth.sending")}
-                        </Text>
-                    ) : (
-                        <Text style={styles.forgotText}>
+                            <Text
+                                style={[
+                                    styles.forgotText,
+                                    { color: colors.textSecondary },
+                                ]}
+                            >
+                                {t("auth.sending")}
+                            </Text>
+                        ) : (
+                        <Text
+                            style={[
+                                styles.forgotText,
+                                { color: colors.textSecondary },
+                            ]}
+                        >
                             {t("auth.forgotPassword")}
                         </Text>
                     )}
@@ -172,6 +220,7 @@ export default function SignInScreen() {
                 <Pressable
                     style={({ pressed }) => [
                         styles.button,
+                        { backgroundColor: colors.surface },
                         pressed && styles.buttonPressed,
                         submitting && styles.buttonDisabled,
                     ]}
@@ -181,7 +230,12 @@ export default function SignInScreen() {
                     {submitting ? (
                         <ActivityIndicator />
                     ) : (
-                        <Text style={styles.buttonText}>
+                        <Text
+                            style={[
+                                styles.buttonText,
+                                { color: colors.textPrimary },
+                            ]}
+                        >
                             {t("menu.logIn")}
                         </Text>
                     )}
@@ -191,7 +245,12 @@ export default function SignInScreen() {
                     onPress={() => router.push("/sign-up")}
                     style={styles.linkButton}
                 >
-                    <Text style={styles.linkText}>
+                    <Text
+                        style={[
+                            styles.linkText,
+                            { color: colors.textSecondary },
+                        ]}
+                    >
                         {t("auth.needAccount")}
                     </Text>
                 </Pressable>
@@ -305,7 +364,6 @@ const styles = StyleSheet.create({
     },
 
     successBannerText: {
-        color: "#137333",
         fontSize: 14,
     },
 });

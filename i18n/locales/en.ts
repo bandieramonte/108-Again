@@ -1,6 +1,7 @@
 export const en = {
     "common.add": "Add",
     "common.added": "added!",
+    "common.back": "Go back",
     "common.cancel": "Cancel",
     "common.close": "Close",
     "common.delete": "Delete",
@@ -8,6 +9,9 @@ export const en = {
     "common.restore": "Restore",
     "common.save": "Save",
     "common.unknownError": "Unknown error",
+
+    "theme.switchToDark": "Switch to dark theme",
+    "theme.switchToLight": "Switch to light theme",
 
     "about.contact": "Contact",
     "about.developer": "Developer",

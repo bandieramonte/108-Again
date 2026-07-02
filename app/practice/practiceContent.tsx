@@ -29,7 +29,7 @@ import * as practiceReminderService from "../../services/practiceReminderService
 import * as practiceService from "../../services/practiceService";
 import * as sessionService from "../../services/sessionService";
 import { APP_SIDE_PADDING } from "../../styles/global";
-import { colors, containers } from "../../styles/theme";
+import { colors, useAppTheme, useGlobalStyles } from "../../styles/theme";
 import { subscribeData } from "../../utils/events";
 import {
     digitsOnly,
@@ -56,6 +56,8 @@ export default function PracticeContent({
 }) {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const globalStyles = useGlobalStyles();
+    const { colors: themeColors } = useAppTheme();
     const { locale, t } = useI18n();
     const scrollRef = useRef<ScrollView | null>(null);
     const [quickAddOpen, setQuickAddOpen] = useState(false);
@@ -534,7 +536,12 @@ export default function PracticeContent({
                     paddingBottom: scrollBottomPadding
                 }}
             >
-                <View style={containers.screen}>
+                <View
+                    style={[
+                        globalStyles.screen,
+                        { backgroundColor: themeColors.background },
+                    ]}
+                >
                     <View >
                         <View>
                             <Pressable onPress={menuOpen ? closeMenu : undefined}>
@@ -543,8 +550,22 @@ export default function PracticeContent({
                                         ref={titleRowRef}
                                         style={({ pressed }) => [
                                             styles.titleRow,
+                                            {
+                                                backgroundColor:
+                                                    themeColors.quickAddSurface,
+                                                borderColor:
+                                                    themeColors.quickAddBorder,
+                                            },
                                             pressed && styles.titleRowPressed,
-                                            menuOpen && styles.titleRowOpen
+                                            menuOpen && [
+                                                styles.titleRowOpen,
+                                                {
+                                                    backgroundColor:
+                                                        themeColors.surfaceSelected,
+                                                    borderColor:
+                                                        themeColors.primary,
+                                                },
+                                            ],
                                         ]}
                                         onPress={toggleMenu}
                                         accessibilityRole="button"
@@ -552,13 +573,22 @@ export default function PracticeContent({
                                             practiceName: displayPracticeName,
                                         })}
                                     >
-                                        <Text style={styles.title}>
+                                        <Text
+                                            style={[
+                                                styles.title,
+                                                { color: themeColors.textPrimary },
+                                            ]}
+                                        >
                                             {displayPracticeName}
                                         </Text>
 
                                         <Animated.View
                                             style={[
                                                 styles.titleActionIcon,
+                                                {
+                                                    backgroundColor:
+                                                        themeColors.inputBackground,
+                                                },
                                                 {
                                                     opacity: rotateAnim.interpolate({
                                                         inputRange: [0, 1],
@@ -570,7 +600,7 @@ export default function PracticeContent({
                                             <MaterialIcons
                                                 name="more-horiz"
                                                 size={20}
-                                                color={colors.primary}
+                                                color={themeColors.primary}
                                             />
                                         </Animated.View>
 
@@ -612,17 +642,34 @@ export default function PracticeContent({
                             <View
                                 style={[
                                     styles.addSessionCard,
+                                    {
+                                        backgroundColor:
+                                            themeColors.surfaceElevated,
+                                        borderColor: themeColors.borderSubtle,
+                                        shadowColor: themeColors.shadow,
+                                    },
                                     { width: imageDisplayWidth }
                                 ]}
                             >
                                 <View style={styles.addSessionHeader}>
-                                    <Text style={styles.addSessionTitle}>
+                                    <Text
+                                        style={[
+                                            styles.addSessionTitle,
+                                            { color: themeColors.textPrimary },
+                                        ]}
+                                    >
                                         {t("practice.addSession")}
                                     </Text>
 
                                     <Pressable
                                         style={({ pressed }) => [
                                             styles.defaultSessionEditButton,
+                                            {
+                                                backgroundColor:
+                                                    themeColors.inputBackground,
+                                                borderColor:
+                                                    themeColors.quickAddBorder,
+                                            },
                                             pressed && styles.addSessionActionPressed
                                         ]}
                                         onPress={() => setQuickAddOpen(true)}
@@ -632,9 +679,14 @@ export default function PracticeContent({
                                         <MaterialIcons
                                             name="edit"
                                             size={15}
-                                            color={colors.primary}
+                                            color={themeColors.primary}
                                         />
-                                        <Text style={styles.defaultSessionEditText}>
+                                        <Text
+                                            style={[
+                                                styles.defaultSessionEditText,
+                                                { color: themeColors.primary },
+                                            ]}
+                                        >
                                             {formatNumber(defaultSessionCount, locale)}
                                         </Text>
                                     </Pressable>
@@ -645,6 +697,12 @@ export default function PracticeContent({
                                         style={({ pressed }) => [
                                             styles.addSessionAction,
                                             styles.addSessionActionPrimary,
+                                            {
+                                                backgroundColor:
+                                                    themeColors.surfaceSelected,
+                                                borderColor:
+                                                    themeColors.primary,
+                                            },
                                             pressed && styles.addSessionActionPressed
                                         ]}
                                         onPress={() => {
@@ -667,10 +725,20 @@ export default function PracticeContent({
                                             count: formatNumber(defaultSessionCount, locale),
                                         })}
                                     >
-                                        <Text style={styles.addSessionActionValue}>
+                                        <Text
+                                            style={[
+                                                styles.addSessionActionValue,
+                                                { color: themeColors.textPrimary },
+                                            ]}
+                                        >
                                             +{formatNumber(defaultSessionCount, locale)}
                                         </Text>
-                                        <Text style={styles.addSessionActionLabel}>
+                                        <Text
+                                            style={[
+                                                styles.addSessionActionLabel,
+                                                { color: themeColors.textSecondary },
+                                            ]}
+                                        >
                                             {t("practice.defaultSession")}
                                         </Text>
                                         <FloatingAddAnimation ref={dailyAnimRef} />
@@ -679,16 +747,32 @@ export default function PracticeContent({
                                     <Pressable
                                         style={({ pressed }) => [
                                             styles.addSessionAction,
+                                            {
+                                                backgroundColor:
+                                                    themeColors.inputBackground,
+                                                borderColor:
+                                                    themeColors.quickAddBorder,
+                                            },
                                             pressed && styles.addSessionActionPressed
                                         ]}
                                         onPress={openCustomAmountModal}
                                         accessibilityRole="button"
                                         accessibilityLabel={t("practice.addCustomAmount")}
                                     >
-                                        <Text style={styles.addSessionActionValue}>
+                                        <Text
+                                            style={[
+                                                styles.addSessionActionValue,
+                                                { color: themeColors.textPrimary },
+                                            ]}
+                                        >
                                             +
                                         </Text>
-                                        <Text style={styles.addSessionActionLabel}>
+                                        <Text
+                                            style={[
+                                                styles.addSessionActionLabel,
+                                                { color: themeColors.textSecondary },
+                                            ]}
+                                        >
                                             {t("practice.customAmount")}
                                         </Text>
                                         <FloatingAddAnimation ref={customAnimRef} />
@@ -705,6 +789,13 @@ export default function PracticeContent({
                                 <Pressable
                                     style={({ pressed }) => [
                                         styles.statsCard,
+                                        {
+                                            backgroundColor:
+                                                themeColors.surfaceElevated,
+                                            borderColor:
+                                                themeColors.borderSubtle,
+                                            shadowColor: themeColors.shadow,
+                                        },
                                         styles.statsCardPressable,
                                         pressed && styles.statsCardPressed
                                     ]}
@@ -716,18 +807,28 @@ export default function PracticeContent({
                                         <MaterialIcons
                                             name="trending-up"
                                             size={16}
-                                            color={colors.primary}
+                                            color={themeColors.primary}
                                         />
-                                        <Text style={styles.statsCardLabel}>
+                                        <Text
+                                            style={[
+                                                styles.statsCardLabel,
+                                                { color: themeColors.textPrimary },
+                                            ]}
+                                        >
                                             {t("practice.totalProgress")}
                                         </Text>
                                         <MaterialIcons
                                             name="edit"
                                             size={14}
-                                            color={colors.primary}
+                                            color={themeColors.primary}
                                         />
                                     </View>
-                                    <Text style={styles.statsCardValue}>
+                                    <Text
+                                        style={[
+                                            styles.statsCardValue,
+                                            { color: themeColors.textSecondary },
+                                        ]}
+                                    >
                                         {formatCountProgress(
                                             total,
                                             targetCount || null,
@@ -739,6 +840,13 @@ export default function PracticeContent({
                                 <Pressable
                                     style={({ pressed }) => [
                                         styles.statsCard,
+                                        {
+                                            backgroundColor:
+                                                themeColors.surfaceElevated,
+                                            borderColor:
+                                                themeColors.borderSubtle,
+                                            shadowColor: themeColors.shadow,
+                                        },
                                         styles.statsCardPressable,
                                         pressed && styles.statsCardPressed
                                     ]}
@@ -750,20 +858,30 @@ export default function PracticeContent({
                                         <MaterialIcons
                                             name="event"
                                             size={16}
-                                            color={colors.primary}
+                                            color={themeColors.primary}
                                         />
-                                        <Text style={styles.statsCardLabel}>
+                                        <Text
+                                            style={[
+                                                styles.statsCardLabel,
+                                                { color: themeColors.textPrimary },
+                                            ]}
+                                        >
                                             {t("practice.targetDate")}
                                         </Text>
                                         <MaterialIcons
                                             name="edit"
                                             size={14}
-                                            color={colors.primary}
+                                            color={themeColors.primary}
                                         />
                                     </View>
 
                                     <View style={styles.targetDateRow}>
-                                        <Text style={styles.statsCardValue}>
+                                        <Text
+                                            style={[
+                                                styles.statsCardValue,
+                                                { color: themeColors.textSecondary },
+                                            ]}
+                                        >
                                             {formattedTargetDate}
                                         </Text>
 
@@ -782,6 +900,11 @@ export default function PracticeContent({
                             <View
                                 style={[
                                     styles.todayGoalCard,
+                                    {
+                                        backgroundColor:
+                                            themeColors.surfaceElevated,
+                                        borderColor: themeColors.borderSubtle,
+                                    },
                                     { width: imageDisplayWidth }
                                 ]}
                             >
@@ -791,7 +914,10 @@ export default function PracticeContent({
                                         dailyTargetCount={effectiveDailyTargetCount}
                                         height={22}
                                         style={styles.todayGoalProgressRow}
-                                        labelStyle={styles.todayGoalLabel}
+                                        labelStyle={[
+                                            styles.todayGoalLabel,
+                                            { color: themeColors.textPrimary },
+                                        ]}
                                         barStyle={styles.todayGoalProgressBar}
                                         textStyle={styles.todayGoalProgressText}
                                     />
@@ -805,6 +931,10 @@ export default function PracticeContent({
                                 <Pressable
                                     style={({ pressed }) => [
                                         styles.reminderButton,
+                                        {
+                                            borderColor:
+                                                themeColors.borderSubtle,
+                                        },
                                         pressed && styles.reminderButtonPressed
                                     ]}
                                     onPress={openReminderEditor}
@@ -814,14 +944,28 @@ export default function PracticeContent({
                                     <MaterialIcons
                                         name={reminderEnabled ? "notifications-active" : "notifications-none"}
                                         size={18}
-                                        color={reminderEnabled ? colors.primary : "#666"}
+                                        color={
+                                            reminderEnabled
+                                                ? themeColors.primary
+                                                : themeColors.iconMuted
+                                        }
                                     />
 
                                     <View style={styles.reminderTextGroup}>
-                                        <Text style={styles.reminderTitle}>
+                                        <Text
+                                            style={[
+                                                styles.reminderTitle,
+                                                { color: themeColors.textPrimary },
+                                            ]}
+                                        >
                                             {reminderSummary}
                                         </Text>
-                                        <Text style={styles.reminderSubtitle}>
+                                        <Text
+                                            style={[
+                                                styles.reminderSubtitle,
+                                                { color: themeColors.textSecondary },
+                                            ]}
+                                        >
                                             {hasDailyTarget
                                                 ? t("practice.editReminderTime")
                                                 : t("practice.reminderNeedsTarget")}
@@ -831,7 +975,7 @@ export default function PracticeContent({
                                     <MaterialIcons
                                         name="chevron-right"
                                         size={20}
-                                        color="#999"
+                                        color={themeColors.iconMuted}
                                     />
                                 </Pressable>
                             </View>
@@ -843,7 +987,15 @@ export default function PracticeContent({
                                 ]}
                             >
                                 <Pressable
-                                    style={styles.calendarButton}
+                                    style={[
+                                        styles.calendarButton,
+                                        {
+                                            backgroundColor:
+                                                themeColors.primary,
+                                            borderColor: themeColors.primary,
+                                            shadowColor: themeColors.shadow,
+                                        },
+                                    ]}
                                     onPress={() => setCalendarOpen(true)}
                                 >
                                     <Text style={styles.calendarButtonText}>
@@ -861,14 +1013,28 @@ export default function PracticeContent({
                             onRequestClose={closeCustomAmountModal}
                         >
                             <Pressable
-                                style={styles.customAmountOverlay}
+                                style={[
+                                    styles.customAmountOverlay,
+                                    { backgroundColor: themeColors.overlay },
+                                ]}
                                 onPress={closeCustomAmountModal}
                             >
                                 <Pressable
-                                    style={styles.customAmountModal}
+                                    style={[
+                                        styles.customAmountModal,
+                                        {
+                                            backgroundColor:
+                                                themeColors.surfaceElevated,
+                                        },
+                                    ]}
                                     onPress={() => { }}
                                 >
-                                    <Text style={styles.customAmountTitle}>
+                                    <Text
+                                        style={[
+                                            styles.customAmountTitle,
+                                            { color: themeColors.textPrimary },
+                                        ]}
+                                    >
                                         {t("practice.addCustomAmount")}
                                     </Text>
 
@@ -885,8 +1051,19 @@ export default function PracticeContent({
                                         returnKeyType="done"
                                         onSubmitEditing={addCustomAmount}
                                         placeholder={t("practice.enterAmount")}
-                                        placeholderTextColor="#999"
-                                        style={styles.customAmountInput}
+                                        placeholderTextColor={
+                                            themeColors.inputPlaceholder
+                                        }
+                                        style={[
+                                            styles.customAmountInput,
+                                            {
+                                                backgroundColor:
+                                                    themeColors.inputBackground,
+                                                borderColor:
+                                                    themeColors.inputBorder,
+                                                color: themeColors.inputText,
+                                            },
+                                        ]}
                                         autoFocus
                                     />
 
@@ -895,13 +1072,27 @@ export default function PracticeContent({
                                             style={styles.customAmountCancelButton}
                                             onPress={closeCustomAmountModal}
                                         >
-                                            <Text style={styles.customAmountCancelText}>
+                                            <Text
+                                                style={[
+                                                    styles.customAmountCancelText,
+                                                    {
+                                                        color:
+                                                            themeColors.textSecondary,
+                                                    },
+                                                ]}
+                                            >
                                                 {t("common.cancel")}
                                             </Text>
                                         </Pressable>
 
                                         <Pressable
-                                            style={styles.customAmountAddButton}
+                                            style={[
+                                                styles.customAmountAddButton,
+                                                {
+                                                    backgroundColor:
+                                                        themeColors.primary,
+                                                },
+                                            ]}
                                             onPress={addCustomAmount}
                                         >
                                             <Text style={styles.customAmountAddText}>

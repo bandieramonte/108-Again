@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useI18n } from "../i18n";
-import { colors } from "../styles/theme";
+import { useAppTheme } from "../styles/theme";
 import {
     digitsOnly,
     formatNumberInput,
@@ -25,6 +25,7 @@ export default function DailyTargetEditor({
     onClose,
     onSave,
 }: Props) {
+    const { colors } = useAppTheme();
     const { locale, t } = useI18n();
     const [input, setInput] = useState("");
 
@@ -73,19 +74,25 @@ export default function DailyTargetEditor({
             onRequestClose={onClose}
         >
             <Pressable
-                style={styles.overlay}
+                style={[
+                    styles.overlay,
+                    { backgroundColor: colors.overlay },
+                ]}
                 onPress={onClose}
             >
                 <Pressable
-                    style={styles.card}
+                    style={[
+                        styles.card,
+                        { backgroundColor: colors.surfaceElevated },
+                    ]}
                     onPress={() => { }}
                 >
-                    <Text style={styles.title}>
+                    <Text style={[styles.title, { color: colors.textPrimary }]}>
                         {t("dashboard.setDailyTarget")}
                     </Text>
 
                     {practiceName ? (
-                        <Text style={styles.subtitle}>
+                        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                             {practiceName}
                         </Text>
                     ) : null}
@@ -101,8 +108,15 @@ export default function DailyTargetEditor({
                         returnKeyType="done"
                         onSubmitEditing={save}
                         placeholder={t("dashboard.dailyTarget")}
-                        placeholderTextColor="#999"
-                        style={styles.input}
+                        placeholderTextColor={colors.inputPlaceholder}
+                        style={[
+                            styles.input,
+                            {
+                                backgroundColor: colors.inputBackground,
+                                borderColor: colors.inputBorder,
+                                color: colors.inputText,
+                            },
+                        ]}
                         autoFocus
                     />
 
@@ -111,13 +125,21 @@ export default function DailyTargetEditor({
                             style={styles.cancelButton}
                             onPress={onClose}
                         >
-                            <Text style={styles.cancelText}>
+                            <Text
+                                style={[
+                                    styles.cancelText,
+                                    { color: colors.textSecondary },
+                                ]}
+                            >
                                 {t("common.cancel")}
                             </Text>
                         </Pressable>
 
                         <Pressable
-                            style={styles.saveButton}
+                            style={[
+                                styles.saveButton,
+                                { backgroundColor: colors.primary },
+                            ]}
                             onPress={save}
                         >
                             <Text style={styles.saveText}>
@@ -194,7 +216,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 9,
         borderRadius: 8,
-        backgroundColor: colors.primary,
     },
 
     saveText: {

@@ -20,7 +20,7 @@ import {
     establishPasswordRecoverySessionCore,
 } from "../services/authAccountActions";
 import * as authService from "../services/authService";
-import { globalStyles } from "../styles/global";
+import { useAppTheme, useGlobalStyles } from "../styles/theme";
 import { getLocalizedAuthErrorMessage } from "../utils/authErrorText";
 
 function getSearchParam(value?: string | string[]) {
@@ -28,6 +28,8 @@ function getSearchParam(value?: string | string[]) {
 }
 
 export default function ResetPasswordScreen() {
+    const globalStyles = useGlobalStyles();
+    const { colors } = useAppTheme();
     const { t } = useI18n();
     const params = useLocalSearchParams<{
         access_token?: string | string[];
@@ -170,45 +172,69 @@ export default function ResetPasswordScreen() {
                 contentContainerStyle={[
                     globalStyles.sidePadding,
                     styles.container,
+                    { backgroundColor: colors.background },
                 ]}
                 keyboardShouldPersistTaps="handled"
             >
-                <Text style={styles.title}>{t("auth.setNewPassword")}</Text>
+                <Text style={[styles.title, { color: colors.textPrimary }]}>
+                    {t("auth.setNewPassword")}
+                </Text>
 
-                <Text style={styles.label}>{t("auth.newPassword")}</Text>
+                <Text style={[styles.label, { color: colors.textPrimary }]}>
+                    {t("auth.newPassword")}
+                </Text>
                 <View style={styles.passwordContainer}>
                     <TextInput
                         value={password}
                         onChangeText={setPassword}
                         maxLength={AUTH_FIELD_LIMITS.password}
                         secureTextEntry={!showPassword}
-                        style={styles.passwordInput}
+                        style={[
+                            styles.passwordInput,
+                            {
+                                backgroundColor: colors.inputBackground,
+                                borderColor: colors.inputBorder,
+                                color: colors.inputText,
+                            },
+                        ]}
                         placeholder={t("auth.newPasswordPlaceholder")}
+                        placeholderTextColor={colors.inputPlaceholder}
                     />
 
                     <Pressable onPress={() => setShowPassword((v) => !v)} style={styles.icon}>
                         <Ionicons
                             name={showPassword ? "eye-off" : "eye"}
                             size={20}
-                            color="#666"
+                            color={colors.iconMuted}
                         />
                     </Pressable>
                 </View>
 
-                <Text style={styles.label}>{t("auth.confirmPassword")}</Text>
+                <Text style={[styles.label, { color: colors.textPrimary }]}>
+                    {t("auth.confirmPassword")}
+                </Text>
 
                 <TextInput
                     value={confirmPassword}
                     onChangeText={setConfirmPassword}
                     maxLength={AUTH_FIELD_LIMITS.password}
                     secureTextEntry={!showPassword}
-                    style={styles.input}
+                    style={[
+                        styles.input,
+                        {
+                            backgroundColor: colors.inputBackground,
+                            borderColor: colors.inputBorder,
+                            color: colors.inputText,
+                        },
+                    ]}
                     placeholder={t("auth.confirmPassword")}
+                    placeholderTextColor={colors.inputPlaceholder}
                 />
 
                 <Pressable
                     style={({ pressed }) => [
                         styles.button,
+                        { backgroundColor: colors.surface },
                         pressed && styles.buttonPressed,
                         formDisabled && styles.buttonDisabled,
                     ]}
@@ -218,14 +244,26 @@ export default function ResetPasswordScreen() {
                     {submitting || !sessionReady ? (
                         <ActivityIndicator />
                     ) : (
-                        <Text style={styles.buttonText}>
+                        <Text
+                            style={[
+                                styles.buttonText,
+                                { color: colors.textPrimary },
+                            ]}
+                        >
                             {t("auth.updatePassword")}
                         </Text>
                     )}
                 </Pressable>
 
                 {sessionError ? (
-                    <Text style={styles.errorText}>{sessionError}</Text>
+                    <Text
+                        style={[
+                            styles.errorText,
+                            { color: colors.destructive },
+                        ]}
+                    >
+                        {sessionError}
+                    </Text>
                 ) : null}
             </ScrollView>
         </KeyboardAvoidingView>

@@ -31,7 +31,7 @@ import {
 } from "../services/dragReorderService";
 import * as practiceService from "../services/practiceService";
 import * as sessionService from "../services/sessionService";
-import { colors, containers } from "../styles/theme";
+import { colors, useAppTheme, useGlobalStyles } from "../styles/theme";
 import { formatMonthDayYear } from "../utils/dateUtils";
 import { formatCountProgress, formatNumber } from "../utils/numberUtils";
 
@@ -50,7 +50,7 @@ const MAX_STREAK_FIRE_DAYS = 365;
 const MIN_STREAK_FIRE_SIZE = 5;
 const MAX_STREAK_FIRE_SIZE = 26;
 const STREAK_FIRE_GROWTH_EXPONENT = 1.4;
-const DASHBOARD_PROGRESS_BAR_HEIGHT = 18;
+const DASHBOARD_PROGRESS_BAR_HEIGHT = 22;
 const practiceCardLayoutTransition =
   LinearTransition.duration(DEFAULT_DRAG_REORDER_ANIMATION_MS);
 
@@ -63,6 +63,7 @@ function DashboardTotalProgressBar({
   label,
   progress,
 }: DashboardTotalProgressBarProps) {
+  const { colors: themeColors, isDark } = useAppTheme();
   const [trackWidth, setTrackWidth] = useState(0);
   const safeProgress =
     Number.isFinite(progress)
@@ -77,7 +78,13 @@ function DashboardTotalProgressBar({
 
   return (
     <View
-      style={styles.totalProgressTrack}
+      style={[
+        styles.totalProgressTrack,
+        {
+          backgroundColor: themeColors.progressTrack,
+          borderColor: themeColors.borderStrong,
+        },
+      ]}
       onLayout={handleTrackLayout}
       accessibilityRole="progressbar"
       accessibilityValue={{
@@ -89,13 +96,22 @@ function DashboardTotalProgressBar({
       <View
         style={[
           styles.totalProgressFill,
-          { width: fillWidth },
+          {
+            width: fillWidth,
+            backgroundColor: themeColors.primary,
+          },
         ]}
       />
 
       <View style={styles.totalProgressTextFull}>
         <Text
-          style={styles.totalProgressText}
+          style={[
+            styles.totalProgressText,
+            {
+              color: themeColors.textPrimary,
+              fontWeight: isDark ? "400" : "700",
+            },
+          ]}
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={0.72}
@@ -122,6 +138,7 @@ function DashboardTotalProgressBar({
               style={[
                 styles.totalProgressText,
                 styles.totalProgressTextFilled,
+                { fontWeight: isDark ? "400" : "700" },
               ]}
               numberOfLines={1}
               adjustsFontSizeToFit
@@ -153,6 +170,8 @@ function getStreakFireSize(streak: number) {
 export default function Dashboard() {
 
   const router = useRouter();
+  const globalStyles = useGlobalStyles();
+  const { colors: themeColors } = useAppTheme();
   const { locale, t } = useI18n();
   const [practices, setPractices] = useState<Practice[]>([]);
   const [streak, setStreak] = useState(0);
@@ -218,6 +237,24 @@ export default function Dashboard() {
     onDeleted: refreshDashboard,
   });
   const streakFireSize = getStreakFireSize(streak);
+  const cardThemeStyle = {
+    backgroundColor: themeColors.surfaceElevated,
+    borderColor: themeColors.borderSubtle,
+    shadowColor: themeColors.shadow,
+  };
+  const textPrimaryStyle = {
+    color: themeColors.textPrimary,
+  };
+  const textSecondaryStyle = {
+    color: themeColors.textSecondary,
+  };
+  const quickAddThemeStyle = {
+    backgroundColor: themeColors.quickAddSurface,
+    borderColor: themeColors.quickAddBorder,
+  };
+  const quickAddDividerStyle = {
+    borderLeftColor: themeColors.quickAddBorder,
+  };
   const refreshDashboardRef = useRef(refreshDashboard);
   const dragReorderRef = useRef<DragReorderService<Practice> | null>(null);
 
@@ -538,33 +575,60 @@ export default function Dashboard() {
           }
         ]}
       >
-        <View style={[styles.card, styles.cardDragging, styles.dragOverlaySurface]}>
+        <View
+          style={[
+            styles.card,
+            cardThemeStyle,
+            styles.cardDragging,
+            styles.dragOverlaySurface,
+          ]}
+        >
           <View style={styles.cardContent}>
             <View style={styles.practiceNameRow}>
               <View style={styles.dragHandle}>
                 <MaterialIcons
                   name="drag-indicator"
                   size={22}
-                  color="#9CA3AF"
+                  color={themeColors.iconMuted}
                 />
               </View>
 
-              <Text numberOfLines={1} ellipsizeMode="tail" style={styles.practiceName}>
+              <Text
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                style={[styles.practiceName, textPrimaryStyle]}
+              >
                 {practiceDisplayName}
               </Text>
 
               <View style={styles.practiceActionButtons}>
                 <View style={styles.practiceActionButton}>
-                  <MaterialIcons name="edit" size={18} color={colors.primary} />
+                  <MaterialIcons
+                    name="edit"
+                    size={18}
+                    color={themeColors.primary}
+                  />
                 </View>
                 <View style={styles.practiceActionButton}>
-                  <MaterialIcons name="bar-chart" size={18} color={colors.primary} />
+                  <MaterialIcons
+                    name="bar-chart"
+                    size={18}
+                    color={themeColors.primary}
+                  />
                 </View>
                 <View style={styles.practiceActionButton}>
-                  <MaterialIcons name="calendar-today" size={17} color={colors.primary} />
+                  <MaterialIcons
+                    name="calendar-today"
+                    size={17}
+                    color={themeColors.primary}
+                  />
                 </View>
                 <View style={styles.practiceActionButton}>
-                  <MaterialIcons name="delete-outline" size={18} color="#c62828" />
+                  <MaterialIcons
+                    name="delete-outline"
+                    size={18}
+                    color={themeColors.destructive}
+                  />
                 </View>
               </View>
             </View>
@@ -579,9 +643,9 @@ export default function Dashboard() {
               />
 
               <View style={styles.practiceMetricGroup}>
-                <Text style={styles.countText}>
+                <Text style={[styles.countText, textPrimaryStyle]}>
                   {t("practice.targetDate")}:{" "}
-                  <Text style={targetReached ? { color: colors.primary } : undefined}>
+                  <Text style={targetReached ? { color: themeColors.primary } : undefined}>
                     {expectedTargetDate}
                   </Text>
                 </Text>
@@ -592,19 +656,33 @@ export default function Dashboard() {
                     dailyTargetCount={dailyTargetCount ?? 0}
                     height={18}
                     style={styles.dailyGoalInline}
-                    labelStyle={[styles.countText, styles.dailyGoalLabel]}
+                    labelStyle={[
+                      styles.countText,
+                      styles.dailyGoalLabel,
+                      textPrimaryStyle,
+                    ]}
                     barStyle={styles.dailyGoalBar}
                     textStyle={styles.dailyGoalBarText}
                     labelNumberOfLines={1}
                   />
                 ) : (
-                  <View style={styles.enableDailyTargetButton}>
+                  <View
+                    style={[
+                      styles.enableDailyTargetButton,
+                      { borderColor: themeColors.borderStrong },
+                    ]}
+                  >
                     <MaterialIcons
                       name="check-circle-outline"
                       size={16}
-                      color={colors.primary}
+                      color={themeColors.primary}
                     />
-                    <Text style={styles.enableDailyTargetText}>
+                    <Text
+                      style={[
+                        styles.enableDailyTargetText,
+                        textPrimaryStyle,
+                      ]}
+                    >
                       {t("practice.enableDailyTarget")}
                     </Text>
                   </View>
@@ -614,25 +692,25 @@ export default function Dashboard() {
           </View>
 
           <View style={styles.quickAddContainer}>
-            <View style={styles.quickAddButton}>
+            <View style={[styles.quickAddButton, quickAddThemeStyle]}>
               <View style={styles.quickAddMainButton}>
-                <Text style={styles.quickAddAmountText}>
+                <Text style={[styles.quickAddAmountText, textPrimaryStyle]}>
                   +{formatNumber(defaultSessionCount, locale)}
                 </Text>
 
                 <Text
-                  style={styles.quickAddLabelText}
+                  style={[styles.quickAddLabelText, textSecondaryStyle]}
                   numberOfLines={1}
                 >
                   {t("practice.addDefaultSession")}
                 </Text>
               </View>
 
-              <View style={styles.quickAddEditButton}>
+              <View style={[styles.quickAddEditButton, quickAddDividerStyle]}>
                 <MaterialIcons
                   name="edit"
                   size={15}
-                  color={colors.primary}
+                  color={themeColors.primary}
                 />
               </View>
             </View>
@@ -651,11 +729,14 @@ export default function Dashboard() {
     return (
       <View
         ref={dragReorder.rootRef}
-        style={styles.dashboardRoot}
+        style={[
+          styles.dashboardRoot,
+          { backgroundColor: themeColors.background },
+        ]}
         onLayout={() => dragReorder.updateRootWindowMetrics()}
       >
-        <View style={[containers.screen, styles.dashboardLoadingContainer]}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View style={[globalStyles.screen, styles.dashboardLoadingContainer]}>
+          <ActivityIndicator size="large" color={themeColors.primary} />
         </View>
 
         <WelcomeModal
@@ -670,12 +751,18 @@ export default function Dashboard() {
 
     <View
       ref={dragReorder.rootRef}
-      style={styles.dashboardRoot}
+      style={[
+        styles.dashboardRoot,
+        { backgroundColor: themeColors.background },
+      ]}
       onLayout={() => dragReorder.updateRootWindowMetrics()}
     >
       <ScrollView
         ref={dragReorder.scrollViewRef}
-        style={containers.screen}
+        style={[
+          globalStyles.screen,
+          { backgroundColor: themeColors.background },
+        ]}
         contentContainerStyle={{ paddingBottom: 30 }}
         scrollEnabled={draggingPracticeId === null}
         scrollEventThrottle={16}
@@ -705,16 +792,26 @@ export default function Dashboard() {
           }}
         >
           <View style={styles.streakContainer}>
-            <View style={styles.streakBadge}>
-              <View style={styles.streakFireIconBox}>
+            <View
+              style={[
+                styles.streakBadge,
+                cardThemeStyle,
+              ]}
+            >
+              <View
+                style={[
+                  styles.streakFireIconBox,
+                  { backgroundColor: themeColors.surfaceSelected },
+                ]}
+              >
                 <MaterialIcons
                   name="local-fire-department"
                   size={streakFireSize}
-                  color={colors.primary}
+                  color={themeColors.primary}
                 />
               </View>
 
-              <Text style={styles.streakText}>
+              <Text style={[styles.streakText, textPrimaryStyle]}>
                 {t("dashboard.streak", {
                   count: streak,
                   unit: streak === 1
@@ -731,7 +828,7 @@ export default function Dashboard() {
                 <MaterialIcons
                   name="info-outline"
                   size={18}
-                  color="#6B7280"
+                  color={themeColors.iconMuted}
                 />
               </Pressable>
             </View>
@@ -757,6 +854,7 @@ export default function Dashboard() {
                 }}
                 style={[
                   styles.card,
+                  cardThemeStyle,
                   draggingPracticeId === practice.id &&
                   styles.cardDraggingPlaceholder,
                 ]}
@@ -801,11 +899,15 @@ export default function Dashboard() {
                         <MaterialIcons
                           name="drag-indicator"
                           size={22}
-                          color="#9CA3AF"
+                          color={themeColors.iconMuted}
                         />
                       </View>
 
-                      <Text numberOfLines={1} ellipsizeMode="tail" style={styles.practiceName}>
+                      <Text
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                        style={[styles.practiceName, textPrimaryStyle]}
+                      >
                         {practiceDisplayName}
                       </Text>
 
@@ -829,7 +931,7 @@ export default function Dashboard() {
                           <MaterialIcons
                             name="edit"
                             size={18}
-                            color={colors.primary}
+                            color={themeColors.primary}
                           />
                         </Pressable>
 
@@ -852,7 +954,7 @@ export default function Dashboard() {
                           <MaterialIcons
                             name="bar-chart"
                             size={18}
-                            color={colors.primary}
+                            color={themeColors.primary}
                           />
                         </Pressable>
 
@@ -872,7 +974,7 @@ export default function Dashboard() {
                           <MaterialIcons
                             name="calendar-today"
                             size={17}
-                            color={colors.primary}
+                            color={themeColors.primary}
                           />
                         </Pressable>
 
@@ -895,7 +997,7 @@ export default function Dashboard() {
                           <MaterialIcons
                             name="delete-outline"
                             size={18}
-                            color="#c62828"
+                            color={themeColors.destructive}
                           />
                         </Pressable>
                       </View>
@@ -920,9 +1022,9 @@ export default function Dashboard() {
                               sparkle3={sparkle3}
                             />
                           )}
-                          <Text style={styles.countText}>
+                          <Text style={[styles.countText, textPrimaryStyle]}>
                             {t("practice.targetDate")}:{" "}
-                            <Text style={targetReached ? { color: colors.primary } : undefined}>
+                            <Text style={targetReached ? { color: themeColors.primary } : undefined}>
                               {expectedTargetDate}
                             </Text>
                           </Text>
@@ -945,7 +1047,11 @@ export default function Dashboard() {
                             dailyTargetCount={dailyTargetCount ?? 0}
                             height={18}
                             style={styles.dailyGoalInline}
-                            labelStyle={[styles.countText, styles.dailyGoalLabel]}
+                            labelStyle={[
+                              styles.countText,
+                              styles.dailyGoalLabel,
+                              textPrimaryStyle,
+                            ]}
                             barStyle={styles.dailyGoalBar}
                             textStyle={styles.dailyGoalBarText}
                             labelNumberOfLines={1}
@@ -968,7 +1074,7 @@ export default function Dashboard() {
                   }}
                   style={styles.quickAddContainer}
                 >
-                  <View style={styles.quickAddButton}>
+                  <View style={[styles.quickAddButton, quickAddThemeStyle]}>
                     <Pressable
                       style={({ pressed }) => [
                         styles.quickAddMainButton,
@@ -995,7 +1101,7 @@ export default function Dashboard() {
                         ),
                       })}: ${practiceDisplayName}`}
                     >
-                      <Text style={styles.quickAddAmountText}>
+                      <Text style={[styles.quickAddAmountText, textPrimaryStyle]}>
                         +{formatNumber(
                           practice.defaultSessionCount ?? 108,
                           locale
@@ -1003,7 +1109,7 @@ export default function Dashboard() {
                       </Text>
 
                       <Text
-                        style={styles.quickAddLabelText}
+                        style={[styles.quickAddLabelText, textSecondaryStyle]}
                         numberOfLines={1}
                       >
                         {t("practice.addDefaultSession")}
@@ -1013,6 +1119,7 @@ export default function Dashboard() {
                     <Pressable
                       style={({ pressed }) => [
                         styles.quickAddEditButton,
+                        quickAddDividerStyle,
                         pressed && styles.quickAddEditButtonPressed
                       ]}
                       onPress={(event) => {
@@ -1030,7 +1137,7 @@ export default function Dashboard() {
                       <MaterialIcons
                         name="edit"
                         size={15}
-                        color={colors.primary}
+                        color={themeColors.primary}
                       />
                     </Pressable>
                   </View>
@@ -1044,22 +1151,28 @@ export default function Dashboard() {
           <Pressable
             style={({ pressed }) => [
               styles.addPracticeCard,
+              { borderColor: themeColors.primary },
               pressed && styles.addPracticeCardPressed
             ]}
             onPress={() => router.push("/add-practice")}
             accessibilityRole="button"
             accessibilityLabel={t("dashboard.addPractice")}
           >
-            <View style={styles.addPracticeCircle}>
+            <View
+              style={[
+                styles.addPracticeCircle,
+                { borderColor: themeColors.primary },
+              ]}
+            >
               <MaterialIcons
                 name="add"
                 size={22}
-                color={colors.primary}
+                color={themeColors.primary}
               />
             </View>
 
             <View style={styles.addPracticeTextWrapper}>
-              <Text style={styles.addPracticeText}>
+              <Text style={[styles.addPracticeText, textPrimaryStyle]}>
                 {t("dashboard.addPractice")}
               </Text>
             </View>
@@ -1125,13 +1238,19 @@ export default function Dashboard() {
               <View
                 style={[
                   styles.anchoredTooltip,
+                  { backgroundColor: themeColors.tooltipBackground },
                   {
                     top: tooltipPosition.top,
                     left: tooltipPosition.left,
                   }
                 ]}
               >
-                <Text style={styles.anchoredTooltipText}>
+                <Text
+                  style={[
+                    styles.anchoredTooltipText,
+                    { color: themeColors.background },
+                  ]}
+                >
                   {t("dashboard.quickAddTip")}
                 </Text>
               </View>
@@ -1145,22 +1264,31 @@ export default function Dashboard() {
             onRequestClose={() => setInfoOpen(false)}
           >
             <Pressable
-              style={styles.infoOverlay}
+              style={[
+                styles.infoOverlay,
+                { backgroundColor: themeColors.overlay },
+              ]}
               onPress={() => setInfoOpen(false)}
             >
               <Pressable
-                style={styles.infoModal}
+                style={[
+                  styles.infoModal,
+                  {
+                    backgroundColor: themeColors.surfaceElevated,
+                    borderColor: themeColors.borderSubtle,
+                  },
+                ]}
                 onPress={() => { }}
               >
-                <Text style={styles.infoTitle}>
+                <Text style={[styles.infoTitle, textPrimaryStyle]}>
                   {t("dashboard.infoTitle")}
                 </Text>
 
-                <Text style={styles.infoText}>
+                <Text style={[styles.infoText, textSecondaryStyle]}>
                   {t("dashboard.infoStreak")}
                 </Text>
 
-                <Text style={styles.infoText}>
+                <Text style={[styles.infoText, textSecondaryStyle]}>
                   {t("dashboard.infoLongPressPractice")}
                 </Text>
 
@@ -1168,7 +1296,12 @@ export default function Dashboard() {
                   style={styles.infoButton}
                   onPress={() => setInfoOpen(false)}
                 >
-                  <Text style={styles.infoButtonText}>
+                  <Text
+                    style={[
+                      styles.infoButtonText,
+                      { color: themeColors.primary },
+                    ]}
+                  >
                     {t("common.ok")}
                   </Text>
                 </Pressable>
@@ -1406,7 +1539,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 8,
     color: "#111827",
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "700",
     textAlign: "center",
     includeFontPadding: false,

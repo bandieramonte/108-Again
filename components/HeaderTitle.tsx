@@ -1,4 +1,5 @@
 import { useI18n } from "@/i18n";
+import { useAppTheme } from "@/styles/theme";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text } from "react-native";
 
@@ -8,6 +9,7 @@ type Props = {
 };
 
 export default function HeaderTitle({ firstName, isAuthenticated }: Props) {
+    const { colors } = useAppTheme();
     const { t } = useI18n();
 
     return (
@@ -20,9 +22,11 @@ export default function HeaderTitle({ firstName, isAuthenticated }: Props) {
             }}
             style={styles.container}
         >
-            <Text style={styles.title}>108 Again</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>
+                108 Again
+            </Text>
 
-            <Text style={styles.subtitle}>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 {isAuthenticated
                     ? firstName
                         ? t("header.greetingWithName", { name: firstName })

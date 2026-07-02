@@ -1,5 +1,5 @@
 import { useI18n } from "@/i18n";
-import { colors } from "@/styles/theme";
+import { useAppTheme } from "@/styles/theme";
 import { Modal, Pressable, StyleSheet, Text } from "react-native";
 
 type Props = {
@@ -11,6 +11,7 @@ export default function WelcomeModal({
     visible,
     onClose,
 }: Props) {
+    const { colors } = useAppTheme();
     const { t } = useI18n();
 
     return (
@@ -21,39 +22,48 @@ export default function WelcomeModal({
             onRequestClose={onClose}
         >
             <Pressable
-                style={styles.overlay}
+                style={[
+                    styles.overlay,
+                    { backgroundColor: colors.overlay },
+                ]}
                 onPress={onClose}
             >
                 <Pressable
-                    style={styles.modal}
+                    style={[
+                        styles.modal,
+                        { backgroundColor: colors.surfaceElevated },
+                    ]}
                     onPress={() => { }}
                 >
-                    <Text style={styles.title}>
+                    <Text style={[styles.title, { color: colors.textPrimary }]}>
                         {t("welcome.title")}
                     </Text>
 
-                    <Text style={styles.text}>
+                    <Text style={[styles.text, { color: colors.textSecondary }]}>
                         {t("welcome.text1")}
                     </Text>
 
-                    <Text style={styles.text}>
+                    <Text style={[styles.text, { color: colors.textSecondary }]}>
                         {t("welcome.text2")}
                     </Text>
 
-                    <Text style={styles.text}>
+                    <Text style={[styles.text, { color: colors.textSecondary }]}>
                         {t("welcome.text3")}
                     </Text>
 
-                    <Text style={styles.text}>
+                    <Text style={[styles.text, { color: colors.textSecondary }]}>
                         {t("welcome.text4")}
                     </Text>
 
-                    <Text style={styles.text}>
+                    <Text style={[styles.text, { color: colors.textSecondary }]}>
                         {t("welcome.enjoy")}
                     </Text>
 
                     <Pressable
-                        style={styles.button}
+                        style={[
+                            styles.button,
+                            { backgroundColor: colors.primary },
+                        ]}
                         onPress={onClose}
                     >
                         <Text style={styles.buttonText}>
@@ -100,7 +110,6 @@ const styles = StyleSheet.create({
     button: {
         marginTop: 10,
         alignSelf: "center",
-        backgroundColor: colors.primary,
         paddingVertical: 12,
         paddingHorizontal: 24,
         borderRadius: 10,

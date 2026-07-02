@@ -9,6 +9,7 @@ import {
     View,
 } from "react-native";
 import { useI18n } from "../i18n";
+import { useAppTheme } from "../styles/theme";
 
 export type PracticeMenuAnchor = {
     x: number;
@@ -36,6 +37,7 @@ export default function PracticeDropdownMenu({
     onCalendar,
     onDelete,
 }: Props) {
+    const { colors } = useAppTheme();
     const { t } = useI18n();
     const { width: screenWidth, height: screenHeight } =
         useWindowDimensions();
@@ -75,7 +77,10 @@ export default function PracticeDropdownMenu({
             onRequestClose={onClose}
         >
             <Pressable
-                style={styles.overlay}
+                style={[
+                    styles.overlay,
+                    { backgroundColor: colors.overlay },
+                ]}
                 onPress={onClose}
             >
                 {anchor && (
@@ -85,6 +90,9 @@ export default function PracticeDropdownMenu({
                             {
                                 top: menuTop,
                                 left: menuLeft,
+                                backgroundColor: colors.surfaceElevated,
+                                shadowColor: colors.shadow,
+                                borderColor: colors.borderSubtle,
                             },
                         ]}
                     >
@@ -95,9 +103,9 @@ export default function PracticeDropdownMenu({
                             <MaterialIcons
                                 name="edit"
                                 size={18}
-                                color="#333"
+                                color={colors.icon}
                             />
-                            <Text style={styles.text}>
+                            <Text style={[styles.text, { color: colors.textPrimary }]}>
                                 {t("practiceMenu.edit")}
                             </Text>
                         </Pressable>
@@ -109,9 +117,9 @@ export default function PracticeDropdownMenu({
                             <MaterialIcons
                                 name="show-chart"
                                 size={18}
-                                color="#333"
+                                color={colors.icon}
                             />
-                            <Text style={styles.text}>
+                            <Text style={[styles.text, { color: colors.textPrimary }]}>
                                 {t("practiceMenu.history")}
                             </Text>
                         </Pressable>
@@ -124,9 +132,9 @@ export default function PracticeDropdownMenu({
                                 <MaterialIcons
                                     name="calendar-today"
                                     size={18}
-                                    color="#333"
+                                    color={colors.icon}
                                 />
-                                <Text style={styles.text}>
+                                <Text style={[styles.text, { color: colors.textPrimary }]}>
                                     {t("practiceMenu.calendar")}
                                 </Text>
                             </Pressable>
@@ -139,10 +147,13 @@ export default function PracticeDropdownMenu({
                             <MaterialIcons
                                 name="delete-outline"
                                 size={18}
-                                color="#c62828"
+                                color={colors.destructive}
                             />
                             <Text
-                                style={styles.deleteText}
+                                style={[
+                                    styles.deleteText,
+                                    { color: colors.destructive },
+                                ]}
                             >
                                 {t("practiceMenu.delete")}
                             </Text>
@@ -163,6 +174,7 @@ const styles = StyleSheet.create({
         position: "absolute",
         width: 220,
         backgroundColor: "white",
+        borderWidth: 1,
         borderRadius: 10,
         paddingVertical: 6,
         shadowColor: "#000",

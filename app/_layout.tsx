@@ -1,12 +1,13 @@
+import HeaderLeftControls from "@/components/HeaderLeftControls";
 import HeaderMenu from "@/components/HeaderMenu";
 import HeaderTitle from "@/components/HeaderTitle";
 import UpdateRequiredScreen from "@/components/UpdateRequiredScreen";
 import { I18nProvider, useI18n } from "@/i18n";
+import { AppThemeProvider, useAppTheme } from "@/styles/theme";
 import { subscribeAuth } from "@/utils/events";
-import { MaterialIcons } from "@expo/vector-icons";
 import { Stack, router, usePathname } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, View } from "react-native";
+import { ActivityIndicator, Alert, View } from "react-native";
 import * as appService from "../services/appService";
 import type { UpdateRequirement } from "../services/appUpdatePolicy";
 import * as appUpdateService from "../services/appUpdateService";
@@ -19,12 +20,15 @@ import * as syncService from "../services/syncService";
 export default function Layout() {
     return (
         <I18nProvider>
-            <LayoutContent />
+            <AppThemeProvider>
+                <LayoutContent />
+            </AppThemeProvider>
         </I18nProvider>
     );
 }
 
 function LayoutContent() {
+    const { colors } = useAppTheme();
     const { t } = useI18n();
     const [authState, setAuthState] = useState(authService.getAuthState());
     const [appInitialized, setAppInitialized] = useState(false);
@@ -244,10 +248,10 @@ function LayoutContent() {
                     flex: 1,
                     alignItems: "center",
                     justifyContent: "center",
-                    backgroundColor: "white",
+                    backgroundColor: colors.background,
                 }}
             >
-                <ActivityIndicator size="large" color="#1A5FCC" />
+                <ActivityIndicator size="large" color={colors.primary} />
             </View>
         );
     }
@@ -274,10 +278,10 @@ function LayoutContent() {
                     flex: 1,
                     alignItems: "center",
                     justifyContent: "center",
-                    backgroundColor: "white",
+                    backgroundColor: colors.background,
                 }}
             >
-                <ActivityIndicator size="large" color="#1A5FCC" />
+                <ActivityIndicator size="large" color={colors.primary} />
             </View>
         );
     }
@@ -287,17 +291,21 @@ function LayoutContent() {
         <Stack
             screenOptions={{
                 headerTitleAlign: "center",
+                headerStyle: {
+                    backgroundColor: colors.headerBackground,
+                },
+                headerTintColor: colors.icon,
+                headerShadowVisible: true,
+                contentStyle: {
+                    backgroundColor: colors.background,
+                },
 
-                headerLeft: ({ canGoBack, tintColor }) => (
-                    <View style={{ width: 44, alignItems: "center", justifyContent: "center" }}>
-                        {canGoBack ? (
-                            <Pressable onPress={() => router.back()} hitSlop={10}>
-                                <MaterialIcons name="arrow-back" size={24} color={tintColor ?? "#333"} />
-                            </Pressable>
-                        ) : (
-                            <View style={{ width: 24, height: 24 }} />
-                        )}
-                    </View>
+                headerLeft: ({ canGoBack }) => (
+                    <HeaderLeftControls
+                        canGoBack={!!canGoBack}
+                        isAuthenticated={authState.isAuthenticated}
+                        onBack={() => router.back()}
+                    />
                 ),
 
                 headerTitle: () => (

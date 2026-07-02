@@ -15,11 +15,13 @@ import { useI18n } from "../i18n";
 import * as authService from "../services/authService";
 import { getIsOnline } from "../services/networkService";
 import * as syncService from "../services/syncService";
-import { globalStyles } from "../styles/global";
+import { useAppTheme, useGlobalStyles } from "../styles/theme";
 import { getLocalizedAuthErrorMessage } from "../utils/authErrorText";
 import { subscribeAuth, subscribeSync } from "../utils/events";
 
 export default function AccountScreen() {
+    const globalStyles = useGlobalStyles();
+    const { colors } = useAppTheme();
     const { t } = useI18n();
     const initialAuthState = authService.getAuthState();
     const [authState, setAuthState] = useState(initialAuthState);
@@ -203,8 +205,13 @@ export default function AccountScreen() {
 
     if (!authChecked && !authState.isAuthenticated) {
         return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#1A5FCC" />
+            <View
+                style={[
+                    styles.loadingContainer,
+                    { backgroundColor: colors.background },
+                ]}
+            >
+                <ActivityIndicator size="large" color={colors.primary} />
             </View>
         );
     }
@@ -224,32 +231,69 @@ export default function AccountScreen() {
                 }}
             />
 
-            <View style={[globalStyles.sidePadding, styles.container]}>
-                <Text style={styles.title}>{t("account.title")}</Text>
+            <View
+                style={[
+                    globalStyles.sidePadding,
+                    styles.container,
+                    { backgroundColor: colors.background },
+                ]}
+            >
+                <Text style={[styles.title, { color: colors.textPrimary }]}>
+                    {t("account.title")}
+                </Text>
 
-                <View style={styles.card}>
-                    <Text style={styles.label}>{t("account.status")}</Text>
-                    <Text style={styles.value}>
+                <View
+                    style={[
+                        styles.card,
+                        {
+                            backgroundColor: colors.surfaceElevated,
+                            borderColor: colors.borderSubtle,
+                        },
+                    ]}
+                >
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>
+                        {t("account.status")}
+                    </Text>
+                    <Text style={[styles.value, { color: colors.textPrimary }]}>
                         {authState.isAuthenticated
                             ? t("account.signedIn")
                             : t("account.signedOut")}
                     </Text>
 
-                    <Text style={styles.label}>{t("account.firstName")}</Text>
-                    <Text style={styles.value}>{authState.firstName ?? "—"}</Text>
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>
+                        {t("account.firstName")}
+                    </Text>
+                    <Text style={[styles.value, { color: colors.textPrimary }]}>
+                        {authState.firstName ?? "—"}
+                    </Text>
 
-                    <Text style={styles.label}>{t("account.email")}</Text>
-                    <Text style={styles.value}>{authState.email ?? "—"}</Text>
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>
+                        {t("account.email")}
+                    </Text>
+                    <Text style={[styles.value, { color: colors.textPrimary }]}>
+                        {authState.email ?? "—"}
+                    </Text>
 
-                    <Text style={styles.label}>{t("account.syncStatus")}</Text>
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>
+                        {t("account.syncStatus")}
+                    </Text>
                     <View style={styles.syncContainer}>
                         <Text
                             style={[
                                 styles.syncLabel,
-                                syncState === "error" && { color: "red" },
-                                syncState === "offline" && { color: "orange" },
-                                syncState === "success" && { color: "green" },
-                                syncState === "timeout" && { color: "orange" },
+                                { color: colors.textSecondary },
+                                syncState === "error" && {
+                                    color: colors.destructive,
+                                },
+                                syncState === "offline" && {
+                                    color: colors.warning,
+                                },
+                                syncState === "success" && {
+                                    color: colors.success,
+                                },
+                                syncState === "timeout" && {
+                                    color: colors.warning,
+                                },
                             ]}
                         >
                             {getTranslatedSyncLabel(syncState)}
@@ -262,6 +306,7 @@ export default function AccountScreen() {
                         <Pressable
                             style={({ pressed }) => [
                                 styles.button,
+                                { backgroundColor: colors.surface },
                                 pressed && styles.buttonPressed,
                                 (syncing || !getIsOnline()) && styles.buttonDisabled,
                             ]}
@@ -269,9 +314,14 @@ export default function AccountScreen() {
                             disabled={syncing || !getIsOnline()}
                         >
                             {syncing ? (
-                                <ActivityIndicator />
+                                <ActivityIndicator color={colors.primary} />
                             ) : (
-                                <Text style={styles.buttonText}>
+                                <Text
+                                    style={[
+                                        styles.buttonText,
+                                        { color: colors.textPrimary },
+                                    ]}
+                                >
                                     {t("account.syncNow")}
                                 </Text>
                             )}
@@ -281,20 +331,35 @@ export default function AccountScreen() {
                             style={({ pressed }) => [
                                 styles.button,
                                 styles.secondaryButton,
+                                { backgroundColor: colors.surface },
                                 pressed && styles.buttonPressed,
                             ]}
                             onPress={handleSignOut}
                         >
-                            <Text style={styles.buttonText}>
+                            <Text
+                                style={[
+                                    styles.buttonText,
+                                    { color: colors.textPrimary },
+                                ]}
+                            >
                                 {t("menu.logOut")}
                             </Text>
                         </Pressable>
 
                         <TouchableOpacity
                             onPress={() => setPrivacyVisible(true)}
-                            style={[styles.button, styles.secondaryButton]}
+                            style={[
+                                styles.button,
+                                styles.secondaryButton,
+                                { backgroundColor: colors.surface },
+                            ]}
                         >
-                            <Text style={styles.buttonText}>
+                            <Text
+                                style={[
+                                    styles.buttonText,
+                                    { color: colors.textPrimary },
+                                ]}
+                            >
                                 {t("menu.privacyData")}
                             </Text>
                         </TouchableOpacity>
@@ -304,6 +369,7 @@ export default function AccountScreen() {
                             disabled={deleting}
                             style={({ pressed }) => [
                                 styles.deleteButton,
+                                { backgroundColor: colors.destructive },
                                 pressed && { opacity: 0.7 },
                                 deleting && { opacity: 0.5 }
                             ]}
@@ -349,6 +415,7 @@ const styles = StyleSheet.create({
 
     card: {
         backgroundColor: "#f5f5f5",
+        borderWidth: 1,
         borderRadius: 12,
         padding: 16,
     },

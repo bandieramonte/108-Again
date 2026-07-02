@@ -8,7 +8,7 @@ import {
     View,
 } from "react-native";
 import { useI18n } from "../i18n";
-import { colors } from "../styles/theme";
+import { useAppTheme } from "../styles/theme";
 import { PrivacyContent } from "../utils/privacyText";
 
 type Props = {
@@ -17,6 +17,7 @@ type Props = {
 };
 
 export default function PrivacyModal({ visible, onClose }: Props) {
+    const { colors } = useAppTheme();
     const { t } = useI18n();
 
     return (
@@ -25,7 +26,12 @@ export default function PrivacyModal({ visible, onClose }: Props) {
             animationType="slide"
             presentationStyle="pageSheet"
         >
-            <View style={styles.container}>
+            <View
+                style={[
+                    styles.container,
+                    { backgroundColor: colors.background },
+                ]}
+            >
 
                 {/* Content */}
                 <ScrollView
@@ -36,9 +42,17 @@ export default function PrivacyModal({ visible, onClose }: Props) {
                 </ScrollView>
 
                 {/* Bottom Close Button */}
-                <View style={styles.bottom}>
+                <View
+                    style={[
+                        styles.bottom,
+                        { borderColor: colors.borderSubtle },
+                    ]}
+                >
                     <TouchableOpacity
-                        style={styles.closeButton}
+                        style={[
+                            styles.closeButton,
+                            { backgroundColor: colors.primary },
+                        ]}
                         onPress={onClose}
                     >
                         <Text style={styles.closeButtonText}>
@@ -79,7 +93,6 @@ const styles = StyleSheet.create({
     },
 
     closeButton: {
-        backgroundColor: colors.primary,
         paddingVertical: 14,
         borderRadius: 10,
         alignItems: "center",

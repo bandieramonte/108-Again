@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useState } from "react";
 import { useI18n } from "../i18n";
-import { colors } from "../styles/theme";
+import { useAppTheme } from "../styles/theme";
 import PracticeCalendar from "./PracticeCalendar";
 
 type CalendarDayData = {
@@ -34,6 +34,7 @@ export default function PracticeCalendarModal({
     startDate,
     visible,
 }: Props) {
+    const { colors } = useAppTheme();
     const { t } = useI18n();
     const [infoOpen, setInfoOpen] = useState(false);
 
@@ -47,18 +48,42 @@ export default function PracticeCalendarModal({
                 onRequestClose={onClose}
             >
                 <Pressable
-                    style={styles.calendarOverlay}
+                    style={[
+                        styles.calendarOverlay,
+                        { backgroundColor: colors.overlay },
+                    ]}
                     onPress={onClose}
                 >
                     <Pressable
-                        style={styles.calendarSheet}
+                        style={[
+                            styles.calendarSheet,
+                            {
+                                backgroundColor: colors.background,
+                                shadowColor: colors.shadow,
+                            },
+                        ]}
                         onPress={() => { }}
                     >
-                        <View style={styles.sheetHandle} />
+                        <View
+                            style={[
+                                styles.sheetHandle,
+                                { backgroundColor: colors.borderStrong },
+                            ]}
+                        />
 
-                        <View style={styles.calendarHeader}>
+                        <View
+                            style={[
+                                styles.calendarHeader,
+                                { borderColor: colors.borderSubtle },
+                            ]}
+                        >
                             <Pressable onPress={onClose}>
-                                <Text style={styles.calendarClose}>
+                                <Text
+                                    style={[
+                                        styles.calendarClose,
+                                        { color: colors.primary },
+                                    ]}
+                                >
                                     {t("common.close")}
                                 </Text>
                             </Pressable>
@@ -78,7 +103,7 @@ export default function PracticeCalendarModal({
                                 <MaterialIcons
                                     name="info-outline"
                                     size={20}
-                                    color="#666"
+                                    color={colors.iconMuted}
                                 />
                             </Pressable>
                         </View>
@@ -100,22 +125,28 @@ export default function PracticeCalendarModal({
                 onRequestClose={() => setInfoOpen(false)}
             >
                 <Pressable
-                    style={styles.infoOverlay}
+                    style={[
+                        styles.infoOverlay,
+                        { backgroundColor: colors.overlay },
+                    ]}
                     onPress={() => setInfoOpen(false)}
                 >
                     <Pressable
-                        style={styles.infoModal}
+                        style={[
+                            styles.infoModal,
+                            { backgroundColor: colors.surfaceElevated },
+                        ]}
                         onPress={() => { }}
                     >
-                        <Text style={styles.infoTitle}>
+                        <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>
                             {t("practice.calendarInfoTitle")}
                         </Text>
 
-                        <Text style={styles.infoText}>
+                        <Text style={[styles.infoText, { color: colors.textSecondary }]}>
                             {t("practice.calendarInfoText1")}
                         </Text>
 
-                        <Text style={styles.infoText}>
+                        <Text style={[styles.infoText, { color: colors.textSecondary }]}>
                             {t("practice.calendarInfoText2")}
                         </Text>
 
@@ -123,7 +154,12 @@ export default function PracticeCalendarModal({
                             style={styles.infoButton}
                             onPress={() => setInfoOpen(false)}
                         >
-                            <Text style={styles.infoButtonText}>
+                            <Text
+                                style={[
+                                    styles.infoButtonText,
+                                    { color: colors.primary },
+                                ]}
+                            >
                                 {t("common.ok")}
                             </Text>
                         </Pressable>
@@ -148,7 +184,6 @@ const styles = StyleSheet.create({
     calendarClose: {
         fontSize: 16,
         fontWeight: "600",
-        color: colors.primary,
     },
 
     calendarInfoIcon: {
@@ -227,6 +262,5 @@ const styles = StyleSheet.create({
     infoButtonText: {
         fontSize: 15,
         fontWeight: "600",
-        color: colors.primary,
     },
 });

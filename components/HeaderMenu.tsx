@@ -1,15 +1,11 @@
 import PrivacyModal from "@/components/PrivacyModal";
-import {
-    languageOptions,
-    useI18n,
-    type LanguageCode,
-} from "@/i18n";
+import { useI18n } from "@/i18n";
 import * as appService from "@/services/appService";
-import * as authService from "@/services/authService";
+import { useAppTheme } from "@/styles/theme";
 import { exportBackup, importBackup } from "@/utils/backup";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
     Alert,
     Modal,
@@ -37,10 +33,10 @@ export default function HeaderMenu({
     onSignOut,
 }: Props) {
     const router = useRouter();
-    const { language, locale, setLanguage, t } = useI18n();
+    const { colors } = useAppTheme();
+    const { t } = useI18n();
     const [moreOpen, setMoreOpen] = useState(false);
     const [accountOpen, setAccountOpen] = useState(false);
-    const [languageOpen, setLanguageOpen] = useState(false);
     const moreButtonRef = useRef<View | null>(null);
     const [menuAnchor, setMenuAnchor] = useState<{
         x: number;
@@ -49,20 +45,6 @@ export default function HeaderMenu({
         height: number;
     } | null>(null);
     const [privacyVisible, setPrivacyVisible] = useState(false);
-    const selectedLanguage =
-        languageOptions.find(option => option.code === language) ??
-        languageOptions[0];
-    const sortedLanguageOptions = useMemo(
-        () =>
-            [...languageOptions].sort((left, right) =>
-                t(left.labelKey).localeCompare(
-                    t(right.labelKey),
-                    locale,
-                    { sensitivity: "base" }
-                )
-            ),
-        [locale, t]
-    );
 
     function handleRestoreDefaults() {
         Alert.alert(
@@ -96,36 +78,8 @@ export default function HeaderMenu({
         }
     }
 
-    function handleLanguageSelect(nextLanguage: LanguageCode) {
-        setLanguageOpen(false);
-        void setLanguage(nextLanguage)
-            .then(() => {
-                if (!isAuthenticated) return;
-
-                return authService.updatePreferredLanguage(nextLanguage);
-            })
-            .catch(error => {
-                console.warn("Failed to update preferred language", error);
-            });
-    }
-
     return (
         <View style={styles.container}>
-            <Pressable
-                onPress={() => setLanguageOpen(true)}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel={t("language.switch")}
-                style={({ pressed }) => [
-                    styles.languageButton,
-                    pressed && { opacity: 0.5 }
-                ]}
-            >
-                <Text style={styles.flagText}>
-                    {selectedLanguage.flag}
-                </Text>
-            </Pressable>
-
             <Pressable
                 onPress={() => {
                     if (disableAccountIcon) return;
@@ -140,10 +94,15 @@ export default function HeaderMenu({
                 hitSlop={10}
                 style={({ pressed }) => [
                     styles.iconButton,
+                    disableAccountIcon && styles.iconButtonDisabled,
                     pressed && !disableAccountIcon && { opacity: 0.5 }
                 ]}
             >
-                <MaterialIcons name="account-circle" size={24} />
+                <MaterialIcons
+                    name="account-circle"
+                    size={24}
+                    color={colors.icon}
+                />
             </Pressable>
 
             <Pressable
@@ -179,7 +138,11 @@ export default function HeaderMenu({
                 hitSlop={4}
                 style={styles.iconButton}
             >
-                <MaterialIcons name="more-vert" size={24} />
+                <MaterialIcons
+                    name="more-vert"
+                    size={24}
+                    color={colors.icon}
+                />
             </Pressable>
 
             <Modal
@@ -189,11 +152,22 @@ export default function HeaderMenu({
                 onRequestClose={() => setAccountOpen(false)}
             >
                 <TouchableOpacity
-                    style={styles.overlay}
+                    style={[
+                        styles.overlay,
+                        { backgroundColor: colors.overlay },
+                    ]}
                     activeOpacity={1}
                     onPress={() => setAccountOpen(false)}
                 >
-                    <View style={styles.menu}>
+                    <View
+                        style={[
+                            styles.menu,
+                            {
+                                backgroundColor: colors.surfaceElevated,
+                                borderColor: colors.borderSubtle,
+                            },
+                        ]}
+                    >
                         {isAuthenticated ? (
                             <>
                                 <Pressable
@@ -203,7 +177,9 @@ export default function HeaderMenu({
                                         router.push("/account");
                                     }}
                                 >
-                                    <Text>{t("menu.account")}</Text>
+                                    <Text style={{ color: colors.textPrimary }}>
+                                        {t("menu.account")}
+                                    </Text>
                                 </Pressable>
 
                                 <Pressable
@@ -213,7 +189,9 @@ export default function HeaderMenu({
                                         onSignOut();
                                     }}
                                 >
-                                    <Text>{t("menu.logOut")}</Text>
+                                    <Text style={{ color: colors.textPrimary }}>
+                                        {t("menu.logOut")}
+                                    </Text>
                                 </Pressable>
                             </>
                         ) : (
@@ -225,7 +203,9 @@ export default function HeaderMenu({
                                         router.push("/sign-in");
                                     }}
                                 >
-                                    <Text>{t("menu.logIn")}</Text>
+                                    <Text style={{ color: colors.textPrimary }}>
+                                        {t("menu.logIn")}
+                                    </Text>
                                 </Pressable>
 
                                 <Pressable
@@ -235,56 +215,12 @@ export default function HeaderMenu({
                                         router.push("/sign-up");
                                     }}
                                 >
-                                    <Text>{t("menu.createAccount")}</Text>
+                                    <Text style={{ color: colors.textPrimary }}>
+                                        {t("menu.createAccount")}
+                                    </Text>
                                 </Pressable>
                             </>
                         )}
-                    </View>
-                </TouchableOpacity>
-            </Modal>
-
-            <Modal
-                visible={languageOpen}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setLanguageOpen(false)}
-            >
-                <TouchableOpacity
-                    style={styles.overlay}
-                    activeOpacity={1}
-                    onPress={() => setLanguageOpen(false)}
-                >
-                    <View style={styles.languageMenu}>
-                        {sortedLanguageOptions.map(option => {
-                            const selected = option.code === language;
-
-                            return (
-                                <Pressable
-                                    key={option.code}
-                                    style={[
-                                        styles.languageItem,
-                                        selected && styles.languageItemSelected
-                                    ]}
-                                    onPress={() => {
-                                        handleLanguageSelect(option.code);
-                                    }}
-                                >
-                                    <Text style={styles.languageFlag}>
-                                        {option.flag}
-                                    </Text>
-                                    <Text style={styles.languageText}>
-                                        {t(option.labelKey)}
-                                    </Text>
-                                    {selected && (
-                                        <MaterialIcons
-                                            name="check"
-                                            size={18}
-                                            color="#1A5FCC"
-                                        />
-                                    )}
-                                </Pressable>
-                            );
-                        })}
                     </View>
                 </TouchableOpacity>
             </Modal>
@@ -296,13 +232,20 @@ export default function HeaderMenu({
                 onRequestClose={() => setMoreOpen(false)}
             >
                 <TouchableOpacity
-                    style={styles.overlay}
+                    style={[
+                        styles.overlay,
+                        { backgroundColor: colors.overlay },
+                    ]}
                     activeOpacity={1}
                     onPress={() => setMoreOpen(false)}
                 >
                     <View
                         style={[
                             styles.menu,
+                            {
+                                backgroundColor: colors.surfaceElevated,
+                                borderColor: colors.borderSubtle,
+                            },
                             menuAnchor && {
                                 position: "absolute",
                                 top: menuAnchor.y + menuAnchor.height + 6,
@@ -317,7 +260,9 @@ export default function HeaderMenu({
                                 exportBackup();
                             }}
                         >
-                            <Text>{t("menu.exportBackup")}</Text>
+                            <Text style={{ color: colors.textPrimary }}>
+                                {t("menu.exportBackup")}
+                            </Text>
                         </Pressable>
 
                         <Pressable
@@ -327,7 +272,9 @@ export default function HeaderMenu({
                                 importBackup();
                             }}
                         >
-                            <Text>{t("menu.importBackup")}</Text>
+                            <Text style={{ color: colors.textPrimary }}>
+                                {t("menu.importBackup")}
+                            </Text>
                         </Pressable>
 
                         <Pressable
@@ -337,7 +284,12 @@ export default function HeaderMenu({
                                 handleRestoreDefaults();
                             }}
                         >
-                            <Text style={styles.destructiveText}>
+                            <Text
+                                style={[
+                                    styles.destructiveText,
+                                    { color: colors.destructive },
+                                ]}
+                            >
                                 {t("menu.restoreDefaults")}
                             </Text>
                         </Pressable>
@@ -349,7 +301,9 @@ export default function HeaderMenu({
                                 handleShareApp();
                             }}
                         >
-                            <Text>{t("menu.shareApp")}</Text>
+                            <Text style={{ color: colors.textPrimary }}>
+                                {t("menu.shareApp")}
+                            </Text>
                         </Pressable>
 
                         <Pressable
@@ -359,7 +313,9 @@ export default function HeaderMenu({
                                 router.navigate("/about");
                             }}
                         >
-                            <Text>{t("menu.about")}</Text>
+                            <Text style={{ color: colors.textPrimary }}>
+                                {t("menu.about")}
+                            </Text>
                         </Pressable>
 
                         <Pressable
@@ -369,7 +325,9 @@ export default function HeaderMenu({
                                 setPrivacyVisible(true);
                             }}
                         >
-                            <Text>{t("menu.privacyData")}</Text>
+                            <Text style={{ color: colors.textPrimary }}>
+                                {t("menu.privacyData")}
+                            </Text>
                         </Pressable>
 
                     </View>
@@ -394,16 +352,8 @@ const styles = StyleSheet.create({
         marginLeft: 8,
     },
 
-    languageButton: {
-        marginLeft: 8,
-        minWidth: 28,
-        minHeight: 28,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-
-    flagText: {
-        fontSize: 20,
+    iconButtonDisabled: {
+        opacity: 0.45,
     },
 
     overlay: {
@@ -416,8 +366,8 @@ const styles = StyleSheet.create({
     },
 
     menu: {
-        backgroundColor: "white",
         borderRadius: 6,
+        borderWidth: 1,
         paddingVertical: 10,
         width: 190,
         elevation: 5,
@@ -427,37 +377,6 @@ const styles = StyleSheet.create({
     item: {
         paddingVertical: 10,
         paddingHorizontal: 15,
-    },
-
-    languageMenu: {
-        backgroundColor: "white",
-        borderRadius: 10,
-        paddingVertical: 6,
-        width: 190,
-        elevation: 5,
-        marginTop: 4,
-    },
-
-    languageItem: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-        paddingVertical: 10,
-        paddingHorizontal: 14,
-    },
-
-    languageItemSelected: {
-        backgroundColor: "#EEF2FF",
-    },
-
-    languageFlag: {
-        fontSize: 20,
-    },
-
-    languageText: {
-        flex: 1,
-        fontSize: 15,
-        color: "#111",
     },
 
     destructiveText: {
