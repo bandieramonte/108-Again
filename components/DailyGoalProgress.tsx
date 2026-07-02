@@ -1,4 +1,5 @@
 import {
+    Animated,
     StyleSheet,
     Text,
     View,
@@ -7,6 +8,7 @@ import {
     type TextStyle,
     type ViewStyle,
 } from "react-native";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n";
 import { colors } from "../styles/theme";
 import { formatCountProgress } from "../utils/numberUtils";
@@ -24,6 +26,12 @@ type Props = {
     labelNumberOfLines?: number;
 };
 
+const BORDER_WIDTH_IDLE = 1;
+const BORDER_WIDTH_FINISHED = 2;
+const BORDER_WIDTH_PEAK = 4;
+const GOAL_FINISHED_FADE_IN_MS = 400;
+const GOAL_FINISHED_FADE_OUT_MS = 2000;
+
 export default function DailyGoalProgress({
     todayCount,
     dailyTargetCount,
@@ -37,6 +45,7 @@ export default function DailyGoalProgress({
     labelNumberOfLines,
 }: Props) {
     const { locale, t } = useI18n();
+    const [showFinishedMessage, setShowFinishedMessage] = useState(false);
     const safeTodayCount = Number.isFinite(todayCount)
         ? todayCount
         : 0;
@@ -51,6 +60,121 @@ export default function DailyGoalProgress({
     const isFinished =
         safeTargetCount > 0 &&
         safeTodayCount >= safeTargetCount;
+    const completionAnim = useRef(
+        new Animated.Value(isFinished ? 1 : 0)
+    ).current;
+    const pulseAnim = useRef(new Animated.Value(0)).current;
+    const finishedOpacity = useRef(new Animated.Value(0)).current;
+    const wasFinishedRef = useRef(isFinished);
+    const animatedBorderWidth = Animated.add(
+        completionAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [BORDER_WIDTH_IDLE, BORDER_WIDTH_FINISHED],
+        }),
+        pulseAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, BORDER_WIDTH_PEAK - BORDER_WIDTH_FINISHED],
+        })
+    );
+    const animatedBorderColor = completionAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["#D1D5DB", colors.primary],
+    });
+    const countOpacity = showFinishedMessage
+        ? finishedOpacity.interpolate({
+            inputRange: [0, 1],
+            outputRange: [1, 0],
+        })
+        : 1;
+    const progressText =
+        formatCountProgress(
+            safeTodayCount,
+            safeTargetCount,
+            locale
+        );
+
+    useEffect(() => {
+        const wasFinished = wasFinishedRef.current;
+
+        wasFinishedRef.current = isFinished;
+
+        if (!isFinished) {
+            completionAnim.stopAnimation();
+            pulseAnim.stopAnimation();
+            finishedOpacity.stopAnimation();
+            completionAnim.setValue(0);
+            pulseAnim.setValue(0);
+            finishedOpacity.setValue(0);
+            setShowFinishedMessage(false);
+            return;
+        }
+
+        if (wasFinished) {
+            completionAnim.stopAnimation();
+            pulseAnim.stopAnimation();
+            finishedOpacity.stopAnimation();
+            completionAnim.setValue(1);
+            pulseAnim.setValue(0);
+            finishedOpacity.setValue(0);
+            setShowFinishedMessage(false);
+            return;
+        }
+
+        let active = true;
+
+        setShowFinishedMessage(true);
+        completionAnim.setValue(0);
+        pulseAnim.setValue(0);
+        finishedOpacity.setValue(0);
+
+        const animation = Animated.parallel([
+            Animated.timing(completionAnim, {
+                toValue: 1,
+                duration: GOAL_FINISHED_FADE_IN_MS,
+                useNativeDriver: false,
+            }),
+            Animated.sequence([
+                Animated.timing(pulseAnim, {
+                    toValue: 1,
+                    duration: GOAL_FINISHED_FADE_IN_MS,
+                    useNativeDriver: false,
+                }),
+                Animated.timing(pulseAnim, {
+                    toValue: 0,
+                    duration: GOAL_FINISHED_FADE_OUT_MS,
+                    useNativeDriver: false,
+                }),
+            ]),
+            Animated.sequence([
+                Animated.timing(finishedOpacity, {
+                    toValue: 1,
+                    duration: GOAL_FINISHED_FADE_IN_MS,
+                    useNativeDriver: false,
+                }),
+                Animated.timing(finishedOpacity, {
+                    toValue: 0,
+                    duration: GOAL_FINISHED_FADE_OUT_MS,
+                    useNativeDriver: false,
+                }),
+            ]),
+        ]);
+
+        animation.start(({ finished }) => {
+            if (active && finished) {
+                setShowFinishedMessage(false);
+            }
+        });
+
+        return () => {
+            active = false;
+            animation.stop();
+        };
+    }, [
+        completionAnim,
+        finishedOpacity,
+        isFinished,
+        pulseAnim,
+    ]);
 
     return (
         <View style={[styles.row, style]}>
@@ -65,13 +189,12 @@ export default function DailyGoalProgress({
             <View
                 style={[
                     styles.bar,
+                    barStyle,
+                    barWidth != null && { width: barWidth },
                     {
                         height,
                         borderRadius: height / 2,
                     },
-                    barWidth != null && { width: barWidth },
-                    isFinished && styles.barFinished,
-                    barStyle,
                 ]}
             >
                 <View
@@ -81,26 +204,51 @@ export default function DailyGoalProgress({
                     ]}
                 />
 
+                <Animated.View
+                    pointerEvents="none"
+                    style={[
+                        styles.borderOverlay,
+                        {
+                            borderRadius: height / 2,
+                            borderColor: animatedBorderColor,
+                            borderWidth: animatedBorderWidth,
+                        },
+                    ]}
+                />
+
                 <View style={styles.textOverlay}>
-                    <Text
+                    <Animated.Text
                         style={[
                             styles.barText,
                             {
                                 height,
                                 lineHeight: height,
+                                opacity: countOpacity,
                             },
                             isFinished && styles.barTextFinished,
                             textStyle,
                         ]}
                     >
-                        {isFinished
-                            ? t("dailyGoal.finished")
-                            : formatCountProgress(
-                                safeTodayCount,
-                                safeTargetCount,
-                                locale
-                            )}
-                    </Text>
+                        {progressText}
+                    </Animated.Text>
+
+                    {showFinishedMessage && (
+                        <Animated.Text
+                            style={[
+                                styles.barText,
+                                styles.finishedMessage,
+                                {
+                                    height,
+                                    lineHeight: height,
+                                    opacity: finishedOpacity,
+                                },
+                                styles.barTextFinished,
+                                textStyle,
+                            ]}
+                        >
+                            {t("dailyGoal.finished")}
+                        </Animated.Text>
+                    )}
                 </View>
             </View>
         </View>
@@ -122,14 +270,15 @@ const styles = StyleSheet.create({
     },
 
     bar: {
-        borderWidth: 1,
-        borderColor: "#D1D5DB",
-        backgroundColor: "#F9FAFB",
         overflow: "hidden",
     },
 
-    barFinished: {
-        borderColor: colors.primary,
+    borderOverlay: {
+        position: "absolute",
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0,
     },
 
     fill: {
@@ -157,6 +306,12 @@ const styles = StyleSheet.create({
         includeFontPadding: false,
         textAlign: "center",
         textAlignVertical: "center",
+    },
+
+    finishedMessage: {
+        position: "absolute",
+        left: 0,
+        right: 0,
     },
 
     barTextFinished: {

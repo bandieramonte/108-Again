@@ -508,6 +508,7 @@ export default function Dashboard() {
                   <DailyGoalProgress
                     todayCount={dragOverlayPractice.today}
                     dailyTargetCount={dailyTargetCount ?? 0}
+                    height={18}
                     style={styles.dailyGoalInline}
                     labelStyle={[styles.countText, styles.dailyGoalLabel]}
                     barStyle={styles.dailyGoalBar}
@@ -876,6 +877,7 @@ export default function Dashboard() {
                           <DailyGoalProgress
                             todayCount={practice.today}
                             dailyTargetCount={dailyTargetCount ?? 0}
+                            height={18}
                             style={styles.dailyGoalInline}
                             labelStyle={[styles.countText, styles.dailyGoalLabel]}
                             barStyle={styles.dailyGoalBar}
