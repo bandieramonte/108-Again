@@ -3,8 +3,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import * as Progress from "react-native-progress";
+import { ActivityIndicator, Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, type LayoutChangeEvent } from "react-native";
 import Reanimated, { LinearTransition } from "react-native-reanimated";
 import CelebrationOverlay from "../components/CelebrationOverlay";
 import DailyGoalProgress from "../components/DailyGoalProgress";
@@ -51,8 +50,91 @@ const MAX_STREAK_FIRE_DAYS = 365;
 const MIN_STREAK_FIRE_SIZE = 5;
 const MAX_STREAK_FIRE_SIZE = 26;
 const STREAK_FIRE_GROWTH_EXPONENT = 1.4;
+const DASHBOARD_PROGRESS_BAR_HEIGHT = 18;
 const practiceCardLayoutTransition =
   LinearTransition.duration(DEFAULT_DRAG_REORDER_ANIMATION_MS);
+
+type DashboardTotalProgressBarProps = {
+  label: string;
+  progress: number;
+};
+
+function DashboardTotalProgressBar({
+  label,
+  progress,
+}: DashboardTotalProgressBarProps) {
+  const [trackWidth, setTrackWidth] = useState(0);
+  const safeProgress =
+    Number.isFinite(progress)
+      ? Math.min(Math.max(progress, 0), 1)
+      : 0;
+  const percent = Math.round(safeProgress * 100);
+  const fillWidth = `${safeProgress * 100}%`;
+
+  function handleTrackLayout(event: LayoutChangeEvent) {
+    setTrackWidth(event.nativeEvent.layout.width);
+  }
+
+  return (
+    <View
+      style={styles.totalProgressTrack}
+      onLayout={handleTrackLayout}
+      accessibilityRole="progressbar"
+      accessibilityValue={{
+        min: 0,
+        max: 100,
+        now: percent,
+      }}
+    >
+      <View
+        style={[
+          styles.totalProgressFill,
+          { width: fillWidth },
+        ]}
+      />
+
+      <View style={styles.totalProgressTextFull}>
+        <Text
+          style={styles.totalProgressText}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.72}
+        >
+          {label}
+        </Text>
+      </View>
+
+      {trackWidth > 0 && (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.totalProgressFilledTextClip,
+            { width: fillWidth },
+          ]}
+        >
+          <View
+            style={[
+              styles.totalProgressTextFull,
+              { width: trackWidth },
+            ]}
+          >
+            <Text
+              style={[
+                styles.totalProgressText,
+                styles.totalProgressTextFilled,
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.72}
+            >
+              {label}
+            </Text>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
 
 function getStreakFireSize(streak: number) {
   const cappedStreak =
@@ -414,6 +496,22 @@ export default function Dashboard() {
     };
   }
 
+  function renderTotalProgressBar(practice: Practice, progress: number) {
+    const label =
+      `${t("practice.totalProgress")}: ${formatCountProgress(
+        practice.total,
+        practice.targetCount || null,
+        locale
+      )}`;
+
+    return (
+      <DashboardTotalProgressBar
+        label={label}
+        progress={progress}
+      />
+    );
+  }
+
   function renderPracticeDragOverlay() {
     if (!dragOverlayPractice || !dragOverlayFrame) return null;
 
@@ -471,15 +569,7 @@ export default function Dashboard() {
               </View>
             </View>
 
-            <Progress.Bar
-              progress={currentCycleProgress}
-              width={null}
-              height={10}
-              color={colors.primary}
-              unfilledColor="#E5E5E5"
-              borderWidth={0}
-              borderRadius={5}
-            />
+            {renderTotalProgressBar(dragOverlayPractice, currentCycleProgress)}
 
             <View style={styles.practiceBodyRow}>
               <Image
@@ -489,14 +579,6 @@ export default function Dashboard() {
               />
 
               <View style={styles.practiceMetricGroup}>
-                <Text style={styles.countText}>
-                  {t("practice.totalProgress")}: {formatCountProgress(
-                    dragOverlayPractice.total,
-                    dragOverlayPractice.targetCount || null,
-                    locale
-                  )}
-                </Text>
-
                 <Text style={styles.countText}>
                   {t("practice.targetDate")}:{" "}
                   <Text style={targetReached ? { color: colors.primary } : undefined}>
@@ -819,15 +901,7 @@ export default function Dashboard() {
                       </View>
                     </View>
 
-                    <Progress.Bar
-                      progress={currentCycleProgress}
-                      width={null}
-                      height={10}
-                      color={colors.primary}
-                      unfilledColor="#E5E5E5"
-                      borderWidth={0}
-                      borderRadius={5}
-                    />
+                    {renderTotalProgressBar(practice, currentCycleProgress)}
 
                     <View style={styles.practiceBodyRow}>
                       <Image
@@ -837,14 +911,6 @@ export default function Dashboard() {
                       />
 
                       <View style={styles.practiceMetricGroup}>
-                        <Text style={styles.countText}>
-                          {t("practice.totalProgress")}: {formatCountProgress(
-                            practice.total,
-                            practice.targetCount || null,
-                            locale
-                          )}
-                        </Text>
-
                         <View style={styles.targetDateRow}>
                           {isCelebrating(practice.id) && (
                             <CelebrationOverlay
@@ -1277,7 +1343,9 @@ const styles = StyleSheet.create({
 
   practiceMetricGroup: {
     flex: 1,
-    gap: 6,
+    alignSelf: "stretch",
+    justifyContent: "space-around",
+    gap: 4,
     minWidth: 0,
   },
 
@@ -1311,6 +1379,60 @@ const styles = StyleSheet.create({
 
   cardContent: {
     gap: 10,
+  },
+
+  totalProgressTrack: {
+    alignSelf: "stretch",
+    width: "100%",
+    position: "relative",
+    height: DASHBOARD_PROGRESS_BAR_HEIGHT,
+    borderRadius: DASHBOARD_PROGRESS_BAR_HEIGHT / 2,
+    backgroundColor: "#E8EDF7",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    overflow: "hidden",
+  },
+
+  totalProgressFill: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: colors.primary,
+    borderRadius: DASHBOARD_PROGRESS_BAR_HEIGHT / 2,
+  },
+
+  totalProgressText: {
+    flex: 1,
+    paddingHorizontal: 8,
+    color: "#111827",
+    fontSize: 11,
+    fontWeight: "700",
+    textAlign: "center",
+    includeFontPadding: false,
+    transform: [{ translateY: 2 }],
+  },
+
+  totalProgressTextFull: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  totalProgressFilledTextClip: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    overflow: "hidden",
+  },
+
+  totalProgressTextFilled: {
+    color: "white",
   },
 
   practiceBodyRow: {
