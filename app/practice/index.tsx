@@ -21,6 +21,9 @@ export default function PracticePager() {
         new Set([initialPage])
     );
     const [currentIndex, setCurrentIndex] = useState(initialPage);
+    const [scrollResetTarget, setScrollResetTarget] =
+        useState<string | null>(null);
+    const [scrollResetVersion, setScrollResetVersion] = useState(0);
 
     const extended = useMemo(() => {
         if (pageCount === 0) return [];
@@ -46,6 +49,13 @@ export default function PracticePager() {
         const practiceIndex = normalizedIndex - 1;
         return practices[practiceIndex]?.id ?? null;
     }, [normalizedIndex, pageCount, practices]);
+
+    function resetPracticeScroll(practiceId: string | null) {
+        if (!practiceId) return;
+
+        setScrollResetTarget(practiceId);
+        setScrollResetVersion(version => version + 1);
+    }
 
     useFocusEffect(
         useCallback(() => {
@@ -92,6 +102,8 @@ export default function PracticePager() {
                 <PracticeContent
                     practiceId={practices[0].id}
                     openCalendarInitially={openCalendar === "1"}
+                    scrollResetPracticeId={scrollResetTarget}
+                    scrollResetVersion={scrollResetVersion}
                 />
             </View>
         );
@@ -116,6 +128,13 @@ export default function PracticePager() {
                 if (selectedPractice) {
                     void lastPracticeScreenService
                         .rememberLastPracticeScreen(selectedPractice.id);
+                }
+
+                if (
+                    visiblePracticeId &&
+                    visiblePracticeId !== selectedPractice?.id
+                ) {
+                    resetPracticeScroll(visiblePracticeId);
                 }
 
                 setLoaded(prev => {
@@ -152,6 +171,8 @@ export default function PracticePager() {
                             openCalendarInitially={
                                 openCalendar === "1" && i === initialPage
                             }
+                            scrollResetPracticeId={scrollResetTarget}
+                            scrollResetVersion={scrollResetVersion}
                         />
                     ) : (
                         <View style={{ flex: 1 }} />

@@ -46,13 +46,18 @@ import { formatReminderTimeForLocale } from "../../utils/reminderTime";
 export default function PracticeContent({
     practiceId,
     openCalendarInitially = false,
+    scrollResetPracticeId,
+    scrollResetVersion = 0,
 }: {
     practiceId: string;
     openCalendarInitially?: boolean;
+    scrollResetPracticeId?: string | null;
+    scrollResetVersion?: number;
 }) {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { locale, t } = useI18n();
+    const scrollRef = useRef<ScrollView | null>(null);
     const [quickAddOpen, setQuickAddOpen] = useState(false);
     const [progressEditOpen, setProgressEditOpen] = useState(false);
     const [targetEditOpen, setTargetEditOpen] = useState(false);
@@ -283,6 +288,15 @@ export default function PracticeContent({
             schedulePracticeRefresh();
         }, [schedulePracticeRefresh])
     );
+
+    useEffect(() => {
+        if (scrollResetPracticeId !== practiceId) return;
+
+        scrollRef.current?.scrollTo({
+            y: 0,
+            animated: false,
+        });
+    }, [practiceId, scrollResetPracticeId, scrollResetVersion]);
 
     const handleEdit = useCallback((date: string, newValue: number) => {
         if (!Number.isFinite(newValue)) return;
@@ -515,6 +529,7 @@ export default function PracticeContent({
     return (
         <View style={{ flex: 1 }}>
             <ScrollView
+                ref={scrollRef}
                 contentContainerStyle={{
                     paddingBottom: scrollBottomPadding
                 }}
@@ -593,6 +608,93 @@ export default function PracticeContent({
                                 </View>
                             )}
 
+
+                            <View
+                                style={[
+                                    styles.addSessionCard,
+                                    { width: imageDisplayWidth }
+                                ]}
+                            >
+                                <View style={styles.addSessionHeader}>
+                                    <Text style={styles.addSessionTitle}>
+                                        {t("practice.addSession")}
+                                    </Text>
+
+                                    <Pressable
+                                        style={({ pressed }) => [
+                                            styles.defaultSessionEditButton,
+                                            pressed && styles.addSessionActionPressed
+                                        ]}
+                                        onPress={() => setQuickAddOpen(true)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={t("practice.editDefaultSessionCount")}
+                                    >
+                                        <MaterialIcons
+                                            name="edit"
+                                            size={15}
+                                            color={colors.primary}
+                                        />
+                                        <Text style={styles.defaultSessionEditText}>
+                                            {formatNumber(defaultSessionCount, locale)}
+                                        </Text>
+                                    </Pressable>
+                                </View>
+
+                                <View style={styles.addSessionActions}>
+                                    <Pressable
+                                        style={({ pressed }) => [
+                                            styles.addSessionAction,
+                                            styles.addSessionActionPrimary,
+                                            pressed && styles.addSessionActionPressed
+                                        ]}
+                                        onPress={() => {
+                                            try {
+                                                sessionService.addSession(
+                                                    practiceId,
+                                                    Number(defaultSessionCount)
+                                                );
+                                                dailyAnimRef.current?.trigger(
+                                                    `+${formatNumber(defaultSessionCount, locale)}\n${t("common.added")}`
+                                                );
+                                                schedulePracticeRefresh();
+                                            } catch (error: any) {
+                                                alert(error.message);
+                                            }
+                                        }}
+                                        onLongPress={() => setQuickAddOpen(true)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={t("practice.addDefaultSessionA11y", {
+                                            count: formatNumber(defaultSessionCount, locale),
+                                        })}
+                                    >
+                                        <Text style={styles.addSessionActionValue}>
+                                            +{formatNumber(defaultSessionCount, locale)}
+                                        </Text>
+                                        <Text style={styles.addSessionActionLabel}>
+                                            {t("practice.defaultSession")}
+                                        </Text>
+                                        <FloatingAddAnimation ref={dailyAnimRef} />
+                                    </Pressable>
+
+                                    <Pressable
+                                        style={({ pressed }) => [
+                                            styles.addSessionAction,
+                                            pressed && styles.addSessionActionPressed
+                                        ]}
+                                        onPress={openCustomAmountModal}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={t("practice.addCustomAmount")}
+                                    >
+                                        <Text style={styles.addSessionActionValue}>
+                                            +
+                                        </Text>
+                                        <Text style={styles.addSessionActionLabel}>
+                                            {t("practice.customAmount")}
+                                        </Text>
+                                        <FloatingAddAnimation ref={customAnimRef} />
+                                    </Pressable>
+                                </View>
+                            </View>
 
                             <View
                                 style={[
@@ -732,93 +834,6 @@ export default function PracticeContent({
                                         color="#999"
                                     />
                                 </Pressable>
-                            </View>
-
-                            <View
-                                style={[
-                                    styles.addSessionCard,
-                                    { width: imageDisplayWidth }
-                                ]}
-                            >
-                                <View style={styles.addSessionHeader}>
-                                    <Text style={styles.addSessionTitle}>
-                                        {t("practice.addSession")}
-                                    </Text>
-
-                                    <Pressable
-                                        style={({ pressed }) => [
-                                            styles.defaultSessionEditButton,
-                                            pressed && styles.addSessionActionPressed
-                                        ]}
-                                        onPress={() => setQuickAddOpen(true)}
-                                        accessibilityRole="button"
-                                        accessibilityLabel={t("practice.editDefaultSessionCount")}
-                                    >
-                                        <MaterialIcons
-                                            name="edit"
-                                            size={15}
-                                            color={colors.primary}
-                                        />
-                                        <Text style={styles.defaultSessionEditText}>
-                                            {formatNumber(defaultSessionCount, locale)}
-                                        </Text>
-                                    </Pressable>
-                                </View>
-
-                                <View style={styles.addSessionActions}>
-                                    <Pressable
-                                        style={({ pressed }) => [
-                                            styles.addSessionAction,
-                                            styles.addSessionActionPrimary,
-                                            pressed && styles.addSessionActionPressed
-                                        ]}
-                                        onPress={() => {
-                                            try {
-                                                sessionService.addSession(
-                                                    practiceId,
-                                                    Number(defaultSessionCount)
-                                                );
-                                                dailyAnimRef.current?.trigger(
-                                                    `+${formatNumber(defaultSessionCount, locale)}\n${t("common.added")}`
-                                                );
-                                                schedulePracticeRefresh();
-                                            } catch (error: any) {
-                                                alert(error.message);
-                                            }
-                                        }}
-                                        onLongPress={() => setQuickAddOpen(true)}
-                                        accessibilityRole="button"
-                                        accessibilityLabel={t("practice.addDefaultSessionA11y", {
-                                            count: formatNumber(defaultSessionCount, locale),
-                                        })}
-                                    >
-                                        <Text style={styles.addSessionActionValue}>
-                                            +{formatNumber(defaultSessionCount, locale)}
-                                        </Text>
-                                        <Text style={styles.addSessionActionLabel}>
-                                            {t("practice.defaultSession")}
-                                        </Text>
-                                        <FloatingAddAnimation ref={dailyAnimRef} />
-                                    </Pressable>
-
-                                    <Pressable
-                                        style={({ pressed }) => [
-                                            styles.addSessionAction,
-                                            pressed && styles.addSessionActionPressed
-                                        ]}
-                                        onPress={openCustomAmountModal}
-                                        accessibilityRole="button"
-                                        accessibilityLabel={t("practice.addCustomAmount")}
-                                    >
-                                        <Text style={styles.addSessionActionValue}>
-                                            +
-                                        </Text>
-                                        <Text style={styles.addSessionActionLabel}>
-                                            {t("practice.customAmount")}
-                                        </Text>
-                                        <FloatingAddAnimation ref={customAnimRef} />
-                                    </Pressable>
-                                </View>
                             </View>
 
                             <View
