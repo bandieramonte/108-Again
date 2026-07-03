@@ -249,7 +249,7 @@ export default function HeaderMenu({
                 ]}
             >
                 <MaterialIcons
-                    name="settings"
+                    name="tune"
                     size={25}
                     color={colors.icon}
                 />
