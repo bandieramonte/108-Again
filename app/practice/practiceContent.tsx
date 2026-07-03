@@ -1488,6 +1488,7 @@ const styles = StyleSheet.create({
     },
 
     addSessionActionPrimary: {
+        zIndex: 2,
         borderColor: colors.primary,
         backgroundColor: "#EEF2FF",
     },

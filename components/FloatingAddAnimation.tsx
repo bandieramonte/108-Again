@@ -73,6 +73,8 @@ const styles = StyleSheet.create({
         position: "absolute",
         left: "80%",
         top: 0,
+        zIndex: 50,
+        elevation: 50,
         fontSize: 14,
         fontWeight: "600",
         color: colors.primary
