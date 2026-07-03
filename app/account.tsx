@@ -222,10 +222,10 @@ export default function AccountScreen() {
                 options={{
                     headerRight: () => (
                         <HeaderMenu
-                            disableAccountIcon
+                            disableAccountLink
                             isAuthenticated={authState.isAuthenticated}
                             firstName={authState.firstName}
-                            onSignOut={() => { }}
+                            onSignOut={handleSignOut}
                         />
                     ),
                 }}

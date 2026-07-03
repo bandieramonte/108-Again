@@ -13,6 +13,17 @@ export const en = {
     "theme.switchToDark": "Switch to dark theme",
     "theme.switchToLight": "Switch to light theme",
 
+    "settings.account": "Account",
+    "settings.app": "App",
+    "settings.backupRestore": "Backup & Restore",
+    "settings.darkTheme": "Dark",
+    "settings.language": "Language",
+    "settings.lightTheme": "Light",
+    "settings.open": "Open settings",
+    "settings.preferences": "Preferences",
+    "settings.theme": "Theme",
+    "settings.title": "Settings",
+
     "about.contact": "Contact",
     "about.developer": "Developer",
     "about.feedback": "If you have any feedback, comments, or would like to report a bug, feel free to contact the developer using the information below:",

@@ -15,6 +15,17 @@ export const cs: Record<TranslationKey, string> = {
     "theme.switchToDark": "Přepnout na tmavý motiv",
     "theme.switchToLight": "Přepnout na světlý motiv",
 
+    "settings.account": "Účet",
+    "settings.app": "Aplikace",
+    "settings.backupRestore": "Záloha a obnovení",
+    "settings.darkTheme": "Tmavý",
+    "settings.language": "Jazyk",
+    "settings.lightTheme": "Světlý",
+    "settings.open": "Otevřít nastavení",
+    "settings.preferences": "Předvolby",
+    "settings.theme": "Motiv",
+    "settings.title": "Nastavení",
+
     "about.contact": "Kontakt",
     "about.developer": "Vývojář",
     "about.feedback": "Pokud máš zpětnou vazbu, komentáře nebo chceš nahlásit chybu, můžeš kontaktovat vývojáře pomocí údajů níže:",

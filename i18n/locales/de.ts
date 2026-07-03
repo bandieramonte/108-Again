@@ -15,6 +15,17 @@ export const de: Record<TranslationKey, string> = {
     "theme.switchToDark": "Zum dunklen Design wechseln",
     "theme.switchToLight": "Zum hellen Design wechseln",
 
+    "settings.account": "Konto",
+    "settings.app": "App",
+    "settings.backupRestore": "Backup & Wiederherstellung",
+    "settings.darkTheme": "Dunkel",
+    "settings.language": "Sprache",
+    "settings.lightTheme": "Hell",
+    "settings.open": "Einstellungen öffnen",
+    "settings.preferences": "Präferenzen",
+    "settings.theme": "Design",
+    "settings.title": "Einstellungen",
+
     "about.contact": "Kontakt",
     "about.developer": "Entwickler",
     "about.feedback": "Wenn du Feedback, Kommentare oder einen Fehler melden möchtest, kannst du den Entwickler über die untenstehenden Angaben kontaktieren:",

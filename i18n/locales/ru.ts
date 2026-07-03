@@ -15,6 +15,17 @@ export const ru: Record<TranslationKey, string> = {
     "theme.switchToDark": "Переключить на тёмную тему",
     "theme.switchToLight": "Переключить на светлую тему",
 
+    "settings.account": "Аккаунт",
+    "settings.app": "Приложение",
+    "settings.backupRestore": "Резервная копия и восстановление",
+    "settings.darkTheme": "Тёмная",
+    "settings.language": "Язык",
+    "settings.lightTheme": "Светлая",
+    "settings.open": "Открыть настройки",
+    "settings.preferences": "Предпочтения",
+    "settings.theme": "Тема",
+    "settings.title": "Настройки",
+
     "about.contact": "Контакт",
     "about.developer": "Разработчик",
     "about.feedback": "Если у вас есть отзывы, комментарии или вы хотите сообщить об ошибке, свяжитесь с разработчиком по данным ниже:",

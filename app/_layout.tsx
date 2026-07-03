@@ -303,7 +303,6 @@ function LayoutContent() {
                 headerLeft: ({ canGoBack }) => (
                     <HeaderLeftControls
                         canGoBack={!!canGoBack}
-                        isAuthenticated={authState.isAuthenticated}
                         onBack={() => router.back()}
                     />
                 ),

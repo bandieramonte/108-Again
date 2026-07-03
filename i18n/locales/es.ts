@@ -15,6 +15,17 @@ export const es: Record<TranslationKey, string> = {
     "theme.switchToDark": "Cambiar a tema oscuro",
     "theme.switchToLight": "Cambiar a tema claro",
 
+    "settings.account": "Cuenta",
+    "settings.app": "Aplicación",
+    "settings.backupRestore": "Copia y restauración",
+    "settings.darkTheme": "Oscuro",
+    "settings.language": "Idioma",
+    "settings.lightTheme": "Claro",
+    "settings.open": "Abrir ajustes",
+    "settings.preferences": "Preferencias",
+    "settings.theme": "Tema",
+    "settings.title": "Ajustes",
+
     "about.contact": "Contacto",
     "about.developer": "Desarrollador",
     "about.feedback": "Si tienes comentarios, sugerencias o quieres informar de un error, puedes contactar al desarrollador usando la información de abajo:",

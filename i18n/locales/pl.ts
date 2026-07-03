@@ -15,6 +15,17 @@ export const pl: Record<TranslationKey, string> = {
     "theme.switchToDark": "Przełącz na ciemny motyw",
     "theme.switchToLight": "Przełącz na jasny motyw",
 
+    "settings.account": "Konto",
+    "settings.app": "Aplikacja",
+    "settings.backupRestore": "Kopia i przywracanie",
+    "settings.darkTheme": "Ciemny",
+    "settings.language": "Język",
+    "settings.lightTheme": "Jasny",
+    "settings.open": "Otwórz ustawienia",
+    "settings.preferences": "Preferencje",
+    "settings.theme": "Motyw",
+    "settings.title": "Ustawienia",
+
     "about.contact": "Kontakt",
     "about.developer": "Deweloper",
     "about.feedback": "Jeśli masz uwagi, komentarze albo chcesz zgłosić błąd, możesz skontaktować się z deweloperem, korzystając z poniższych informacji:",

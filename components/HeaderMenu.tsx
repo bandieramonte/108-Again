@@ -1,19 +1,24 @@
 import PrivacyModal from "@/components/PrivacyModal";
-import { useI18n } from "@/i18n";
+import {
+    languageOptions,
+    useI18n,
+    type LanguageCode,
+} from "@/i18n";
 import * as appService from "@/services/appService";
+import * as authService from "@/services/authService";
 import { useAppTheme } from "@/styles/theme";
 import { exportBackup, importBackup } from "@/utils/backup";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
     Alert,
     Modal,
     Pressable,
+    ScrollView,
     Share,
     StyleSheet,
     Text,
-    TouchableOpacity,
     View,
 } from "react-native";
 
@@ -21,32 +26,60 @@ type Props = {
     isAuthenticated: boolean;
     firstName: string | null;
     onSignOut: () => void;
-    disableAccountIcon?: boolean;
+    disableAccountLink?: boolean;
+};
+
+type IconName = keyof typeof MaterialIcons.glyphMap;
+
+type SettingsRowProps = {
+    icon: IconName;
+    label: string;
+    value?: string;
+    destructive?: boolean;
+    disabled?: boolean;
+    expanded?: boolean;
+    selected?: boolean;
+    onPress: () => void;
 };
 
 const PLAY_STORE_URL =
     "https://play.google.com/store/apps/details?id=com.bandieramonte.app108again";
 
 export default function HeaderMenu({
-    disableAccountIcon,
+    disableAccountLink,
+    firstName,
     isAuthenticated,
     onSignOut,
 }: Props) {
     const router = useRouter();
-    const { colors } = useAppTheme();
-    const { t } = useI18n();
-    const [moreOpen, setMoreOpen] = useState(false);
-    const [accountOpen, setAccountOpen] = useState(false);
-    const moreButtonRef = useRef<View | null>(null);
-    const [menuAnchor, setMenuAnchor] = useState<{
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-    } | null>(null);
+    const { colors, isDark, toggleTheme } = useAppTheme();
+    const { language, locale, setLanguage, t } = useI18n();
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [languageExpanded, setLanguageExpanded] = useState(false);
     const [privacyVisible, setPrivacyVisible] = useState(false);
+    const selectedLanguage =
+        languageOptions.find(option => option.code === language) ??
+        languageOptions[0];
+    const sortedLanguageOptions = useMemo(
+        () =>
+            [...languageOptions].sort((left, right) =>
+                t(left.labelKey).localeCompare(
+                    t(right.labelKey),
+                    locale,
+                    { sensitivity: "base" }
+                )
+            ),
+        [locale, t]
+    );
+
+    function closeSettings() {
+        setLanguageExpanded(false);
+        setSettingsOpen(false);
+    }
 
     function handleRestoreDefaults() {
+        closeSettings();
+
         Alert.alert(
             t("menu.restoreDefaultsTitle"),
             t("menu.restoreDefaultsMessage"),
@@ -64,6 +97,8 @@ export default function HeaderMenu({
     }
 
     async function handleShareApp() {
+        closeSettings();
+
         try {
             await Share.share({
                 title: "108 Again",
@@ -78,87 +113,163 @@ export default function HeaderMenu({
         }
     }
 
-    return (
-        <View style={styles.container}>
-            <Pressable
-                onPress={() => {
-                    if (disableAccountIcon) return;
+    function handleLanguageSelect(nextLanguage: LanguageCode) {
+        closeSettings();
+        void setLanguage(nextLanguage)
+            .then(() => {
+                if (!isAuthenticated) return;
 
-                    if (isAuthenticated) {
-                        router.push("/account");
-                    } else {
-                        setAccountOpen(true);
-                    }
-                }}
-                disabled={disableAccountIcon}
-                hitSlop={10}
+                return authService.updatePreferredLanguage(nextLanguage);
+            })
+            .catch(error => {
+                console.warn("Failed to update preferred language", error);
+            });
+    }
+
+    function navigateTo(path: "/account" | "/about" | "/sign-in" | "/sign-up") {
+        closeSettings();
+        router.push(path);
+    }
+
+    function handleExportBackup() {
+        closeSettings();
+        exportBackup();
+    }
+
+    function handleImportBackup() {
+        closeSettings();
+        importBackup();
+    }
+
+    function handlePrivacyPress() {
+        closeSettings();
+        setPrivacyVisible(true);
+    }
+
+    function handleSignOutPress() {
+        closeSettings();
+        onSignOut();
+    }
+
+    function renderSection(title: string) {
+        return (
+            <Text
+                style={[
+                    styles.sectionTitle,
+                    { color: colors.textSecondary },
+                ]}
+            >
+                {title}
+            </Text>
+        );
+    }
+
+    function renderRow({
+        icon,
+        label,
+        value,
+        destructive,
+        disabled,
+        expanded,
+        selected,
+        onPress,
+    }: SettingsRowProps) {
+        const textColor = destructive ? colors.destructive : colors.textPrimary;
+
+        return (
+            <Pressable
+                onPress={onPress}
+                disabled={disabled}
+                accessibilityRole="button"
                 style={({ pressed }) => [
-                    styles.iconButton,
-                    disableAccountIcon && styles.iconButtonDisabled,
-                    pressed && !disableAccountIcon && { opacity: 0.5 }
+                    styles.item,
+                    pressed && !disabled && {
+                        backgroundColor: colors.surfaceSelected,
+                    },
+                    disabled && styles.itemDisabled,
                 ]}
             >
                 <MaterialIcons
-                    name="account-circle"
-                    size={24}
-                    color={colors.icon}
+                    name={icon}
+                    size={21}
+                    color={destructive ? colors.destructive : colors.icon}
                 />
-            </Pressable>
-
-            <Pressable
-                ref={moreButtonRef}
-                onPress={() => {
-                    const target = moreButtonRef.current;
-
-                    if (!target) {
-                        setMoreOpen(true);
-                        return;
-                    }
-
-                    (target as any).measure(
-                        (
-                            _x: number,
-                            _y: number,
-                            width: number,
-                            height: number,
-                            pageX: number,
-                            pageY: number
-                        ) => {
-                            setMenuAnchor({
-                                x: pageX,
-                                y: pageY,
-                                width,
-                                height,
-                            });
-
-                            setMoreOpen(true);
+                <Text
+                    numberOfLines={1}
+                    style={[
+                        styles.itemLabel,
+                        { color: textColor },
+                    ]}
+                >
+                    {label}
+                </Text>
+                {value && (
+                    <Text
+                        numberOfLines={1}
+                        style={[
+                            styles.itemValue,
+                            { color: colors.textSecondary },
+                        ]}
+                    >
+                        {value}
+                    </Text>
+                )}
+                {expanded !== undefined && (
+                    <MaterialIcons
+                        name={
+                            expanded
+                                ? "keyboard-arrow-up"
+                                : "keyboard-arrow-down"
                         }
-                    );
-                }}
-                hitSlop={4}
-                style={styles.iconButton}
+                        size={22}
+                        color={colors.iconMuted}
+                    />
+                )}
+                {selected && (
+                    <MaterialIcons
+                        name="check"
+                        size={18}
+                        color={colors.primary}
+                    />
+                )}
+            </Pressable>
+        );
+    }
+
+    return (
+        <View style={styles.container}>
+            <Pressable
+                onPress={() => setSettingsOpen(true)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={t("settings.open")}
+                style={({ pressed }) => [
+                    styles.settingsButton,
+                    pressed && styles.pressed,
+                ]}
             >
                 <MaterialIcons
-                    name="more-vert"
-                    size={24}
+                    name="settings"
+                    size={25}
                     color={colors.icon}
                 />
             </Pressable>
 
             <Modal
-                visible={accountOpen}
+                visible={settingsOpen}
                 transparent
                 animationType="fade"
-                onRequestClose={() => setAccountOpen(false)}
+                onRequestClose={closeSettings}
             >
-                <TouchableOpacity
-                    style={[
-                        styles.overlay,
-                        { backgroundColor: colors.overlay },
-                    ]}
-                    activeOpacity={1}
-                    onPress={() => setAccountOpen(false)}
-                >
+                <View style={styles.modalRoot}>
+                    <Pressable
+                        style={[
+                            StyleSheet.absoluteFill,
+                            { backgroundColor: colors.overlay },
+                        ]}
+                        onPress={closeSettings}
+                    />
+
                     <View
                         style={[
                             styles.menu,
@@ -168,170 +279,175 @@ export default function HeaderMenu({
                             },
                         ]}
                     >
-                        {isAuthenticated ? (
-                            <>
-                                <Pressable
-                                    style={styles.item}
-                                    onPress={() => {
-                                        setAccountOpen(false);
-                                        router.push("/account");
-                                    }}
-                                >
-                                    <Text style={{ color: colors.textPrimary }}>
-                                        {t("menu.account")}
-                                    </Text>
-                                </Pressable>
-
-                                <Pressable
-                                    style={styles.item}
-                                    onPress={() => {
-                                        setAccountOpen(false);
-                                        onSignOut();
-                                    }}
-                                >
-                                    <Text style={{ color: colors.textPrimary }}>
-                                        {t("menu.logOut")}
-                                    </Text>
-                                </Pressable>
-                            </>
-                        ) : (
-                            <>
-                                <Pressable
-                                    style={styles.item}
-                                    onPress={() => {
-                                        setAccountOpen(false);
-                                        router.push("/sign-in");
-                                    }}
-                                >
-                                    <Text style={{ color: colors.textPrimary }}>
-                                        {t("menu.logIn")}
-                                    </Text>
-                                </Pressable>
-
-                                <Pressable
-                                    style={styles.item}
-                                    onPress={() => {
-                                        setAccountOpen(false);
-                                        router.push("/sign-up");
-                                    }}
-                                >
-                                    <Text style={{ color: colors.textPrimary }}>
-                                        {t("menu.createAccount")}
-                                    </Text>
-                                </Pressable>
-                            </>
-                        )}
-                    </View>
-                </TouchableOpacity>
-            </Modal>
-
-            <Modal
-                visible={moreOpen}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setMoreOpen(false)}
-            >
-                <TouchableOpacity
-                    style={[
-                        styles.overlay,
-                        { backgroundColor: colors.overlay },
-                    ]}
-                    activeOpacity={1}
-                    onPress={() => setMoreOpen(false)}
-                >
-                    <View
-                        style={[
-                            styles.menu,
-                            {
-                                backgroundColor: colors.surfaceElevated,
-                                borderColor: colors.borderSubtle,
-                            },
-                            menuAnchor && {
-                                position: "absolute",
-                                top: menuAnchor.y + menuAnchor.height + 6,
-                                right: 10
-                            }
-                        ]}
-                    >
-                        <Pressable
-                            style={styles.item}
-                            onPress={() => {
-                                setMoreOpen(false);
-                                exportBackup();
-                            }}
-                        >
-                            <Text style={{ color: colors.textPrimary }}>
-                                {t("menu.exportBackup")}
-                            </Text>
-                        </Pressable>
-
-                        <Pressable
-                            style={styles.item}
-                            onPress={() => {
-                                setMoreOpen(false);
-                                importBackup();
-                            }}
-                        >
-                            <Text style={{ color: colors.textPrimary }}>
-                                {t("menu.importBackup")}
-                            </Text>
-                        </Pressable>
-
-                        <Pressable
-                            style={styles.item}
-                            onPress={() => {
-                                setMoreOpen(false);
-                                handleRestoreDefaults();
-                            }}
+                        <ScrollView
+                            bounces={false}
+                            showsVerticalScrollIndicator={false}
+                            contentContainerStyle={styles.menuContent}
                         >
                             <Text
                                 style={[
-                                    styles.destructiveText,
-                                    { color: colors.destructive },
+                                    styles.title,
+                                    { color: colors.textPrimary },
                                 ]}
                             >
-                                {t("menu.restoreDefaults")}
+                                {t("settings.title")}
                             </Text>
-                        </Pressable>
 
-                        <Pressable
-                            style={styles.item}
-                            onPress={() => {
-                                setMoreOpen(false);
-                                handleShareApp();
-                            }}
-                        >
-                            <Text style={{ color: colors.textPrimary }}>
-                                {t("menu.shareApp")}
-                            </Text>
-                        </Pressable>
+                            {renderSection(t("settings.account"))}
+                            {isAuthenticated ? (
+                                <>
+                                    {renderRow({
+                                        icon: "account-circle",
+                                        label: t("menu.account"),
+                                        value:
+                                            firstName ??
+                                            t("account.signedIn"),
+                                        disabled: disableAccountLink,
+                                        onPress: () => navigateTo("/account"),
+                                    })}
+                                    {renderRow({
+                                        icon: "logout",
+                                        label: t("menu.logOut"),
+                                        onPress: handleSignOutPress,
+                                    })}
+                                </>
+                            ) : (
+                                <>
+                                    {renderRow({
+                                        icon: "login",
+                                        label: t("menu.logIn"),
+                                        onPress: () => navigateTo("/sign-in"),
+                                    })}
+                                    {renderRow({
+                                        icon: "person-add",
+                                        label: t("menu.createAccount"),
+                                        onPress: () => navigateTo("/sign-up"),
+                                    })}
+                                </>
+                            )}
 
-                        <Pressable
-                            style={styles.item}
-                            onPress={() => {
-                                setMoreOpen(false);
-                                router.navigate("/about");
-                            }}
-                        >
-                            <Text style={{ color: colors.textPrimary }}>
-                                {t("menu.about")}
-                            </Text>
-                        </Pressable>
+                            {renderSection(t("settings.preferences"))}
+                            {renderRow({
+                                icon: isDark ? "dark-mode" : "light-mode",
+                                label: t("settings.theme"),
+                                value: isDark
+                                    ? t("settings.darkTheme")
+                                    : t("settings.lightTheme"),
+                                onPress: () => {
+                                    void toggleTheme();
+                                },
+                            })}
+                            {renderRow({
+                                icon: "language",
+                                label: t("settings.language"),
+                                value: `${selectedLanguage.flag} ${t(
+                                    selectedLanguage.labelKey
+                                )}`,
+                                expanded: languageExpanded,
+                                onPress: () =>
+                                    setLanguageExpanded(value => !value),
+                            })}
+                            {languageExpanded && (
+                                <View
+                                    style={[
+                                        styles.languageList,
+                                        {
+                                            borderColor:
+                                                colors.borderSubtle,
+                                        },
+                                    ]}
+                                >
+                                    {sortedLanguageOptions.map(option => {
+                                        const selected =
+                                            option.code === language;
 
-                        <Pressable
-                            style={styles.item}
-                            onPress={() => {
-                                setMoreOpen(false);
-                                setPrivacyVisible(true);
-                            }}
-                        >
-                            <Text style={{ color: colors.textPrimary }}>
-                                {t("menu.privacyData")}
-                            </Text>
-                        </Pressable>
+                                        return (
+                                            <Pressable
+                                                key={option.code}
+                                                onPress={() =>
+                                                    handleLanguageSelect(
+                                                        option.code
+                                                    )
+                                                }
+                                                style={({ pressed }) => [
+                                                    styles.languageItem,
+                                                    selected && {
+                                                        backgroundColor:
+                                                            colors.surfaceSelected,
+                                                    },
+                                                    pressed && {
+                                                        backgroundColor:
+                                                            colors.surfaceSelected,
+                                                    },
+                                                ]}
+                                            >
+                                                <Text
+                                                    style={styles.languageFlag}
+                                                >
+                                                    {option.flag}
+                                                </Text>
+                                                <Text
+                                                    numberOfLines={1}
+                                                    style={[
+                                                        styles.languageText,
+                                                        {
+                                                            color:
+                                                                colors.textPrimary,
+                                                        },
+                                                    ]}
+                                                >
+                                                    {t(option.labelKey)}
+                                                </Text>
+                                                {selected && (
+                                                    <MaterialIcons
+                                                        name="check"
+                                                        size={18}
+                                                        color={colors.primary}
+                                                    />
+                                                )}
+                                            </Pressable>
+                                        );
+                                    })}
+                                </View>
+                            )}
 
+                            {renderSection(t("settings.backupRestore"))}
+                            {renderRow({
+                                icon: "file-download",
+                                label: t("menu.exportBackup"),
+                                onPress: handleExportBackup,
+                            })}
+                            {renderRow({
+                                icon: "file-upload",
+                                label: t("menu.importBackup"),
+                                onPress: handleImportBackup,
+                            })}
+                            {renderRow({
+                                icon: "restore",
+                                label: t("menu.restoreDefaults"),
+                                destructive: true,
+                                onPress: handleRestoreDefaults,
+                            })}
+
+                            {renderSection(t("settings.app"))}
+                            {renderRow({
+                                icon: "share",
+                                label: t("menu.shareApp"),
+                                onPress: handleShareApp,
+                            })}
+                            {renderRow({
+                                icon: "info-outline",
+                                label: t("menu.about"),
+                                onPress: () => navigateTo("/about"),
+                            })}
+                            {renderRow({
+                                icon: "lock-outline",
+                                label: t("menu.privacyData"),
+                                onPress: handlePrivacyPress,
+                            })}
+                        </ScrollView>
                     </View>
-                </TouchableOpacity>
+                </View>
             </Modal>
             <PrivacyModal
                 visible={privacyVisible}
@@ -348,38 +464,103 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
 
-    iconButton: {
-        marginLeft: 8,
+    settingsButton: {
+        width: 34,
+        height: 34,
+        alignItems: "center",
+        justifyContent: "center",
     },
 
-    iconButtonDisabled: {
-        opacity: 0.45,
+    pressed: {
+        opacity: 0.55,
     },
 
-    overlay: {
+    modalRoot: {
         flex: 1,
-        justifyContent: "flex-start",
         alignItems: "flex-end",
         paddingTop: 55,
-        paddingRight: 6,
-        backgroundColor: "rgba(0,0,0,0.1)",
+        paddingRight: 8,
     },
 
     menu: {
-        borderRadius: 6,
+        width: 286,
+        maxWidth: "94%",
+        maxHeight: "86%",
+        borderRadius: 10,
         borderWidth: 1,
-        paddingVertical: 10,
-        width: 190,
         elevation: 5,
-        marginTop: 4,
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+        overflow: "hidden",
+    },
+
+    menuContent: {
+        paddingVertical: 10,
+    },
+
+    title: {
+        fontSize: 18,
+        fontWeight: "700",
+        paddingHorizontal: 16,
+        paddingTop: 4,
+        paddingBottom: 8,
+    },
+
+    sectionTitle: {
+        fontSize: 12,
+        fontWeight: "700",
+        paddingHorizontal: 16,
+        paddingTop: 13,
+        paddingBottom: 5,
+        textTransform: "uppercase",
     },
 
     item: {
-        paddingVertical: 10,
-        paddingHorizontal: 15,
+        minHeight: 44,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 11,
+        paddingVertical: 9,
+        paddingHorizontal: 16,
     },
 
-    destructiveText: {
-        color: "#c62828",
+    itemDisabled: {
+        opacity: 0.45,
+    },
+
+    itemLabel: {
+        flex: 1,
+        fontSize: 15,
+    },
+
+    itemValue: {
+        maxWidth: 108,
+        fontSize: 14,
+    },
+
+    languageList: {
+        marginHorizontal: 12,
+        borderWidth: 1,
+        borderRadius: 8,
+        overflow: "hidden",
+    },
+
+    languageItem: {
+        minHeight: 42,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+    },
+
+    languageFlag: {
+        fontSize: 20,
+    },
+
+    languageText: {
+        flex: 1,
+        fontSize: 15,
     },
 });

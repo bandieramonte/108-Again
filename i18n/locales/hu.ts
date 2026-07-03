@@ -15,6 +15,17 @@ export const hu: Record<TranslationKey, string> = {
     "theme.switchToDark": "Váltás sötét témára",
     "theme.switchToLight": "Váltás világos témára",
 
+    "settings.account": "Fiók",
+    "settings.app": "Alkalmazás",
+    "settings.backupRestore": "Biztonsági mentés és visszaállítás",
+    "settings.darkTheme": "Sötét",
+    "settings.language": "Nyelv",
+    "settings.lightTheme": "Világos",
+    "settings.open": "Beállítások megnyitása",
+    "settings.preferences": "Preferenciák",
+    "settings.theme": "Téma",
+    "settings.title": "Beállítások",
+
     "about.contact": "Kapcsolat",
     "about.developer": "Fejlesztő",
     "about.feedback": "Ha visszajelzésed, megjegyzésed van, vagy hibát szeretnél jelenteni, az alábbi adatokkal kapcsolatba léphetsz a fejlesztővel:",
