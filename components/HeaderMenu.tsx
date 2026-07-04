@@ -6,7 +6,10 @@ import {
 } from "@/i18n";
 import * as appService from "@/services/appService";
 import * as authService from "@/services/authService";
-import { useAppTheme } from "@/styles/theme";
+import {
+    useAppTheme,
+    type AppThemePreference,
+} from "@/styles/theme";
 import { exportBackup, importBackup } from "@/utils/backup";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -52,9 +55,15 @@ export default function HeaderMenu({
     onSignOut,
 }: Props) {
     const router = useRouter();
-    const { colors, isDark, toggleTheme } = useAppTheme();
+    const {
+        colors,
+        isDark,
+        setThemePreference,
+        themePreference,
+    } = useAppTheme();
     const { language, locale, setLanguage, t } = useI18n();
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [themeExpanded, setThemeExpanded] = useState(false);
     const [languageExpanded, setLanguageExpanded] = useState(false);
     const [privacyVisible, setPrivacyVisible] = useState(false);
     const selectedLanguage =
@@ -73,6 +82,7 @@ export default function HeaderMenu({
     );
 
     function closeSettings() {
+        setThemeExpanded(false);
         setLanguageExpanded(false);
         setSettingsOpen(false);
     }
@@ -124,6 +134,39 @@ export default function HeaderMenu({
             .catch(error => {
                 console.warn("Failed to update preferred language", error);
             });
+    }
+
+    function handleThemeSelect(nextThemePreference: AppThemePreference) {
+        setThemeExpanded(false);
+        void setThemePreference(nextThemePreference);
+    }
+
+    function getThemePreferenceLabel(
+        nextThemePreference: AppThemePreference
+    ) {
+        switch (nextThemePreference) {
+            case "system":
+                return t("settings.systemTheme");
+            case "dark":
+                return t("settings.darkTheme");
+            case "light":
+            default:
+                return t("settings.lightTheme");
+        }
+    }
+
+    function getThemePreferenceIcon(
+        nextThemePreference: AppThemePreference
+    ): IconName {
+        switch (nextThemePreference) {
+            case "system":
+                return "phone-android";
+            case "dark":
+                return "dark-mode";
+            case "light":
+            default:
+                return "light-mode";
+        }
     }
 
     function navigateTo(path: "/account" | "/about" | "/sign-in" | "/sign-up") {
@@ -250,7 +293,7 @@ export default function HeaderMenu({
             >
                 <MaterialIcons
                     name="tune"
-                    size={25}
+                    size={20}
                     color={colors.icon}
                 />
             </Pressable>
@@ -328,15 +371,91 @@ export default function HeaderMenu({
 
                             {renderSection(t("settings.preferences"))}
                             {renderRow({
-                                icon: isDark ? "dark-mode" : "light-mode",
+                                icon: themePreference === "system"
+                                    ? "phone-android"
+                                    : isDark
+                                        ? "dark-mode"
+                                        : "light-mode",
                                 label: t("settings.theme"),
-                                value: isDark
-                                    ? t("settings.darkTheme")
-                                    : t("settings.lightTheme"),
+                                value: getThemePreferenceLabel(
+                                    themePreference
+                                ),
+                                expanded: themeExpanded,
                                 onPress: () => {
-                                    void toggleTheme();
+                                    setLanguageExpanded(false);
+                                    setThemeExpanded(value => !value);
                                 },
                             })}
+                            {themeExpanded && (
+                                <View
+                                    style={[
+                                        styles.languageList,
+                                        {
+                                            borderColor:
+                                                colors.borderSubtle,
+                                        },
+                                    ]}
+                                >
+                                    {(["light", "dark", "system"] as const)
+                                        .map(option => {
+                                            const selected =
+                                                option === themePreference;
+
+                                            return (
+                                                <Pressable
+                                                    key={option}
+                                                    onPress={() =>
+                                                        handleThemeSelect(
+                                                            option
+                                                        )
+                                                    }
+                                                    style={({ pressed }) => [
+                                                        styles.languageItem,
+                                                        selected && {
+                                                            backgroundColor:
+                                                                colors.surfaceSelected,
+                                                        },
+                                                        pressed && {
+                                                            backgroundColor:
+                                                                colors.surfaceSelected,
+                                                        },
+                                                    ]}
+                                                >
+                                                    <MaterialIcons
+                                                        name={
+                                                            getThemePreferenceIcon(
+                                                                option
+                                                            )
+                                                        }
+                                                        size={20}
+                                                        color={colors.icon}
+                                                    />
+                                                    <Text
+                                                        numberOfLines={1}
+                                                        style={[
+                                                            styles.languageText,
+                                                            {
+                                                                color:
+                                                                    colors.textPrimary,
+                                                            },
+                                                        ]}
+                                                    >
+                                                        {getThemePreferenceLabel(
+                                                            option
+                                                        )}
+                                                    </Text>
+                                                    {selected && (
+                                                        <MaterialIcons
+                                                            name="check"
+                                                            size={18}
+                                                            color={colors.primary}
+                                                        />
+                                                    )}
+                                                </Pressable>
+                                            );
+                                        })}
+                                </View>
+                            )}
                             {renderRow({
                                 icon: "language",
                                 label: t("settings.language"),
@@ -344,8 +463,10 @@ export default function HeaderMenu({
                                     selectedLanguage.labelKey
                                 )}`,
                                 expanded: languageExpanded,
-                                onPress: () =>
-                                    setLanguageExpanded(value => !value),
+                                onPress: () => {
+                                    setThemeExpanded(false);
+                                    setLanguageExpanded(value => !value);
+                                },
                             })}
                             {languageExpanded && (
                                 <View

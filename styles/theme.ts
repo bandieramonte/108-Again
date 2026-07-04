@@ -8,7 +8,7 @@ import React, {
   useState,
   type ReactNode,
 } from "react";
-import { ViewStyle } from "react-native";
+import { useColorScheme, ViewStyle } from "react-native";
 import {
   createGlobalStyles,
   globalStyles,
@@ -16,6 +16,7 @@ import {
 } from "./global";
 
 export type AppThemeName = "light" | "dark";
+export type AppThemePreference = AppThemeName | "system";
 
 export type AppThemeColors = GlobalStyleColors & {
   accent: string;
@@ -161,26 +162,40 @@ export const containers: {
 
 type AppThemeContextValue = {
   themeName: AppThemeName;
+  themePreference: AppThemePreference;
   colors: AppThemeColors;
   isDark: boolean;
   setTheme: (themeName: AppThemeName) => Promise<void>;
+  setThemePreference: (themePreference: AppThemePreference) => Promise<void>;
   toggleTheme: () => Promise<void>;
 };
 
 const AppThemeContext = createContext<AppThemeContextValue>({
   themeName: "light",
+  themePreference: "system",
   colors: lightColors,
   isDark: false,
   setTheme: async () => {},
+  setThemePreference: async () => {},
   toggleTheme: async () => {},
 });
 
-function normalizeThemeName(value: string | null): AppThemeName {
+function normalizeThemeName(value: string | null | undefined): AppThemeName {
   return value === "dark" ? "dark" : "light";
 }
 
+function normalizeThemePreference(value: string | null): AppThemePreference {
+  if (value === "dark" || value === "light" || value === "system") {
+    return value;
+  }
+
+  return "system";
+}
+
 export function AppThemeProvider({ children }: { children: ReactNode }) {
-  const [themeName, setThemeName] = useState<AppThemeName>("light");
+  const systemColorScheme = useColorScheme();
+  const [themePreference, setThemePreferenceState] =
+    useState<AppThemePreference>("system");
 
   useEffect(() => {
     let active = true;
@@ -188,7 +203,7 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
     AsyncStorage.getItem(THEME_STORAGE_KEY)
       .then((storedTheme) => {
         if (!active) return;
-        setThemeName(normalizeThemeName(storedTheme));
+        setThemePreferenceState(normalizeThemePreference(storedTheme));
       })
       .catch((error) => {
         console.warn("Failed to load theme preference", error);
@@ -199,14 +214,28 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const setTheme = useCallback(async (nextThemeName: AppThemeName) => {
-    setThemeName(nextThemeName);
-    try {
-      await AsyncStorage.setItem(THEME_STORAGE_KEY, nextThemeName);
-    } catch (error) {
-      console.warn("Failed to save theme preference", error);
-    }
-  }, []);
+  const systemThemeName = normalizeThemeName(systemColorScheme);
+  const themeName =
+    themePreference === "system" ? systemThemeName : themePreference;
+
+  const setThemePreference = useCallback(
+    async (nextThemePreference: AppThemePreference) => {
+      setThemePreferenceState(nextThemePreference);
+      try {
+        await AsyncStorage.setItem(THEME_STORAGE_KEY, nextThemePreference);
+      } catch (error) {
+        console.warn("Failed to save theme preference", error);
+      }
+    },
+    []
+  );
+
+  const setTheme = useCallback(
+    async (nextThemeName: AppThemeName) => {
+      await setThemePreference(nextThemeName);
+    },
+    [setThemePreference]
+  );
 
   const toggleTheme = useCallback(async () => {
     const nextThemeName = themeName === "dark" ? "light" : "dark";
@@ -218,12 +247,20 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
 
     return {
       themeName,
+      themePreference,
       colors: palette,
       isDark: themeName === "dark",
       setTheme,
+      setThemePreference,
       toggleTheme,
     };
-  }, [setTheme, themeName, toggleTheme]);
+  }, [
+    setTheme,
+    setThemePreference,
+    themeName,
+    themePreference,
+    toggleTheme,
+  ]);
 
   return React.createElement(
     AppThemeContext.Provider,

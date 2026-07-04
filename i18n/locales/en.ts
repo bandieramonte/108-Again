@@ -21,6 +21,7 @@ export const en = {
     "settings.lightTheme": "Light",
     "settings.open": "Open settings",
     "settings.preferences": "Preferences",
+    "settings.systemTheme": "Use Phone Settings",
     "settings.theme": "Theme",
     "settings.title": "Settings",
 

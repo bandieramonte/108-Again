@@ -23,6 +23,7 @@ export const pl: Record<TranslationKey, string> = {
     "settings.lightTheme": "Jasny",
     "settings.open": "Otwórz ustawienia",
     "settings.preferences": "Preferencje",
+    "settings.systemTheme": "Użyj ustawień telefonu",
     "settings.theme": "Motyw",
     "settings.title": "Ustawienia",
 

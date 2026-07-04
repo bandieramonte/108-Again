@@ -23,6 +23,7 @@ export const hu: Record<TranslationKey, string> = {
     "settings.lightTheme": "Világos",
     "settings.open": "Beállítások megnyitása",
     "settings.preferences": "Preferenciák",
+    "settings.systemTheme": "Telefonbeállítások használata",
     "settings.theme": "Téma",
     "settings.title": "Beállítások",
 
