@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useI18n } from "../i18n";
 import * as practiceService from "../services/practiceService";
 import { useAppTheme, useGlobalStyles } from "../styles/theme";
@@ -20,9 +21,11 @@ export default function EditPractice() {
 
     const { id } = useLocalSearchParams();
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const globalStyles = useGlobalStyles();
     const { colors } = useAppTheme();
     const { locale, t } = useI18n();
+    const formBottomPadding = Math.max(36, insets.bottom + 24);
 
     const [name, setName] = useState("");
     const [target, setTarget] = useState("");
@@ -135,6 +138,7 @@ export default function EditPractice() {
                 contentContainerStyle={[
                     globalStyles.sidePadding,
                     globalStyles.formScreen,
+                    { paddingBottom: formBottomPadding },
                 ]}
                 keyboardShouldPersistTaps="handled"
             >

@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useI18n } from "../i18n";
 import { useAppTheme } from "../styles/theme";
 import { PrivacyContent } from "../utils/privacyText";
@@ -17,8 +18,10 @@ type Props = {
 };
 
 export default function PrivacyModal({ visible, onClose }: Props) {
+    const insets = useSafeAreaInsets();
     const { colors } = useAppTheme();
     const { t } = useI18n();
+    const bottomPadding = Math.max(16, insets.bottom + 16);
 
     return (
         <Modal
@@ -45,7 +48,10 @@ export default function PrivacyModal({ visible, onClose }: Props) {
                 <View
                     style={[
                         styles.bottom,
-                        { borderColor: colors.borderSubtle },
+                        {
+                            borderColor: colors.borderSubtle,
+                            paddingBottom: bottomPadding,
+                        },
                     ]}
                 >
                     <TouchableOpacity

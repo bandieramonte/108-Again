@@ -15,15 +15,18 @@ import {
     TextInput,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useI18n } from "../i18n";
 import * as authService from "../services/authService";
 import { useAppTheme, useGlobalStyles } from "../styles/theme";
 import { getLocalizedAuthErrorMessage } from "../utils/authErrorText";
 
 export default function SignInScreen() {
+    const insets = useSafeAreaInsets();
     const globalStyles = useGlobalStyles();
     const { colors } = useAppTheme();
     const { language, t } = useI18n();
+    const bottomPadding = Math.max(24, insets.bottom + 20);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [submitting, setSubmitting] = useState(false);
@@ -101,7 +104,10 @@ export default function SignInScreen() {
                 contentContainerStyle={[
                     globalStyles.sidePadding,
                     styles.container,
-                    { backgroundColor: colors.background },
+                    {
+                        backgroundColor: colors.background,
+                        paddingBottom: bottomPadding,
+                    },
                 ]}
                 keyboardShouldPersistTaps="handled"
             >

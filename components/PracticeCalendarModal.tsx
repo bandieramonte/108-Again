@@ -7,6 +7,7 @@ import {
     Text,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState } from "react";
 import { useI18n } from "../i18n";
 import { useAppTheme } from "../styles/theme";
@@ -34,9 +35,11 @@ export default function PracticeCalendarModal({
     startDate,
     visible,
 }: Props) {
+    const insets = useSafeAreaInsets();
     const { colors } = useAppTheme();
     const { t } = useI18n();
     const [infoOpen, setInfoOpen] = useState(false);
+    const sheetBottomPadding = Math.max(10, insets.bottom);
 
     return (
         <>
@@ -60,6 +63,7 @@ export default function PracticeCalendarModal({
                             {
                                 backgroundColor: colors.background,
                                 shadowColor: colors.shadow,
+                                paddingBottom: sheetBottomPadding,
                             },
                         ]}
                         onPress={() => { }}

@@ -8,6 +8,7 @@ import { subscribeAuth } from "@/utils/events";
 import { Stack, router, usePathname } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as appService from "../services/appService";
 import type { UpdateRequirement } from "../services/appUpdatePolicy";
 import * as appUpdateService from "../services/appUpdateService";
@@ -19,11 +20,13 @@ import * as syncService from "../services/syncService";
 
 export default function Layout() {
     return (
-        <I18nProvider>
-            <AppThemeProvider>
-                <LayoutContent />
-            </AppThemeProvider>
-        </I18nProvider>
+        <SafeAreaProvider>
+            <I18nProvider>
+                <AppThemeProvider>
+                    <LayoutContent />
+                </AppThemeProvider>
+            </I18nProvider>
+        </SafeAreaProvider>
     );
 }
 

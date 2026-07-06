@@ -24,6 +24,7 @@ import {
     Text,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = {
     isAuthenticated: boolean;
@@ -55,6 +56,7 @@ export default function HeaderMenu({
     onSignOut,
 }: Props) {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const {
         colors,
         isDark,
@@ -66,6 +68,7 @@ export default function HeaderMenu({
     const [themeExpanded, setThemeExpanded] = useState(false);
     const [languageExpanded, setLanguageExpanded] = useState(false);
     const [privacyVisible, setPrivacyVisible] = useState(false);
+    const menuBottomPadding = Math.max(8, insets.bottom + 8);
     const selectedLanguage =
         languageOptions.find(option => option.code === language) ??
         languageOptions[0];
@@ -304,7 +307,12 @@ export default function HeaderMenu({
                 animationType="fade"
                 onRequestClose={closeSettings}
             >
-                <View style={styles.modalRoot}>
+                <View
+                    style={[
+                        styles.modalRoot,
+                        { paddingBottom: menuBottomPadding },
+                    ]}
+                >
                     <Pressable
                         style={[
                             StyleSheet.absoluteFill,

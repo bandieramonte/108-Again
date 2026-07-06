@@ -11,6 +11,7 @@ import {
     TextInput,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CUSTOM_PRACTICE_IMAGE_FALLBACK } from "../components/PracticeImagePicker";
 import { DEFAULT_PRACTICES } from "../constants/defaultPractices";
 import {
@@ -36,9 +37,11 @@ import {
 export default function AddPractice() {
 
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const globalStyles = useGlobalStyles();
     const { colors } = useAppTheme();
     const { locale, t } = useI18n();
+    const formBottomPadding = Math.max(36, insets.bottom + 24);
 
     const [name, setName] = useState("");
     const [target, setTarget] = useState("");
@@ -197,6 +200,7 @@ export default function AddPractice() {
                 contentContainerStyle={[
                     globalStyles.sidePadding,
                     globalStyles.formScreen,
+                    { paddingBottom: formBottomPadding },
                 ]}
                 keyboardShouldPersistTaps="handled"
             >

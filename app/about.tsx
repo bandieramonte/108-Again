@@ -1,14 +1,17 @@
 import Constants from "expo-constants";
 import { Stack } from "expo-router";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useI18n } from "../i18n";
 import { useAppTheme, useGlobalStyles } from "../styles/theme";
 
 export default function AboutScreen() {
+    const insets = useSafeAreaInsets();
     const globalStyles = useGlobalStyles();
     const { colors } = useAppTheme();
     const { t } = useI18n();
     const version = Constants.expoConfig?.version ?? "1.0.0";
+    const bottomPadding = Math.max(24, insets.bottom + 20);
 
     return (
         <>
@@ -18,7 +21,10 @@ export default function AboutScreen() {
                 contentContainerStyle={[
                     globalStyles.sidePadding,
                     styles.container,
-                    { backgroundColor: colors.background },
+                    {
+                        backgroundColor: colors.background,
+                        paddingBottom: bottomPadding,
+                    },
                 ]}
             >
                 <Text style={[styles.title, { color: colors.textPrimary }]}>

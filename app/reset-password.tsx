@@ -15,6 +15,7 @@ import {
     TextInput,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useI18n } from "../i18n";
 import {
     establishPasswordRecoverySessionCore,
@@ -28,9 +29,11 @@ function getSearchParam(value?: string | string[]) {
 }
 
 export default function ResetPasswordScreen() {
+    const insets = useSafeAreaInsets();
     const globalStyles = useGlobalStyles();
     const { colors } = useAppTheme();
     const { t } = useI18n();
+    const bottomPadding = Math.max(24, insets.bottom + 20);
     const params = useLocalSearchParams<{
         access_token?: string | string[];
         refresh_token?: string | string[];
@@ -172,7 +175,10 @@ export default function ResetPasswordScreen() {
                 contentContainerStyle={[
                     globalStyles.sidePadding,
                     styles.container,
-                    { backgroundColor: colors.background },
+                    {
+                        backgroundColor: colors.background,
+                        paddingBottom: bottomPadding,
+                    },
                 ]}
                 keyboardShouldPersistTaps="handled"
             >

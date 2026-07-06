@@ -5,11 +5,13 @@ import {
     ActivityIndicator,
     Alert,
     Pressable,
+    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import PrivacyModal from "../components/PrivacyModal";
 import { useI18n } from "../i18n";
 import * as authService from "../services/authService";
@@ -20,9 +22,11 @@ import { getLocalizedAuthErrorMessage } from "../utils/authErrorText";
 import { subscribeAuth, subscribeSync } from "../utils/events";
 
 export default function AccountScreen() {
+    const insets = useSafeAreaInsets();
     const globalStyles = useGlobalStyles();
     const { colors } = useAppTheme();
     const { t } = useI18n();
+    const bottomPadding = Math.max(24, insets.bottom + 20);
     const initialAuthState = authService.getAuthState();
     const [authState, setAuthState] = useState(initialAuthState);
     const [authChecked, setAuthChecked] =
@@ -231,11 +235,18 @@ export default function AccountScreen() {
                 }}
             />
 
-            <View
-                style={[
+            <ScrollView
+                style={{
+                    flex: 1,
+                    backgroundColor: colors.background,
+                }}
+                contentContainerStyle={[
                     globalStyles.sidePadding,
                     styles.container,
-                    { backgroundColor: colors.background },
+                    {
+                        backgroundColor: colors.background,
+                        paddingBottom: bottomPadding,
+                    },
                 ]}
             >
                 <Text style={[styles.title, { color: colors.textPrimary }]}>
@@ -389,13 +400,13 @@ export default function AccountScreen() {
                     onClose={() => setPrivacyVisible(false)}
                 />
 
-            </View></>
+            </ScrollView></>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
+        flexGrow: 1,
         paddingVertical: 14,
         backgroundColor: "white",
     },

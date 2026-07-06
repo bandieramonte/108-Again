@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, type LayoutChangeEvent } from "react-native";
 import Reanimated, { LinearTransition } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CelebrationOverlay from "../components/CelebrationOverlay";
 import DailyGoalProgress from "../components/DailyGoalProgress";
 import DailyTargetEditor from "../components/DailyTargetEditor";
@@ -70,7 +71,7 @@ function DashboardTotalProgressBar({
       ? Math.min(Math.max(progress, 0), 1)
       : 0;
   const percent = Math.round(safeProgress * 100);
-  const fillWidth = `${safeProgress * 100}%`;
+  const fillWidth = `${safeProgress * 100}%` as `${number}%`;
 
   function handleTrackLayout(event: LayoutChangeEvent) {
     setTrackWidth(event.nativeEvent.layout.width);
@@ -170,9 +171,11 @@ function getStreakFireSize(streak: number) {
 export default function Dashboard() {
 
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const globalStyles = useGlobalStyles();
   const { colors: themeColors } = useAppTheme();
   const { locale, t } = useI18n();
+  const dashboardBottomPadding = Math.max(30, insets.bottom + 24);
   const [practices, setPractices] = useState<Practice[]>([]);
   const [streak, setStreak] = useState(0);
   const [dashboardLoaded, setDashboardLoaded] = useState(false);
@@ -763,7 +766,7 @@ export default function Dashboard() {
           globalStyles.screen,
           { backgroundColor: themeColors.background },
         ]}
-        contentContainerStyle={{ paddingBottom: 30 }}
+        contentContainerStyle={{ paddingBottom: dashboardBottomPadding }}
         scrollEnabled={draggingPracticeId === null}
         scrollEventThrottle={16}
         onScroll={(event) => {
