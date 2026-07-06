@@ -213,6 +213,7 @@ export default function Dashboard() {
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const welcomeCheckStarted = useRef(false);
   const refreshDashboard = useCallback(() => {
     const rows = dashboardService.getDashboardPractices();
     updateReachedState(
@@ -305,8 +306,6 @@ export default function Dashboard() {
   }, [dragReorder]);
 
   useEffect(() => {
-    maybeShowWelcomeModal();
-
     const unsubscribe = subscribeData(() => {
       scheduleDashboardRefresh();
     });
@@ -318,6 +317,14 @@ export default function Dashboard() {
       unsubscribe();
     };
   }, [scheduleDashboardRefresh]);
+
+  useEffect(() => {
+    if (!dashboardLoaded) return;
+    if (welcomeCheckStarted.current) return;
+
+    welcomeCheckStarted.current = true;
+    void maybeShowWelcomeModal();
+  }, [dashboardLoaded]);
 
   async function maybeShowWelcomeModal() {
     const seen = await AsyncStorage.getItem("welcomeModalSeen");
@@ -741,11 +748,6 @@ export default function Dashboard() {
         <View style={[globalStyles.screen, styles.dashboardLoadingContainer]}>
           <ActivityIndicator size="large" color={themeColors.primary} />
         </View>
-
-        <WelcomeModal
-          visible={welcomeOpen}
-          onClose={() => setWelcomeOpen(false)}
-        />
       </View>
     );
   }
