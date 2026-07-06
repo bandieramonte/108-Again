@@ -61,6 +61,7 @@ export default {
                 },
             ],
             "./plugins/withPlayInAppUpdates",
+            "./plugins/withAndroidEdgeToEdgeCleanup",
             [
                 "expo-splash-screen",
                 {
