@@ -11,6 +11,14 @@ through GitHub Actions secrets in CI:
 
 - `EXPO_PUBLIC_SUPABASE_URL`
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+`SUPABASE_SERVICE_ROLE_KEY` is used only by this Node integration harness to
+create and clean up confirmed automated test accounts. This lets the suite run
+when Supabase email confirmation is enabled, while the simulated app devices
+still sign in through the normal anon client and execute the shared app core
+auth/session/sync logic. Do not prefix this key with `EXPO_PUBLIC_`, and do not
+ship it in the app.
 
 Current covered flows:
 

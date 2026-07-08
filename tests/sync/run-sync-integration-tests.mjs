@@ -328,6 +328,20 @@ function makeSupabaseClient() {
   );
 }
 
+function makeSupabaseAdminClient() {
+  return createClient(
+    requiredEnv("EXPO_PUBLIC_SUPABASE_URL"),
+    requiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+      },
+    }
+  );
+}
+
 function assertAutomatedTestEmail(email) {
   const normalizedEmail = email.toLowerCase();
 
@@ -337,6 +351,58 @@ function assertAutomatedTestEmail(email) {
   ) {
     throw new Error(`Refusing to delete non-test account: ${email}`);
   }
+}
+
+function isInvalidCredentialsError(error) {
+  const message = String(error?.message ?? "").toLowerCase();
+
+  return message.includes("invalid") || message.includes("credentials");
+}
+
+function isEmailNotConfirmedError(error) {
+  const message = String(error?.message ?? "").toLowerCase();
+  const code = String(error?.code ?? "").toLowerCase();
+
+  return code === "email_not_confirmed" || message.includes("email not confirmed");
+}
+
+async function findAutomatedAuthUserByEmail(email) {
+  assertAutomatedTestEmail(email);
+
+  const normalizedEmail = email.toLowerCase();
+  const admin = makeSupabaseAdminClient();
+  let page = 1;
+
+  while (true) {
+    const { data, error } = await admin.auth.admin.listUsers({
+      page,
+      perPage: 100,
+    });
+
+    if (error) throw error;
+
+    const user = data.users.find(candidate =>
+      candidate.email?.toLowerCase() === normalizedEmail
+    );
+
+    if (user) return user;
+    if (data.users.length < 100) return null;
+
+    page += 1;
+  }
+}
+
+async function deleteAutomatedAccountThroughAdmin(email) {
+  assertAutomatedTestEmail(email);
+
+  const user = await findAutomatedAuthUserByEmail(email);
+
+  if (!user) return;
+
+  const admin = makeSupabaseAdminClient();
+  const { error } = await admin.auth.admin.deleteUser(user.id);
+
+  if (error) throw error;
 }
 
 async function deleteAutomatedAccountThroughCore(email, password) {
@@ -349,8 +415,12 @@ async function deleteAutomatedAccountThroughCore(email, password) {
   });
 
   if (signIn.error) {
-    const message = String(signIn.error.message ?? "").toLowerCase();
-    if (message.includes("invalid") || message.includes("credentials")) {
+    if (isInvalidCredentialsError(signIn.error)) {
+      return;
+    }
+
+    if (isEmailNotConfirmedError(signIn.error)) {
+      await deleteAutomatedAccountThroughAdmin(email);
       return;
     }
 
@@ -383,18 +453,21 @@ async function deleteAutomatedAccountThroughCore(email, password) {
 }
 
 async function createAccount(client, email, password) {
-  const signUp = await client.auth.signUp({
+  assertAutomatedTestEmail(email);
+
+  const admin = makeSupabaseAdminClient();
+  const created = await admin.auth.admin.createUser({
     email,
     password,
+    email_confirm: true,
+    user_metadata: {
+      first_name: "Automated Test",
+    },
   });
 
-  if (signUp.error) throw signUp.error;
-  if (signUp.data.session?.user) {
-    createdTestEmails.add(email.toLowerCase());
-    return signUp.data.session.user;
-  }
+  if (created.error) throw created.error;
 
-  const signIn = await client.auth.signInWithPassword({
+  const signIn = await signInWithRateLimitRetry(client, {
     email,
     password,
   });
