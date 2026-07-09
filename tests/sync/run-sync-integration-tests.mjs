@@ -366,6 +366,17 @@ function isEmailNotConfirmedError(error) {
   return code === "email_not_confirmed" || message.includes("email not confirmed");
 }
 
+function isRateLimitError(error) {
+  const message = String(error?.message ?? "").toLowerCase();
+  const code = String(error?.code ?? "").toLowerCase();
+
+  return (
+    error?.status === 429 ||
+    code === "over_request_rate_limit" ||
+    message.includes("rate limit")
+  );
+}
+
 async function findAutomatedAuthUserByEmail(email) {
   assertAutomatedTestEmail(email);
 
@@ -431,7 +442,7 @@ async function deleteAutomatedAccountThroughCore(email, password) {
     invokeDeleteUser: () => client.functions.invoke("delete-user"),
     isUserDeleted: async () => {
       const probeClient = makeSupabaseClient();
-      const probe = await probeClient.auth.signInWithPassword({
+      const probe = await signInWithRateLimitRetry(probeClient, {
         email,
         password,
       });
@@ -482,27 +493,34 @@ async function createAccount(client, email, password) {
 
 async function signInWithRateLimitRetry(client, credentials) {
   let lastResult = null;
+  let lastError = null;
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const result = await client.auth.signInWithPassword(credentials);
-    lastResult = result;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      const result = await client.auth.signInWithPassword(credentials);
+      lastResult = result;
+      lastError = result.error;
 
-    const status = result.error?.status;
-    const code = result.error?.code;
+      if (!isRateLimitError(result.error)) {
+        return result;
+      }
+    } catch (error) {
+      lastError = error;
 
-    if (
-      status !== 429 &&
-      code !== "over_request_rate_limit"
-    ) {
-      return result;
+      if (!isRateLimitError(error)) {
+        throw error;
+      }
     }
 
     await new Promise((resolve) =>
-      setTimeout(resolve, (attempt + 1) * 5000)
+      setTimeout(resolve, (attempt + 1) * 7000)
     );
   }
 
-  return lastResult;
+  return lastResult ?? {
+    data: { user: null, session: null },
+    error: lastError,
+  };
 }
 
 async function cleanupCreatedTestAccounts() {
@@ -524,7 +542,7 @@ async function cleanupKnownAutomatedAccounts() {
 }
 
 async function signIn(client, email, password) {
-  const result = await client.auth.signInWithPassword({
+  const result = await signInWithRateLimitRetry(client, {
     email,
     password,
   });
@@ -1667,7 +1685,7 @@ async function runDeleteAccountCoreTest() {
     invokeDeleteUser: () => client.functions.invoke("delete-user"),
     isUserDeleted: async () => {
       const probeClient = makeSupabaseClient();
-      const probe = await probeClient.auth.signInWithPassword({
+      const probe = await signInWithRateLimitRetry(probeClient, {
         email: DELETE_ACCOUNT_TEST_EMAIL,
         password: TEST_PASSWORD,
       });
@@ -1715,12 +1733,13 @@ async function runDeleteAccountCoreTest() {
     "Delete account resets local practice sync state"
   );
 
-  const deletedSignIn = await makeSupabaseClient()
-    .auth
-    .signInWithPassword({
+  const deletedSignIn = await signInWithRateLimitRetry(
+    makeSupabaseClient(),
+    {
       email: DELETE_ACCOUNT_TEST_EMAIL,
       password: TEST_PASSWORD,
-    });
+    }
+  );
 
   assert.ok(
     deletedSignIn.error,
