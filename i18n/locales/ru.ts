@@ -88,6 +88,8 @@ export const ru: Record<TranslationKey, string> = {
     "auth.haveAccount": "Уже есть аккаунт? Войти",
     "auth.invalidEmailFormat": "Введите корректный email.",
     "auth.invalidLoginCredentials": "Неверный email или пароль.",
+    "auth.emailRateLimitExceeded": "Слишком много запросов на отправку email. Подождите немного и попробуйте снова.",
+    "auth.securityRequestDelay": "В целях безопасности подождите {{seconds}} секунд и попробуйте снова.",
     "auth.loginFailed": "Не удалось войти",
     "auth.missingEmailMessage": "Сначала введите email.",
     "auth.missingEmailTitle": "Email не указан",

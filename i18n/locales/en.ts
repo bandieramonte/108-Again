@@ -86,6 +86,8 @@ export const en = {
     "auth.haveAccount": "Already have an account? Log In",
     "auth.invalidEmailFormat": "Please enter a valid email address.",
     "auth.invalidLoginCredentials": "Invalid email or password.",
+    "auth.emailRateLimitExceeded": "Too many email requests were made. Please wait a little and try again.",
+    "auth.securityRequestDelay": "For security reasons, please wait {{seconds}} seconds and try again.",
     "auth.loginFailed": "Log in failed",
     "auth.missingEmailMessage": "Please enter your email first.",
     "auth.missingEmailTitle": "Missing email",

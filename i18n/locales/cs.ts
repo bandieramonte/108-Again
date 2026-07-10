@@ -88,6 +88,8 @@ export const cs: Record<TranslationKey, string> = {
     "auth.haveAccount": "Už máš účet? Přihlásit se",
     "auth.invalidEmailFormat": "Zadej prosím platnou emailovou adresu.",
     "auth.invalidLoginCredentials": "Neplatný email nebo heslo.",
+    "auth.emailRateLimitExceeded": "Bylo provedeno příliš mnoho emailových požadavků. Chvíli počkej a zkus to znovu.",
+    "auth.securityRequestDelay": "Z bezpečnostních důvodů počkej {{seconds}} sekund a zkus to znovu.",
     "auth.loginFailed": "Přihlášení selhalo",
     "auth.missingEmailMessage": "Nejprve zadej svůj email.",
     "auth.missingEmailTitle": "Chybí email",

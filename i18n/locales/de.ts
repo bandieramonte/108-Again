@@ -88,6 +88,8 @@ export const de: Record<TranslationKey, string> = {
     "auth.haveAccount": "Du hast schon ein Konto? Anmelden",
     "auth.invalidEmailFormat": "Bitte gib eine gültige E-Mail-Adresse ein.",
     "auth.invalidLoginCredentials": "E-Mail oder Passwort ist ungültig.",
+    "auth.emailRateLimitExceeded": "Es wurden zu viele E-Mail-Anfragen gestellt. Bitte warte einen Moment und versuche es erneut.",
+    "auth.securityRequestDelay": "Aus Sicherheitsgründen warte bitte {{seconds}} Sekunden und versuche es erneut.",
     "auth.loginFailed": "Anmeldung fehlgeschlagen",
     "auth.missingEmailMessage": "Bitte gib zuerst deine E-Mail ein.",
     "auth.missingEmailTitle": "E-Mail fehlt",

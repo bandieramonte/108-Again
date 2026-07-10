@@ -88,6 +88,8 @@ export const es: Record<TranslationKey, string> = {
     "auth.haveAccount": "¿Ya tienes cuenta? Inicia sesión",
     "auth.invalidEmailFormat": "Introduce una dirección de email válida.",
     "auth.invalidLoginCredentials": "Email o contraseña no válidos.",
+    "auth.emailRateLimitExceeded": "Se hicieron demasiadas solicitudes de email. Espera un poco e inténtalo de nuevo.",
+    "auth.securityRequestDelay": "Por seguridad, espera {{seconds}} segundos e inténtalo de nuevo.",
     "auth.loginFailed": "No se pudo iniciar sesión",
     "auth.missingEmailMessage": "Introduce tu email primero.",
     "auth.missingEmailTitle": "Falta email",

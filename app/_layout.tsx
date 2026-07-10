@@ -5,7 +5,12 @@ import UpdateRequiredScreen from "@/components/UpdateRequiredScreen";
 import { I18nProvider, useI18n } from "@/i18n";
 import { AppThemeProvider, useAppTheme } from "@/styles/theme";
 import { subscribeAuth } from "@/utils/events";
-import { Stack, router, usePathname } from "expo-router";
+import {
+    Stack,
+    router,
+    useGlobalSearchParams,
+    usePathname,
+} from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -17,6 +22,7 @@ import * as lastPracticeScreenService from "../services/lastPracticeScreenServic
 import * as practiceService from "../services/practiceService";
 import * as practiceReminderService from "../services/practiceReminderService";
 import * as syncService from "../services/syncService";
+import { shouldShowHeaderBack } from "../utils/headerBackVisibility";
 
 export default function Layout() {
     return (
@@ -40,6 +46,9 @@ function LayoutContent() {
         useState<UpdateRequirement | null>(null);
     const [checkingForUpdate, setCheckingForUpdate] = useState(true);
     const pathname = usePathname();
+    const searchParams = useGlobalSearchParams<{
+        confirmed?: string | string[];
+    }>();
     const pathnameRef = useRef(pathname);
     const restoringPracticeRoute = useRef(false);
     const reminderRouteHandled = useRef(false);
@@ -305,7 +314,11 @@ function LayoutContent() {
 
                 headerLeft: ({ canGoBack }) => (
                     <HeaderLeftControls
-                        canGoBack={!!canGoBack}
+                        canGoBack={shouldShowHeaderBack(
+                            pathname,
+                            !!canGoBack,
+                            { confirmed: searchParams.confirmed }
+                        )}
                         onBack={() => router.back()}
                     />
                 ),

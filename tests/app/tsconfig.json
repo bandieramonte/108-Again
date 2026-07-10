@@ -51,6 +51,7 @@
     "../../types/sync.ts",
     "../../utils/authErrorText.ts",
     "../../utils/dateUtils.ts",
+    "../../utils/headerBackVisibility.ts",
     "../../utils/practiceReminderState.ts",
     "../../utils/reminderTime.ts",
     "../../utils/numberUtils.ts"

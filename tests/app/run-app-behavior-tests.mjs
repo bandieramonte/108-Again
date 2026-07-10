@@ -174,6 +174,8 @@ const { isUnrecoverableRefreshTokenError } =
   require("../.build/services/authSessionPolicy.js");
 const { getLocalizedAuthErrorMessage } =
   require("../.build/utils/authErrorText.js");
+const { shouldShowHeaderBack } =
+  require("../.build/utils/headerBackVisibility.js");
 const { determineUpdateRequirement } =
   require("../.build/services/appUpdatePolicy.js");
 const { createLastPracticeScreenService } =
@@ -545,7 +547,10 @@ await test(
 await test(
   "known auth errors use localized app messages",
   () => {
-    const t = (key) => `translated:${key}`;
+    const t = (key, params) =>
+      params?.seconds
+        ? `translated:${key}:${params.seconds}`
+        : `translated:${key}`;
 
     assert.equal(
       getLocalizedAuthErrorMessage(
@@ -583,12 +588,62 @@ await test(
       "translated:auth.invalidLoginCredentials"
     );
     assert.equal(
+      getLocalizedAuthErrorMessage(
+        { message: "Email not confirmed" },
+        t
+      ),
+      "translated:auth.confirmEmailMessage"
+    );
+    assert.equal(
+      getLocalizedAuthErrorMessage(
+        { message: "email rate limit exceeded" },
+        t
+      ),
+      "translated:auth.emailRateLimitExceeded"
+    );
+    assert.equal(
+      getLocalizedAuthErrorMessage(
+        {
+          message:
+            "For security purposes, you can only request this after 8 seconds.",
+        },
+        t
+      ),
+      "translated:auth.securityRequestDelay:8"
+    );
+    assert.equal(
       getLocalizedAuthErrorMessage({ message: "" }, t),
       "translated:common.unknownError"
     );
     assert.equal(
       getLocalizedAuthErrorMessage({ message: "Remote auth error" }, t),
       "Remote auth error"
+    );
+  }
+);
+
+await test(
+  "email entry routes suppress confusing header back affordances",
+  () => {
+    assert.equal(
+      shouldShowHeaderBack("/reset-password", true),
+      false,
+      "Password reset email entry should not show a back arrow"
+    );
+    assert.equal(
+      shouldShowHeaderBack("/sign-in", true, { confirmed: "true" }),
+      false,
+      "Confirmed email return to sign-in should not show a back arrow"
+    );
+    assert.equal(
+      shouldShowHeaderBack("/sign-in", true),
+      true,
+      "Regular in-app sign-in navigation can still show a back arrow"
+    );
+    assert.equal(
+      shouldShowHeaderBack("/practice", false),
+      false,
+      "Routes without navigation history still hide the back arrow"
     );
   }
 );

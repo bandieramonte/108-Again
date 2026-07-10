@@ -88,6 +88,8 @@ export const hu: Record<TranslationKey, string> = {
     "auth.haveAccount": "Már van fiókod? Jelentkezz be",
     "auth.invalidEmailFormat": "Adj meg érvényes email címet.",
     "auth.invalidLoginCredentials": "Érvénytelen email vagy jelszó.",
+    "auth.emailRateLimitExceeded": "Túl sok email-kérést küldtél. Kérlek, várj egy kicsit, majd próbáld újra.",
+    "auth.securityRequestDelay": "Biztonsági okokból várj {{seconds}} másodpercet, majd próbáld újra.",
     "auth.loginFailed": "Bejelentkezés sikertelen",
     "auth.missingEmailMessage": "Először add meg az emailed.",
     "auth.missingEmailTitle": "Hiányzó email",
