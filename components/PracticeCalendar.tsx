@@ -1,3 +1,4 @@
+import { MaterialIcons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Dimensions,
@@ -43,6 +44,19 @@ function getMonthLabel(baseWeekStart: Date, index: number, locale: string) {
     return start.toLocaleDateString(locale, {
         month: "long",
         year: "numeric"
+    });
+}
+
+function getDateLabel(dateString: string, locale: string) {
+    const [year, month, day] = dateString
+        .split("-")
+        .map(value => Number.parseInt(value, 10));
+    const date = new Date(Date.UTC(year, month - 1, day));
+
+    return date.toLocaleDateString(locale, {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
     });
 }
 
@@ -139,6 +153,7 @@ export default function PracticeCalendar({
     const [editingValue, setEditingValue] = useState("");
     const listRef = useRef<FlatList<number>>(null);
     const currentIndex = useRef(initialScrollIndex);
+    const inputRef = useRef<TextInput>(null);
 
     const handleScroll = useCallback((event: any) => {
 
@@ -234,6 +249,32 @@ export default function PracticeCalendar({
             String(date.getUTCMonth() + 1).padStart(2, "0") +
             "-" +
             String(date.getUTCDate()).padStart(2, "0")
+        );
+    }
+
+    const commitEdit = useCallback(() => {
+        if (!editingDate) return;
+
+        const value = parseFormattedNumberInput(editingValue);
+
+        onEditDay(editingDate, value);
+        setEditingDate(null);
+        setEditingValue("");
+    }, [editingDate, editingValue, onEditDay]);
+
+    function startEditing(day: DayData) {
+        if (!isEditable(day.date)) return;
+
+        if (editingDate && editingDate !== day.date) {
+            const value = parseFormattedNumberInput(editingValue);
+            onEditDay(editingDate, value);
+        }
+
+        setEditingDate(day.date);
+        setEditingValue(
+            day.count
+                ? formatNumberInput(String(day.count), locale)
+                : ""
         );
     }
 
@@ -371,6 +412,83 @@ export default function PracticeCalendar({
 
                 </View>
 
+                {editingDate ? (
+                    <View
+                        style={[
+                            styles.editorBar,
+                            {
+                                backgroundColor: colors.surfaceElevated,
+                                borderColor: colors.borderSubtle,
+                            },
+                        ]}
+                    >
+                        <Text
+                            numberOfLines={1}
+                            style={[
+                                styles.editorDate,
+                                { color: colors.textPrimary },
+                            ]}
+                        >
+                            {getDateLabel(editingDate, locale)}
+                        </Text>
+
+                        <TextInput
+                            ref={inputRef}
+                            key={editingDate}
+                            value={editingValue}
+                            onChangeText={(value) => {
+                                setEditingValue(
+                                    formatNumberInput(value, locale)
+                                );
+                            }}
+                            keyboardType="numeric"
+                            autoFocus
+                            selectTextOnFocus
+                            returnKeyType="done"
+                            blurOnSubmit
+                            onBlur={commitEdit}
+                            numberOfLines={1}
+                            underlineColorAndroid="transparent"
+                            accessibilityLabel={t("practice.enterAmount")}
+                            style={[
+                                styles.editorInput,
+                                {
+                                    backgroundColor: colors.inputBackground,
+                                    borderColor: colors.inputBorder,
+                                    color: colors.inputText,
+                                },
+                            ]}
+                            placeholder="0"
+                            placeholderTextColor={colors.inputPlaceholder}
+                        />
+
+                        <Pressable
+                            onPress={() => {
+                                if (inputRef.current?.isFocused()) {
+                                    inputRef.current.blur();
+                                    return;
+                                }
+
+                                commitEdit();
+                            }}
+                            accessibilityRole="button"
+                            accessibilityLabel={t("common.save")}
+                            hitSlop={8}
+                            style={({ pressed }) => [
+                                styles.editorSaveButton,
+                                { backgroundColor: colors.primary },
+                                pressed && styles.pressed,
+                            ]}
+                        >
+                            <MaterialIcons
+                                name="check"
+                                size={20}
+                                color={colors.background}
+                            />
+                        </Pressable>
+                    </View>
+                ) : null}
+
                 <View style={styles.weekHeader}>
                     {weekDayLabels.map((d, i) => (
                         <Text
@@ -425,17 +543,7 @@ export default function PracticeCalendar({
                                             <Pressable
                                                 key={day.date}
                                                 onPress={() => {
-                                                    if (!isEditable(day.date)) return;
-
-                                                    setEditingDate(day.date);
-                                                    setEditingValue(
-                                                        day.count
-                                                            ? formatNumberInput(
-                                                                String(day.count),
-                                                                locale
-                                                            )
-                                                            : ""
-                                                    );
+                                                    startEditing(day);
                                                 }}
                                                 style={[
                                                     styles.day,
@@ -464,6 +572,15 @@ export default function PracticeCalendar({
                                                         {
                                                             borderColor:
                                                                 colors.warning,
+                                                            backgroundColor:
+                                                                colors.surfaceSelected,
+                                                        },
+                                                    ],
+                                                    editingDate === day.date && [
+                                                        styles.selectedDay,
+                                                        {
+                                                            borderColor:
+                                                                colors.primary,
                                                             backgroundColor:
                                                                 colors.surfaceSelected,
                                                         },
@@ -497,59 +614,25 @@ export default function PracticeCalendar({
                                                     {day.date.slice(-2)}
                                                 </Text>
 
-                                                {editingDate === day.date ? (
-                                                    <TextInput
-                                                        value={editingValue}
-                                                        onChangeText={(value) => {
-                                                            setEditingValue(
-                                                                formatNumberInput(
-                                                                    value,
-                                                                    locale
-                                                                )
-                                                            );
-                                                        }}
-                                                        keyboardType="numeric"
-                                                        autoFocus
-                                                        numberOfLines={1}
-                                                        underlineColorAndroid="transparent"
-                                                        style={[
-                                                            styles.dayCountInput,
-                                                            {
-                                                                backgroundColor:
-                                                                    "transparent",
-                                                                color:
-                                                                    colors.primary,
-                                                            },
-                                                            editingValue.length >= 5 && styles.dayCountSmall,
-                                                            editingValue.length >= 7 && styles.dayCountVerySmall
-                                                        ]} onBlur={() => {
-                                                            const value =
-                                                                parseFormattedNumberInput(editingValue);
-                                                            onEditDay(day.date, value);
-                                                            setEditingDate(null);
-                                                        }}
-                                                    />
-                                                ) : (
-                                                    <Text
-                                                        numberOfLines={1}
-                                                        adjustsFontSizeToFit
-                                                        minimumFontScale={0.6}
-                                                        style={[
-                                                            styles.dayCount,
-                                                            { color: colors.primary },
-                                                            day.count === 0 && {
-                                                                color:
-                                                                    colors.inputPlaceholder,
-                                                            },
-                                                            !editable && {
-                                                                color:
-                                                                    colors.inputPlaceholder,
-                                                            },
-                                                        ]}
-                                                    >
-                                                        {formatNumber(day.count, locale)}
-                                                    </Text>
-                                                )}
+                                                <Text
+                                                    numberOfLines={1}
+                                                    adjustsFontSizeToFit
+                                                    minimumFontScale={0.6}
+                                                    style={[
+                                                        styles.dayCount,
+                                                        { color: colors.primary },
+                                                        day.count === 0 && {
+                                                            color:
+                                                                colors.inputPlaceholder,
+                                                        },
+                                                        !editable && {
+                                                            color:
+                                                                colors.inputPlaceholder,
+                                                        },
+                                                    ]}
+                                                >
+                                                    {formatNumber(day.count, locale)}
+                                                </Text>
                                             </Pressable>
                                         );
                                     })}
@@ -595,6 +678,49 @@ const styles = StyleSheet.create({
 
     weekRow: {
         flexDirection: "row",
+    },
+
+    editorBar: {
+        minHeight: 48,
+        marginHorizontal: 4,
+        marginTop: 2,
+        marginBottom: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderWidth: 1,
+        borderRadius: 8,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+    },
+
+    editorDate: {
+        flex: 1,
+        minWidth: 0,
+        fontSize: 14,
+        fontWeight: "600",
+    },
+
+    editorInput: {
+        width: 112,
+        height: 38,
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 0,
+        textAlign: "center",
+        textAlignVertical: "center",
+        fontSize: 16,
+        fontWeight: "600",
+        includeFontPadding: false,
+    },
+
+    editorSaveButton: {
+        width: 38,
+        height: 38,
+        borderRadius: 8,
+        alignItems: "center",
+        justifyContent: "center",
     },
 
     day: {
@@ -648,6 +774,13 @@ const styles = StyleSheet.create({
         borderLeftWidth: borderWidth,
         borderColor: "#f59e0b",
         backgroundColor: "rgba(245,158,11,0.08)"
+    },
+
+    selectedDay: {
+        borderTopWidth: borderWidth,
+        borderBottomWidth: borderWidth,
+        borderRightWidth: borderWidth,
+        borderLeftWidth: borderWidth,
     },
 
     dayCountEmpty: {
@@ -749,5 +882,9 @@ const styles = StyleSheet.create({
         fontWeight: "700",
         color: "#555",
         lineHeight: 11,
+    },
+
+    pressed: {
+        opacity: 0.65,
     },
 });
