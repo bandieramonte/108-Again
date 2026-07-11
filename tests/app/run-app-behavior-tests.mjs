@@ -626,6 +626,11 @@ await test(
   "email entry routes suppress confusing header back affordances",
   () => {
     assert.equal(
+      shouldShowHeaderBack("/", true),
+      false,
+      "Dashboard should not show a back arrow even if stack history exists"
+    );
+    assert.equal(
       shouldShowHeaderBack("/reset-password", true),
       false,
       "Password reset email entry should not show a back arrow"

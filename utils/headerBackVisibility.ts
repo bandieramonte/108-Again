@@ -13,6 +13,10 @@ export function shouldShowHeaderBack(
 ) {
     if (!canGoBack) return false;
 
+    if (pathname === "/") {
+        return false;
+    }
+
     if (pathname === "/reset-password") {
         return false;
     }
