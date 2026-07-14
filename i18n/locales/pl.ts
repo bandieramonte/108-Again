@@ -158,6 +158,9 @@ export const pl: Record<TranslationKey, string> = {
     "history.empty": "Brak jeszcze historii.",
     "history.largestSession": "Największa sesja",
     "history.longestStreak": "Najdłuższa seria",
+    "history.overall": "Ogólnie",
+    "history.selectedRange": "Wybrany zakres",
+    "history.statistics": "Statystyki",
     "history.title": "Historia praktyki",
 
     "menu.about": "O aplikacji",

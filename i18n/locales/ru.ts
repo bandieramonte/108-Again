@@ -158,6 +158,9 @@ export const ru: Record<TranslationKey, string> = {
     "history.empty": "История пока недоступна.",
     "history.largestSession": "Самый большой сеанс",
     "history.longestStreak": "Самая длинная серия",
+    "history.overall": "Общее",
+    "history.selectedRange": "Выбранный период",
+    "history.statistics": "Статистика",
     "history.title": "История практики",
 
     "menu.about": "О приложении",

@@ -97,12 +97,17 @@ type OperationSessionRepo = {
     getSessionsByPractice(practiceId: string): OperationSessionRow[];
     getPracticeTotal(practiceId: string): { total: number };
     getDailyTotals(practiceId: string): { day: string; total: number }[];
-    getPracticeLifetimeStats(practiceId: string): {
+    getPracticeLifetimeStats(practiceId: string, now?: number): {
         averageSessionSize: number;
         largestSession: number;
         longestStreak: number;
         currentStreak: number;
     };
+    getPracticeAverageSessionSize(
+        practiceId: string,
+        days?: number,
+        now?: number
+    ): number;
     getSessionsByPracticeForSync(practiceId: string): OperationSessionRow[];
     getAllSessionsForSync(): OperationSessionRow[];
     getSessionForDay(
@@ -830,7 +835,21 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
     }
 
     function getPracticeLifetimeStats(practiceId: string) {
-        return deps.sessionRepo.getPracticeLifetimeStats(practiceId);
+        return deps.sessionRepo.getPracticeLifetimeStats(
+            practiceId,
+            now()
+        );
+    }
+
+    function getPracticeAverageSessionSize(
+        practiceId: string,
+        days: number
+    ) {
+        return deps.sessionRepo.getPracticeAverageSessionSize(
+            practiceId,
+            days,
+            now()
+        );
     }
 
     async function restoreDefaults() {
@@ -1097,6 +1116,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         getDailyPracticeDataWithAdjustments: getDailyPracticeData,
         getPractice,
         getPracticeEditData,
+        getPracticeAverageSessionSize,
         getPracticeLifetimeStats,
         getPracticeName,
         getPracticeTotal,

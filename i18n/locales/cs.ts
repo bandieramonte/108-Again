@@ -158,6 +158,9 @@ export const cs: Record<TranslationKey, string> = {
     "history.empty": "Zatím není dostupná žádná historie.",
     "history.largestSession": "Největší sezení",
     "history.longestStreak": "Nejdelší série",
+    "history.overall": "Celkově",
+    "history.selectedRange": "Vybrané období",
+    "history.statistics": "Statistiky",
     "history.title": "Historie praxe",
 
     "menu.about": "O aplikaci",

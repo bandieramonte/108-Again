@@ -158,6 +158,9 @@ export const hu: Record<TranslationKey, string> = {
     "history.empty": "Még nincs elérhető előzmény.",
     "history.largestSession": "Legnagyobb ülés",
     "history.longestStreak": "Leghosszabb sorozat",
+    "history.overall": "Összesítve",
+    "history.selectedRange": "Kiválasztott időszak",
+    "history.statistics": "Statisztikák",
     "history.title": "Gyakorlat előzményei",
 
     "menu.about": "Névjegy",

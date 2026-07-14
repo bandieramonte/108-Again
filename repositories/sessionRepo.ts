@@ -19,6 +19,7 @@ export const {
     getDeletedSessionForDay,
     getDirtySessions,
     getEarliestSessionDateForPractice,
+    getPracticeAverageSessionSize,
     getPracticeLifetimeStats,
     getPracticeTotal,
     getSessionDays,

@@ -158,6 +158,9 @@ export const es: Record<TranslationKey, string> = {
     "history.empty": "Aún no hay historial disponible.",
     "history.largestSession": "Sesión más grande",
     "history.longestStreak": "Racha más larga",
+    "history.overall": "General",
+    "history.selectedRange": "Rango seleccionado",
+    "history.statistics": "Estadísticas",
     "history.title": "Historial de práctica",
 
     "menu.about": "Acerca de",

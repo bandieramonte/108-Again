@@ -65,8 +65,16 @@ export default function PracticeHistoryModal({
             sessionService.getPracticeLifetimeStats(
                 practiceId
             );
+        const averageSessionSize =
+            sessionService.getPracticeAverageSessionSize(
+                practiceId,
+                rangeDays
+            );
 
-        setStats(lifetimeStats);
+        setStats({
+            ...lifetimeStats,
+            averageSessionSize,
+        });
     }, [practiceId, rangeDays, visible]);
 
     function formatShortDate(date: string) {
@@ -423,7 +431,11 @@ export default function PracticeHistoryModal({
                         ]}
                     >
                         <Text style={[styles.statsTitle, { color: colors.textPrimary }]}>
-                            {t("history.allTimeStatistics")}
+                            {t("history.statistics")}
+                        </Text>
+
+                        <Text style={[styles.statsScopeLabel, { color: colors.textSecondary }]}>
+                            {t("history.selectedRange")}
                         </Text>
 
                         <View style={styles.statRowInner}>
@@ -434,6 +446,16 @@ export default function PracticeHistoryModal({
                                 {formatNumber(stats.averageSessionSize, locale)}
                             </Text>
                         </View>
+
+                        <Text
+                            style={[
+                                styles.statsScopeLabel,
+                                styles.statsScopeLabelSpaced,
+                                { color: colors.textSecondary },
+                            ]}
+                        >
+                            {t("history.overall")}
+                        </Text>
 
                         <View style={styles.statRowInner}>
                             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
@@ -574,6 +596,16 @@ const styles = StyleSheet.create({
         fontSize: 17,
         fontWeight: "700",
         marginBottom: 12,
+    },
+
+    statsScopeLabel: {
+        fontSize: 13,
+        fontWeight: "700",
+        marginBottom: 4,
+    },
+
+    statsScopeLabelSpaced: {
+        marginTop: 8,
     },
 
     statRow: {

@@ -158,6 +158,9 @@ export const de: Record<TranslationKey, string> = {
     "history.empty": "Noch kein Verlauf verfügbar.",
     "history.largestSession": "Größte Sitzung",
     "history.longestStreak": "Längste Serie",
+    "history.overall": "Gesamt",
+    "history.selectedRange": "Ausgewählter Zeitraum",
+    "history.statistics": "Statistiken",
     "history.title": "Praxisverlauf",
 
     "menu.about": "Über",

@@ -17,6 +17,24 @@ type PracticeTotalRow = {
     total: number;
 };
 
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+function dayStringFromTimestamp(timestamp: number) {
+    const date = new Date(timestamp);
+
+    return (
+        date.getUTCFullYear() +
+        "-" +
+        String(date.getUTCMonth() + 1).padStart(2, "0") +
+        "-" +
+        String(date.getUTCDate()).padStart(2, "0")
+    );
+}
+
+function dayStartTimestamp(day: string) {
+    return Date.parse(`${day}T00:00:00Z`);
+}
+
 export function createSessionRepo(database: SqliteDatabase) {
     function insertSession(
         id: string,
@@ -433,7 +451,68 @@ export function createSessionRepo(database: SqliteDatabase) {
     `, userId, now);
     }
 
-    function getPracticeLifetimeStats(practiceId: string) {
+    function getPracticeAverageSessionSize(
+        practiceId: string,
+        days?: number,
+        now = Date.now()
+    ) {
+        const rows = getDailyTotals(practiceId);
+        const earliestSessionDate =
+            getEarliestSessionDateForPractice(practiceId);
+
+        if (rows.length === 0 || earliestSessionDate === null) {
+            return 0;
+        }
+
+        const todayDay = dayStringFromTimestamp(now);
+        const todayTimestamp = dayStartTimestamp(todayDay);
+        let firstIncludedDayTimestamp = dayStartTimestamp(
+            dayStringFromTimestamp(earliestSessionDate)
+        );
+
+        if (days !== undefined) {
+            const normalizedDays = Math.max(1, Math.floor(days));
+            const rangeStartTimestamp =
+                todayTimestamp - (normalizedDays - 1) * DAY_MS;
+
+            firstIncludedDayTimestamp = Math.max(
+                firstIncludedDayTimestamp,
+                rangeStartTimestamp
+            );
+        }
+
+        if (firstIncludedDayTimestamp > todayTimestamp) {
+            return 0;
+        }
+
+        const totalsByDay = new Map(
+            rows.map(row => [row.day, row.total])
+        );
+        let total = 0;
+        let dayCount = 0;
+
+        for (
+            let timestamp = firstIncludedDayTimestamp;
+            timestamp <= todayTimestamp;
+            timestamp += DAY_MS
+        ) {
+            total += totalsByDay.get(
+                dayStringFromTimestamp(timestamp)
+            ) ?? 0;
+            dayCount++;
+        }
+
+        if (dayCount === 0) {
+            return 0;
+        }
+
+        return Math.round(total / dayCount);
+    }
+
+    function getPracticeLifetimeStats(
+        practiceId: string,
+        now = Date.now()
+    ) {
         const rows = getDailyTotals(practiceId);
 
         if (rows.length === 0) {
@@ -446,10 +525,8 @@ export function createSessionRepo(database: SqliteDatabase) {
         }
 
         const totals = rows.map(r => r.total);
-        const totalSum =
-            totals.reduce((sum, n) => sum + n, 0);
         const averageSessionSize =
-            Math.round(totalSum / rows.length);
+            getPracticeAverageSessionSize(practiceId, undefined, now);
         const largestSession =
             Math.max(...totals, 0);
         const sortedDays = rows
@@ -486,7 +563,7 @@ export function createSessionRepo(database: SqliteDatabase) {
         const lastDate =
             new Date(lastDay + "T00:00:00Z");
         const today =
-            new Date();
+            new Date(now);
         const todayUtc =
             new Date(Date.UTC(
                 today.getUTCFullYear(),
@@ -566,6 +643,7 @@ export function createSessionRepo(database: SqliteDatabase) {
         getDeletedSessionForDay,
         getDirtySessions,
         getEarliestSessionDateForPractice,
+        getPracticeAverageSessionSize,
         getPracticeLifetimeStats,
         getPracticeTotal,
         getSessionDays,

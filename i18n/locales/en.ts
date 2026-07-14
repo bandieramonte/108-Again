@@ -156,6 +156,9 @@ export const en = {
     "history.empty": "No history available yet.",
     "history.largestSession": "Largest session",
     "history.longestStreak": "Longest streak",
+    "history.overall": "Overall",
+    "history.selectedRange": "Selected range",
+    "history.statistics": "Statistics",
     "history.title": "Practice History",
 
     "menu.about": "About",

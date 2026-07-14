@@ -796,6 +796,50 @@ await test(
 );
 
 await test(
+  "practice average includes zero-count days within the selected range",
+  () => {
+    let nowMs = Date.parse("2026-07-10T12:00:00Z");
+    const device = makeLocalDevice(null, () => nowMs);
+    const practiceId = device.operations.createPractice(
+      "Range Average Practice",
+      10000
+    );
+
+    assert.equal(
+      device.operations.getPracticeAverageSessionSize(practiceId, 10),
+      0
+    );
+
+    nowMs = Date.parse("2026-07-05T12:00:00Z");
+    device.operations.addSession(practiceId, 100);
+
+    nowMs = Date.parse("2026-07-07T12:00:00Z");
+    device.operations.addSession(practiceId, 200);
+
+    nowMs = Date.parse("2026-07-10T12:00:00Z");
+
+    assert.equal(
+      device.operations.getPracticeAverageSessionSize(practiceId, 10),
+      50
+    );
+    assert.equal(
+      device.operations.getPracticeAverageSessionSize(practiceId, 5),
+      40
+    );
+    assert.equal(
+      device.operations.getPracticeAverageSessionSize(practiceId, 3),
+      0
+    );
+
+    const lifetimeStats =
+      device.operations.getPracticeLifetimeStats(practiceId);
+
+    assert.equal(lifetimeStats.averageSessionSize, 50);
+    assert.equal(lifetimeStats.largestSession, 200);
+  }
+);
+
+await test(
   "update policy distinguishes optional and mandatory releases",
   () => {
     assert.deepEqual(

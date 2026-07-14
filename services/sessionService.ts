@@ -52,3 +52,13 @@ export function getPracticeLifetimeStats(
 ) {
     return getAppOperationEngine().getPracticeLifetimeStats(practiceId);
 }
+
+export function getPracticeAverageSessionSize(
+    practiceId: string,
+    days: number
+) {
+    return getAppOperationEngine().getPracticeAverageSessionSize(
+        practiceId,
+        days
+    );
+}
