@@ -259,6 +259,7 @@ export const en = {
     "practice.reminderOff": "Reminder: Off",
     "practice.setDailyTargetBeforeReminders": "Set a daily target before enabling reminders.",
     "practice.setDailyTargetFirst": "Set daily target 1st",
+    "practice.setTargetDate": "Set target date",
     "practice.targetDate": "Target Date",
     "practice.totalProgress": "Total Progress",
     "practice.valueCannotBeNegative": "Value cannot be negative",

@@ -261,6 +261,7 @@ export const hu: Record<TranslationKey, string> = {
     "practice.reminderOff": "Emlékeztető: kikapcsolva",
     "practice.setDailyTargetBeforeReminders": "Állíts be napi célt az emlékeztetők bekapcsolása előtt.",
     "practice.setDailyTargetFirst": "Először állíts be napi célt",
+    "practice.setTargetDate": "Céldátum beállítása",
     "practice.targetDate": "Céldátum",
     "practice.totalProgress": "Teljes előrehaladás",
     "practice.valueCannotBeNegative": "Az érték nem lehet negatív",

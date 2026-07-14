@@ -261,6 +261,7 @@ export const cs: Record<TranslationKey, string> = {
     "practice.reminderOff": "Připomenutí: vypnuto",
     "practice.setDailyTargetBeforeReminders": "Nastav denní cíl před zapnutím připomenutí.",
     "practice.setDailyTargetFirst": "Nejprve nastav denní cíl",
+    "practice.setTargetDate": "Nastavit cílové datum",
     "practice.targetDate": "Cílové datum",
     "practice.totalProgress": "Celkový pokrok",
     "practice.valueCannotBeNegative": "Hodnota nemůže být záporná",

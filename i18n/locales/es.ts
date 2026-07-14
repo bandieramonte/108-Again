@@ -261,6 +261,7 @@ export const es: Record<TranslationKey, string> = {
     "practice.reminderOff": "Recordatorio: desactivado",
     "practice.setDailyTargetBeforeReminders": "Establece un objetivo diario antes de activar recordatorios.",
     "practice.setDailyTargetFirst": "Establece objetivo diario primero",
+    "practice.setTargetDate": "Establecer fecha objetivo",
     "practice.targetDate": "Fecha objetivo",
     "practice.totalProgress": "Progreso total",
     "practice.valueCannotBeNegative": "El valor no puede ser negativo",

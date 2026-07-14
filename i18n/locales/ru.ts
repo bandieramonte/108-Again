@@ -263,6 +263,7 @@ export const ru: Record<TranslationKey, string> = {
     "practice.reminderOff": "Напоминание: выкл.",
     "practice.setDailyTargetBeforeReminders": "Задайте дневную цель перед включением напоминаний.",
     "practice.setDailyTargetFirst": "Сначала задайте дневную цель",
+    "practice.setTargetDate": "Задать целевую дату",
     "practice.targetDate": "Целевая дата",
     "practice.totalProgress": "Общий прогресс",
     "practice.valueCannotBeNegative": "Значение не может быть отрицательным",

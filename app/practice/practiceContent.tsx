@@ -178,7 +178,7 @@ export default function PracticeContent({
             return t("practice.reached");
         }
 
-        if (!effectiveDailyTargetCount) return t("practice.setDailyTargetFirst");
+        if (!effectiveDailyTargetCount) return t("practice.setTargetDate");
         if (!targetDate) return t("practice.noEstimate");
 
         return targetDate.toLocaleDateString(locale, {

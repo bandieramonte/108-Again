@@ -261,6 +261,7 @@ export const pl: Record<TranslationKey, string> = {
     "practice.reminderOff": "Przypomnienie: wyłączone",
     "practice.setDailyTargetBeforeReminders": "Ustaw cel dzienny przed włączeniem przypomnień.",
     "practice.setDailyTargetFirst": "Najpierw ustaw cel dzienny",
+    "practice.setTargetDate": "Ustaw datę docelową",
     "practice.targetDate": "Data docelowa",
     "practice.totalProgress": "Całkowity postęp",
     "practice.valueCannotBeNegative": "Wartość nie może być ujemna",
