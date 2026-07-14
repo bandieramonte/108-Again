@@ -1109,6 +1109,7 @@ export default function PracticeContent({
                             data={calendarData}
                             startDate={calendarStartDate}
                             endDate={calendarEndDate}
+                            targetDate={targetDate}
                             onEditDay={handleEdit}
                             onClose={() => setCalendarOpen(false)}
                         />

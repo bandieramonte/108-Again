@@ -501,6 +501,15 @@ export default function Dashboard() {
       ) ?? new Date()
     );
   }, [calendarPractice]);
+  const calendarTargetDate = useMemo(() => {
+    if (!calendarPractice) return null;
+
+    return practiceService.getExpectedTargetDate(
+      calendarPractice.targetCount,
+      calendarPractice.total,
+      calendarPractice.dailyTargetCount ?? null
+    );
+  }, [calendarPractice]);
 
   function getPracticeCardViewModel(practice: Practice) {
     const practiceDisplayName =
@@ -1228,6 +1237,7 @@ export default function Dashboard() {
             data={calendarData}
             startDate={calendarStartDate}
             endDate={calendarEndDate}
+            targetDate={calendarTargetDate}
             onEditDay={handleCalendarEdit}
             onClose={closePracticeCalendar}
           />

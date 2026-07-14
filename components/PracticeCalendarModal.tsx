@@ -24,6 +24,7 @@ type Props = {
     onClose: () => void;
     onEditDay: (date: string, value: number) => void;
     startDate: Date;
+    targetDate?: Date | null;
     visible: boolean;
 };
 
@@ -33,6 +34,7 @@ export default function PracticeCalendarModal({
     onClose,
     onEditDay,
     startDate,
+    targetDate = null,
     visible,
 }: Props) {
     const insets = useSafeAreaInsets();
@@ -116,6 +118,7 @@ export default function PracticeCalendarModal({
                             data={data}
                             startDate={startDate}
                             endDate={endDate}
+                            targetDate={targetDate}
                             onEditDay={onEditDay}
                         />
                     </Pressable>

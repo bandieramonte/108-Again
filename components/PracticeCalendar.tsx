@@ -27,6 +27,7 @@ type Props = {
     data: DayData[];
     startDate: Date;
     endDate: Date;
+    targetDate?: Date | null;
     onEditDay: (date: string, value: number) => void;
 };
 
@@ -64,6 +65,7 @@ export default function PracticeCalendar({
     data,
     startDate,
     endDate,
+    targetDate = null,
     onEditDay
 }: Props) {
 
@@ -181,9 +183,9 @@ export default function PracticeCalendar({
         return formatDate(new Date());
     }, []);
 
-    const endDateString = useMemo(() => {
-        return formatDate(endDate);
-    }, [endDate]);
+    const targetDateString = useMemo(() => {
+        return targetDate ? formatDate(targetDate) : null;
+    }, [targetDate]);
 
     const weekIndexes = useMemo(
         () => Array.from({ length: totalWeeks }, (_, i) => i),
@@ -534,7 +536,9 @@ export default function PracticeCalendar({
                                     {week.map((day, index) => {
 
                                         const isToday = day.date === todayString;
-                                        const isTargetDate = day.date === endDateString;
+                                        const isTargetDate =
+                                            targetDateString !== null &&
+                                            day.date === targetDateString;
 
                                         const isFirstColumn = index === 0;
                                         const isFirstRow = item === 0;
