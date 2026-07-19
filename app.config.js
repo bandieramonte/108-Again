@@ -25,7 +25,7 @@ export default {
                 : "com.bandieramonte.app108again",
             allowBackup: false,
             adaptiveIcon: {
-                backgroundColor: "#1A5FCC",
+                backgroundColor: "#F9F5F1",
                 foregroundImage: "./assets/images/icon.png",
             },
 
@@ -66,9 +66,9 @@ export default {
                 "expo-splash-screen",
                 {
                     image: "./assets/images/splash.png",
-                    imageWidth: 240,
+                    imageWidth: 340,
                     resizeMode: "contain",
-                    backgroundColor: "#1A5FCC",
+                    backgroundColor: "#F9F5F1",
                 },
             ],
             "expo-sqlite",

@@ -8,8 +8,11 @@ type Props = {
     isAuthenticated?: boolean;
 };
 
+const lightTitleImage = require("../assets/images/title-light.png");
+const darkTitleImage = require("../assets/images/title-dark.png");
+
 export default function HeaderTitle({ firstName, isAuthenticated }: Props) {
-    const { colors } = useAppTheme();
+    const { colors, isDark } = useAppTheme();
     const { t } = useI18n();
 
     return (
@@ -24,13 +27,11 @@ export default function HeaderTitle({ firstName, isAuthenticated }: Props) {
         >
             <View style={styles.titleRow}>
                 <Image
-                    source={require("../assets/images/icon.png")}
-                    style={styles.logo}
-                    resizeMode="cover"
+                    accessibilityLabel="108 Again"
+                    resizeMode="contain"
+                    source={isDark ? darkTitleImage : lightTitleImage}
+                    style={styles.titleImage}
                 />
-                <Text style={[styles.title, { color: colors.textPrimary }]}>
-                    108 Again
-                </Text>
             </View>
 
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
@@ -57,21 +58,12 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        gap: 7,
         paddingBottom: 10,
     },
 
-    logo: {
-        width: 22,
-        height: 22,
-        borderRadius: 6,
-    },
-
-    title: {
-        fontSize: 17,
-        fontWeight: "700",
-        lineHeight: 20,
-        textAlign: "center",
+    titleImage: {
+        width: 105,
+        height: 20,
     },
 
     subtitle: {
