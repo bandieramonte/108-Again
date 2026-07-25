@@ -55,6 +55,8 @@ export type PracticeReminderText = {
 };
 
 let notificationHandlerRegistered = false;
+let notificationPermissionRequest:
+    Promise<void> | null = null;
 
 export function initializePracticeReminderNotifications() {
     if (notificationHandlerRegistered) return;
@@ -224,7 +226,7 @@ async function cancelScheduledNotifications(
     );
 }
 
-async function ensureNotificationPermission(
+async function requestNotificationPermission(
     reminderText?: PracticeReminderText
 ) {
     const text = getReminderText(reminderText);
@@ -252,6 +254,25 @@ async function ensureNotificationPermission(
 
     if (finalStatus !== "granted") {
         throw new Error(text.permissionDeniedMessage);
+    }
+}
+
+async function ensureNotificationPermission(
+    reminderText?: PracticeReminderText
+) {
+    if (notificationPermissionRequest) {
+        return notificationPermissionRequest;
+    }
+
+    const request = requestNotificationPermission(reminderText);
+    notificationPermissionRequest = request;
+
+    try {
+        await request;
+    } finally {
+        if (notificationPermissionRequest === request) {
+            notificationPermissionRequest = null;
+        }
     }
 }
 
@@ -559,6 +580,8 @@ export async function refreshPracticeReminderSchedule(
     ) {
         return disablePracticeReminder(context.practiceId);
     }
+
+    await ensureNotificationPermission(context.reminderText);
 
     const next: PracticeReminderSettings = {
         ...current,

@@ -139,6 +139,73 @@ async function withBackupServiceHarness(device, storage, fn) {
   }
 }
 
+async function withPracticeReminderServiceHarness(fn) {
+  const storage = createMemoryStorage();
+  const state = {
+    permissionRequests: 0,
+    permissionStatus: "undetermined",
+    scheduledNotifications: 0,
+  };
+
+  clearRequireCache("../.build/services/practiceReminderService.js");
+
+  Module._load = function loadWithPracticeReminderServiceHarness(
+    request,
+    parent,
+    isMain
+  ) {
+    if (request === "@react-native-async-storage/async-storage") {
+      return { default: storage };
+    }
+
+    if (request === "expo-notifications") {
+      return {
+        AndroidImportance: { DEFAULT: "default" },
+        AndroidNotificationPriority: { DEFAULT: "default" },
+        SchedulableTriggerInputTypes: { DATE: "date" },
+        addNotificationResponseReceivedListener: () => ({
+          remove: () => {},
+        }),
+        cancelScheduledNotificationAsync: async () => {},
+        clearLastNotificationResponse: () => {},
+        getLastNotificationResponse: () => null,
+        getPermissionsAsync: async () => ({
+          status: state.permissionStatus,
+        }),
+        requestPermissionsAsync: async () => {
+          state.permissionRequests += 1;
+          state.permissionStatus = "granted";
+          return { status: "granted" };
+        },
+        scheduleNotificationAsync: async ({ identifier }) => {
+          state.scheduledNotifications += 1;
+          return identifier;
+        },
+        setNotificationChannelAsync: async () => {},
+        setNotificationHandler: () => {},
+      };
+    }
+
+    if (request === "react-native") {
+      return {
+        Platform: { OS: "android" },
+      };
+    }
+
+    return originalLoad.call(this, request, parent, isMain);
+  };
+
+  try {
+    const practiceReminderService =
+      require("../.build/services/practiceReminderService.js");
+
+    return await fn(practiceReminderService, state);
+  } finally {
+    Module._load = originalLoad;
+    clearRequireCache("../.build/services/practiceReminderService.js");
+  }
+}
+
 const originalLoad = Module._load;
 Module._load = function loadWithAsyncStorageMock(request, parent, isMain) {
   if (request === "@react-native-async-storage/async-storage") {
@@ -201,6 +268,7 @@ const { getPracticeReminderSettingsFromPractice } =
 const {
   buildReminderTimeOptions,
   formatReminderTimeForLocale,
+  roundToNearestHalfHour,
   roundUpToNextHalfHour,
 } =
   require("../.build/utils/reminderTime.js");
@@ -1794,7 +1862,60 @@ await test(
 );
 
 await test(
-  "reminder time picker starts at the next localized half-hour slot",
+  "restored reminders request notification permission before scheduling",
+  async () => {
+    await withPracticeReminderServiceHarness(
+      async (practiceReminderService, state) => {
+        const practiceId = "restored-reminder-practice";
+
+        await practiceReminderService.restorePracticeReminderBackupData(
+          [
+            {
+              practiceId,
+              enabled: true,
+              hour: 20,
+              minute: 30,
+            },
+          ],
+          new Set([practiceId])
+        );
+
+        await practiceReminderService.refreshPracticeReminderSchedule({
+          practiceId,
+          practiceName: "Restored reminder",
+          todayCount: 0,
+          dailyTargetCount: 108,
+        });
+
+        assert.equal(
+          state.permissionRequests,
+          1,
+          "A restored enabled reminder requests notification permission"
+        );
+        assert.ok(
+          state.scheduledNotifications > 0,
+          "The reminder schedules after permission is granted"
+        );
+
+        await practiceReminderService.refreshPracticeReminderSchedule({
+          practiceId,
+          practiceName: "Restored reminder",
+          todayCount: 0,
+          dailyTargetCount: 108,
+        });
+
+        assert.equal(
+          state.permissionRequests,
+          1,
+          "Already granted permission is not requested again"
+        );
+      }
+    );
+  }
+);
+
+await test(
+  "reminder time picker centers the nearest localized half-hour",
   () => {
     assert.deepEqual(
       roundUpToNextHalfHour(new Date(2026, 0, 1, 13, 0, 0, 0)),
@@ -1808,18 +1929,27 @@ await test(
       roundUpToNextHalfHour(new Date(2026, 0, 1, 23, 45, 0, 0)),
       { hour: 0, minute: 0 }
     );
+    assert.deepEqual(
+      roundToNearestHalfHour(new Date(2026, 0, 1, 20, 31, 0, 0)),
+      { hour: 20, minute: 30 }
+    );
+    assert.deepEqual(
+      roundToNearestHalfHour(new Date(2026, 0, 1, 20, 46, 0, 0)),
+      { hour: 21, minute: 0 }
+    );
 
     const options = buildReminderTimeOptions(
-      new Date(2026, 0, 1, 13, 11, 0, 0),
-      3
+      new Date(2026, 0, 1, 20, 31, 0, 0)
     );
 
     assert.deepEqual(
-      options.map(({ hour, minute }) => ({ hour, minute })),
+      options
+        .slice(23, 26)
+        .map(({ hour, minute }) => ({ hour, minute })),
       [
-        { hour: 13, minute: 30 },
-        { hour: 14, minute: 0 },
-        { hour: 14, minute: 30 },
+        { hour: 20, minute: 0 },
+        { hour: 20, minute: 30 },
+        { hour: 21, minute: 0 },
       ]
     );
 
@@ -1829,6 +1959,10 @@ await test(
     );
     assert.equal(
       formatReminderTimeForLocale(19, 0, "es-ES"),
+      "19:00"
+    );
+    assert.equal(
+      formatReminderTimeForLocale(19, 0, "en-US", true),
       "19:00"
     );
   }

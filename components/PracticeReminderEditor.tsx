@@ -14,6 +14,7 @@ import {
     buildReminderTimeOptions,
     formatReminderTimeForLocale,
     reminderTimeMatches,
+    roundToNearestHalfHour,
     type ReminderTimeOption,
 } from "../utils/reminderTime";
 
@@ -40,11 +41,15 @@ export default function PracticeReminderEditor({
 }: Props) {
     const { colors } = useAppTheme();
     const { locale, t } = useI18n();
-    const timeLocale =
-        Localization.getLocales()[0]?.languageTag ?? locale;
     const scrollRef = useRef<ScrollView | null>(null);
+    const [timeLocale, setTimeLocale] = useState(locale);
+    const [uses24HourClock, setUses24HourClock] =
+        useState<boolean | null>(null);
     const [timeOptions, setTimeOptions] =
         useState<ReminderTimeOption[]>(() => buildReminderTimeOptions());
+    const [currentTime, setCurrentTime] = useState(
+        () => roundToNearestHalfHour(new Date())
+    );
     const [selectedTime, setSelectedTime] = useState({
         hour: initialHour,
         minute: initialMinute,
@@ -52,37 +57,44 @@ export default function PracticeReminderEditor({
     useEffect(() => {
         if (!visible) return;
 
-        const nextOptions = buildReminderTimeOptions();
+        const openedAt = new Date();
+        const nearestCurrentTime =
+            roundToNearestHalfHour(openedAt);
+        const nextOptions = buildReminderTimeOptions(openedAt);
         const savedOption = enabled
             ? nextOptions.find(option =>
                 reminderTimeMatches(option, initialHour, initialMinute)
             )
             : null;
-        const nextSelected = savedOption ?? {
-            hour: nextOptions[0].hour,
-            minute: nextOptions[0].minute,
-        };
+        const nextSelected = savedOption ?? nearestCurrentTime;
 
         setTimeOptions(nextOptions);
+        setCurrentTime(nearestCurrentTime);
         setSelectedTime(nextSelected);
+        setTimeLocale(
+            Localization.getLocales()[0]?.languageTag ?? locale
+        );
+        setUses24HourClock(
+            Localization.getCalendars()[0]?.uses24hourClock ?? null
+        );
 
-        const nextSelectedIndex = nextOptions.findIndex(option =>
+        const currentTimeIndex = nextOptions.findIndex(option =>
             reminderTimeMatches(
                 option,
-                nextSelected.hour,
-                nextSelected.minute
+                nearestCurrentTime.hour,
+                nearestCurrentTime.minute
             )
         );
 
         setTimeout(() => {
-            if (nextSelectedIndex < 0) return;
+            if (currentTimeIndex < 0) return;
 
             scrollRef.current?.scrollTo({
                 animated: false,
-                y: Math.max(0, nextSelectedIndex * 44 - 44),
+                y: Math.max(0, currentTimeIndex * 44 - 88),
             });
         }, 0);
-    }, [visible, enabled, initialHour, initialMinute]);
+    }, [visible, enabled, initialHour, initialMinute, locale]);
 
     function save() {
         onSave(selectedTime.hour, selectedTime.minute);
@@ -143,12 +155,21 @@ export default function PracticeReminderEditor({
                                     selectedTime.hour,
                                     selectedTime.minute
                                 );
+                            const closestToNow =
+                                reminderTimeMatches(
+                                    option,
+                                    currentTime.hour,
+                                    currentTime.minute
+                                );
 
                             return (
                                 <Pressable
                                     key={option.key}
                                     style={[
                                         styles.timeOption,
+                                        closestToNow && {
+                                            borderColor: colors.primary,
+                                        },
                                         selected && {
                                             backgroundColor: colors.primary,
                                         },
@@ -171,7 +192,8 @@ export default function PracticeReminderEditor({
                                         {formatReminderTimeForLocale(
                                             option.hour,
                                             option.minute,
-                                            timeLocale
+                                            timeLocale,
+                                            uses24HourClock
                                         )}
                                     </Text>
                                 </Pressable>
@@ -288,6 +310,8 @@ const styles = StyleSheet.create({
 
     timeOption: {
         minHeight: 44,
+        borderWidth: 1,
+        borderColor: "transparent",
         borderRadius: 6,
         justifyContent: "center",
         paddingHorizontal: 12,
