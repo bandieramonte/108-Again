@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     },
 
     calendarSheet: {
-        height: Dimensions.get("window").width > 700 ? "70%" : "60%",
+        height: Dimensions.get("window").width > 700 ? "70%" : "78%",
         backgroundColor: "white",
         borderTopLeftRadius: 18,
         borderTopRightRadius: 18,

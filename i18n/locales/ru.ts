@@ -315,6 +315,10 @@ export const ru: Record<TranslationKey, string> = {
 
     "calendar.fridayShort": "П",
     "calendar.mondayShort": "П",
+    "calendar.nextMonth": "Следующий месяц",
+    "calendar.nextYear": "Следующий год",
+    "calendar.previousMonth": "Предыдущий месяц",
+    "calendar.previousYear": "Предыдущий год",
     "calendar.saturdayShort": "С",
     "calendar.sundayShort": "В",
     "calendar.thursdayShort": "Ч",

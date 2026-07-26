@@ -258,6 +258,14 @@ const { resolveInitialLanguagePreference } =
 const { formatMonthDayYear } =
   require("../.build/utils/dateUtils.js");
 const {
+  buildCalendarMonthDays,
+  clampCalendarMonthIndex,
+  getCalendarLoadedMonthIndexes,
+  getCalendarMonthIndex,
+  getCalendarPagerMonthIndexes,
+} =
+  require("../.build/utils/calendarMonth.js");
+const {
   formatCountProgress,
   formatNumberInput,
   parseFormattedNumberInput,
@@ -1857,6 +1865,78 @@ await test(
     assert.equal(
       formatMonthDayYear(date, "es-ES"),
       "enero 13, 2027"
+    );
+  }
+);
+
+await test(
+  "calendar month pages keep the focused month clear",
+  () => {
+    const july2026 = new Date(Date.UTC(2026, 6, 1));
+    const julyMonthIndex = getCalendarMonthIndex(july2026);
+    const days = buildCalendarMonthDays(julyMonthIndex);
+
+    assert.equal(days.length, 42);
+    assert.deepEqual(days[0], {
+      dateString: "2026-06-29",
+      day: 29,
+      monthIndex: julyMonthIndex - 1,
+    });
+    assert.deepEqual(days[41], {
+      dateString: "2026-08-09",
+      day: 9,
+      monthIndex: julyMonthIndex + 1,
+    });
+    assert.equal(
+      days.filter(day => day.monthIndex === julyMonthIndex).length,
+      31,
+      "July remains the focused month while adjacent dates provide context"
+    );
+    assert.equal(
+      clampCalendarMonthIndex(
+        julyMonthIndex + 12,
+        julyMonthIndex - 3,
+        julyMonthIndex
+      ),
+      julyMonthIndex,
+      "A new practice cannot focus beyond its current final month"
+    );
+    assert.deepEqual(
+      getCalendarLoadedMonthIndexes(
+        julyMonthIndex,
+        julyMonthIndex - 24,
+        julyMonthIndex + 24
+      ),
+      [
+        julyMonthIndex - 1,
+        julyMonthIndex,
+        julyMonthIndex + 1,
+      ],
+      "Only the focused month and its immediate neighbors stay rendered"
+    );
+    assert.deepEqual(
+      getCalendarPagerMonthIndexes(
+        julyMonthIndex,
+        julyMonthIndex - 24,
+        julyMonthIndex + 24
+      ),
+      Array.from(
+        { length: 25 },
+        (_, index) => julyMonthIndex - 12 + index
+      ),
+      "The pager keeps a bounded window around the focused month"
+    );
+    assert.deepEqual(
+      getCalendarPagerMonthIndexes(
+        julyMonthIndex,
+        julyMonthIndex,
+        julyMonthIndex + 24
+      ),
+      Array.from(
+        { length: 13 },
+        (_, index) => julyMonthIndex + index
+      ),
+      "The pager omits months outside the valid range"
     );
   }
 );

@@ -311,6 +311,10 @@ export const en = {
 
     "calendar.fridayShort": "F",
     "calendar.mondayShort": "M",
+    "calendar.nextMonth": "Next month",
+    "calendar.nextYear": "Next year",
+    "calendar.previousMonth": "Previous month",
+    "calendar.previousYear": "Previous year",
     "calendar.saturdayShort": "S",
     "calendar.sundayShort": "S",
     "calendar.thursdayShort": "T",

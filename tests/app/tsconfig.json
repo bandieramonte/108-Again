@@ -50,6 +50,7 @@
     "../../supabase/functions/send-auth-email/renderAuthEmail.ts",
     "../../types/sync.ts",
     "../../utils/authErrorText.ts",
+    "../../utils/calendarMonth.ts",
     "../../utils/dateUtils.ts",
     "../../utils/headerBackVisibility.ts",
     "../../utils/practiceReminderState.ts",

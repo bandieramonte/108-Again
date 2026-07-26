@@ -313,6 +313,10 @@ export const hu: Record<TranslationKey, string> = {
 
     "calendar.fridayShort": "P",
     "calendar.mondayShort": "H",
+    "calendar.nextMonth": "Következő hónap",
+    "calendar.nextYear": "Következő év",
+    "calendar.previousMonth": "Előző hónap",
+    "calendar.previousYear": "Előző év",
     "calendar.saturdayShort": "S",
     "calendar.sundayShort": "V",
     "calendar.thursdayShort": "C",

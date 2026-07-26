@@ -313,6 +313,10 @@ export const cs: Record<TranslationKey, string> = {
 
     "calendar.fridayShort": "P",
     "calendar.mondayShort": "P",
+    "calendar.nextMonth": "Následující měsíc",
+    "calendar.nextYear": "Následující rok",
+    "calendar.previousMonth": "Předchozí měsíc",
+    "calendar.previousYear": "Předchozí rok",
     "calendar.saturdayShort": "S",
     "calendar.sundayShort": "N",
     "calendar.thursdayShort": "Č",

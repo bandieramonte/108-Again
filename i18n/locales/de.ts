@@ -313,6 +313,10 @@ export const de: Record<TranslationKey, string> = {
 
     "calendar.fridayShort": "F",
     "calendar.mondayShort": "M",
+    "calendar.nextMonth": "Nächster Monat",
+    "calendar.nextYear": "Nächstes Jahr",
+    "calendar.previousMonth": "Vorheriger Monat",
+    "calendar.previousYear": "Vorheriges Jahr",
     "calendar.saturdayShort": "S",
     "calendar.sundayShort": "S",
     "calendar.thursdayShort": "D",
