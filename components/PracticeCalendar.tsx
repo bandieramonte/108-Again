@@ -13,9 +13,11 @@ import {
     View,
 } from "react-native";
 import { useI18n } from "../i18n";
+import { useCurrentLocalDate } from "../hooks/useCurrentLocalDate";
 import { useAppTheme } from "../styles/theme";
 import {
     formatCalendarDate,
+    getCalendarDateFromString,
     getCalendarMonthIndex,
     isPracticeCalendarDateEditable,
     type CalendarMonthDay,
@@ -35,6 +37,7 @@ type DayData = {
 };
 
 type Props = {
+    active: boolean;
     data: DayData[];
     startDate: Date;
     endDate: Date;
@@ -42,19 +45,12 @@ type Props = {
     onEditDay: (date: string, value: number) => void;
 };
 
-function getDateFromString(dateString: string) {
-    const [year, month, day] = dateString
-        .split("-")
-        .map(value => Number.parseInt(value, 10));
-
-    return new Date(Date.UTC(year, month - 1, day));
-}
-
 function laterDate(first: Date, second: Date) {
     return first.getTime() >= second.getTime() ? first : second;
 }
 
 export default function PracticeCalendar({
+    active,
     data,
     startDate,
     endDate,
@@ -67,7 +63,6 @@ export default function PracticeCalendar({
         () => new Intl.DateTimeFormat(locale, {
             day: "numeric",
             month: "long",
-            timeZone: "UTC",
             year: "numeric",
         }),
         [locale]
@@ -97,7 +92,7 @@ export default function PracticeCalendar({
         if (cached) return cached;
 
         const formatted = dateFormatter.format(
-            getDateFromString(dateString)
+            getCalendarDateFromString(dateString)
         );
         dateLabelCache.values.set(dateString, formatted);
 
@@ -116,7 +111,7 @@ export default function PracticeCalendar({
         () => new Map(data.map(day => [day.date, day.count])),
         [data]
     );
-    const today = useMemo(() => new Date(), []);
+    const today = useCurrentLocalDate(active);
     const todayMonthIndex = useMemo(
         () => getCalendarMonthIndex(today),
         [today]

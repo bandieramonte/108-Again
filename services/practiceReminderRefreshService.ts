@@ -5,6 +5,7 @@ import { createPracticeReminderText } from "../i18n/reminderText";
 import * as appMetaRepo from "../repositories/appMetaRepo";
 import * as practiceRepo from "../repositories/practiceRepo";
 import * as sessionRepo from "../repositories/sessionRepo";
+import { formatCalendarDate } from "../utils/calendarMonth";
 import { getPracticeReminderBackupRowFromPractice } from "../utils/practiceReminderState";
 import * as practiceReminderService from "./practiceReminderService";
 import type {
@@ -32,18 +33,8 @@ let allRefreshTimer: TimerHandle | null = null;
 const REMINDER_DB_MIGRATION_KEY =
     "practiceReminderSettingsDbMigrationApplied";
 
-function formatDateKey(date: Date) {
-    return (
-        date.getUTCFullYear() +
-        "-" +
-        String(date.getUTCMonth() + 1).padStart(2, "0") +
-        "-" +
-        String(date.getUTCDate()).padStart(2, "0")
-    );
-}
-
 function getTodayCount(practiceId: string) {
-    const todayKey = formatDateKey(new Date());
+    const todayKey = formatCalendarDate(new Date());
     const todayRow =
         sessionRepo.getDailyTotals(practiceId)
             .find(row => row.day === todayKey);

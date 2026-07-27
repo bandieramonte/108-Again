@@ -1,5 +1,14 @@
 import { db } from "../database/db";
 
+const DAY_MS = 1000 * 60 * 60 * 24;
+const SESSION_DAY_SQL = `
+  CASE
+    WHEN (s.createdAt % ${DAY_MS}) = 0
+    THEN date(s.createdAt/1000,'unixepoch')
+    ELSE date(s.createdAt/1000,'unixepoch','localtime')
+  END
+`;
+
 export type DashboardPracticeRow = {
   id: string;
   name: string;
@@ -22,7 +31,7 @@ export function getDashboardPracticeRows(): DashboardPracticeRow[] {
     0 as total,
     COALESCE(SUM(
       CASE
-        WHEN date(s.createdAt/1000,'unixepoch') = date('now')
+        WHEN ${SESSION_DAY_SQL} = date('now','localtime')
         THEN s.count
         ELSE 0
       END

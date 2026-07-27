@@ -6,10 +6,15 @@ import {
     Text,
     View,
 } from "react-native";
+import { useStableScreenDimensions } from "../hooks/useStableScreenDimensions";
 import { useI18n } from "../i18n";
+import { useCurrentLocalDate } from "../hooks/useCurrentLocalDate";
 import * as practiceService from "../services/practiceService";
 import { useAppTheme } from "../styles/theme";
-import { formatCalendarDate } from "../utils/calendarMonth";
+import {
+    formatCalendarDate,
+    getCalendarDateFromString,
+} from "../utils/calendarMonth";
 import ScrollableMonthCalendar, {
     type CalendarDayRenderContext,
 } from "./ScrollableMonthCalendar";
@@ -23,27 +28,19 @@ type Props = {
     onSave: (newDailyCount: number, selectedDate: string) => void;
 };
 
-function dateFromString(dateString: string) {
-    const [year, month, day] = dateString
-        .split("-")
-        .map(value => Number.parseInt(value, 10));
-
-    return new Date(Date.UTC(year, month - 1, day));
-}
-
 function getMaximumTargetMonth(
     today: Date,
     currentTargetDate: Date | null
 ) {
     const maximum = new Date(today);
-    maximum.setUTCFullYear(maximum.getUTCFullYear() + 100);
+    maximum.setFullYear(maximum.getFullYear() + 100);
 
     if (
         currentTargetDate &&
         currentTargetDate.getTime() > maximum.getTime()
     ) {
         maximum.setTime(currentTargetDate.getTime());
-        maximum.setUTCFullYear(maximum.getUTCFullYear() + 1);
+        maximum.setFullYear(maximum.getFullYear() + 1);
     }
 
     return maximum;
@@ -59,11 +56,11 @@ export default function TargetDateEditor({
 }: Props) {
     const { colors } = useAppTheme();
     const { locale, t } = useI18n();
+    const screen = useStableScreenDimensions();
     const dateFormatter = useMemo(
         () => new Intl.DateTimeFormat(locale, {
             day: "numeric",
             month: "long",
-            timeZone: "UTC",
             year: "numeric",
         }),
         [locale]
@@ -82,13 +79,13 @@ export default function TargetDateEditor({
         if (cached) return cached;
 
         const formatted = dateFormatter.format(
-            dateFromString(dateString)
+            getCalendarDateFromString(dateString)
         );
         dateLabelCache.values.set(dateString, formatted);
 
         return formatted;
     }, [dateFormatter, dateLabelCache]);
-    const today = useMemo(() => new Date(), []);
+    const today = useCurrentLocalDate(visible);
     const todayString = useMemo(
         () => formatCalendarDate(today),
         [today]
@@ -118,7 +115,7 @@ export default function TargetDateEditor({
             practiceService.calculateRequiredDailyCount(
                 targetCount,
                 total,
-                dateFromString(selectedDate)
+                getCalendarDateFromString(selectedDate)
             );
 
         onSave(required, selectedDate);
@@ -200,7 +197,10 @@ export default function TargetDateEditor({
             <Pressable
                 style={[
                     styles.overlay,
-                    { backgroundColor: colors.overlay },
+                    {
+                        backgroundColor: colors.overlay,
+                        height: screen.height,
+                    },
                 ]}
                 onPress={onClose}
             >
@@ -221,7 +221,9 @@ export default function TargetDateEditor({
                     </Text>
 
                     <ScrollableMonthCalendar
-                        initialMonth={dateFromString(selectedDate)}
+                        initialMonth={
+                            getCalendarDateFromString(selectedDate)
+                        }
                         maximumMonth={maximumMonth}
                         minimumMonth={today}
                         onRenderDay={renderDay}
@@ -258,7 +260,10 @@ export default function TargetDateEditor({
 
 const styles = StyleSheet.create({
     overlay: {
-        flex: 1,
+        position: "absolute",
+        top: 0,
+        right: 0,
+        left: 0,
         justifyContent: "center",
         alignItems: "center",
         padding: 16,

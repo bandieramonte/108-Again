@@ -8,14 +8,14 @@ const DAYS_PER_WEEK = 7;
 const WEEKS_PER_PAGE = 6;
 
 export function getCalendarMonthIndex(date: Date) {
-    return date.getUTCFullYear() * 12 + date.getUTCMonth();
+    return date.getFullYear() * 12 + date.getMonth();
 }
 
 export function getCalendarMonthDate(monthIndex: number) {
     const year = Math.floor(monthIndex / 12);
     const month = monthIndex - year * 12;
 
-    return new Date(Date.UTC(year, month, 1));
+    return new Date(year, month, 1);
 }
 
 export function clampCalendarMonthIndex(
@@ -70,12 +70,20 @@ export function getCalendarLoadedMonthIndexes(
 
 export function formatCalendarDate(date: Date) {
     return (
-        date.getUTCFullYear() +
+        date.getFullYear() +
         "-" +
-        String(date.getUTCMonth() + 1).padStart(2, "0") +
+        String(date.getMonth() + 1).padStart(2, "0") +
         "-" +
-        String(date.getUTCDate()).padStart(2, "0")
+        String(date.getDate()).padStart(2, "0")
     );
+}
+
+export function getCalendarDateFromString(dateString: string) {
+    const [year, month, day] = dateString
+        .split("-")
+        .map(value => Number.parseInt(value, 10));
+
+    return new Date(year, month - 1, day);
 }
 
 export function isPracticeCalendarDateEditable(
@@ -95,7 +103,6 @@ export function formatCalendarMonthLabel(
 ) {
     return getCalendarMonthDate(monthIndex).toLocaleDateString(locale, {
         month: "long",
-        timeZone: "UTC",
         year: "numeric",
     });
 }
@@ -105,22 +112,22 @@ export function buildCalendarMonthDays(
 ): CalendarMonthDay[] {
     const firstOfMonth = getCalendarMonthDate(monthIndex);
     const mondayBasedWeekday =
-        (firstOfMonth.getUTCDay() + 6) % DAYS_PER_WEEK;
+        (firstOfMonth.getDay() + 6) % DAYS_PER_WEEK;
     const firstVisibleDate = new Date(firstOfMonth);
 
-    firstVisibleDate.setUTCDate(
-        firstVisibleDate.getUTCDate() - mondayBasedWeekday
+    firstVisibleDate.setDate(
+        firstVisibleDate.getDate() - mondayBasedWeekday
     );
 
     return Array.from(
         { length: DAYS_PER_WEEK * WEEKS_PER_PAGE },
         (_, index) => {
             const date = new Date(firstVisibleDate);
-            date.setUTCDate(firstVisibleDate.getUTCDate() + index);
+            date.setDate(firstVisibleDate.getDate() + index);
 
             return {
                 dateString: formatCalendarDate(date),
-                day: date.getUTCDate(),
+                day: date.getDate(),
                 monthIndex: getCalendarMonthIndex(date),
             };
         }

@@ -1,5 +1,8 @@
 import { DEFAULT_PRACTICES, SEEDED_IDS } from "../constants/defaultPractices";
 import { SyncMetadata } from "../types/sync";
+import {
+    formatCalendarDate,
+} from "../utils/calendarMonth";
 import { MAX_TARGET_COUNT } from "../utils/numberUtils";
 import {
     getPracticeReminderBackupRowFromPractice,
@@ -195,18 +198,6 @@ export type AddedSessionResult = {
 };
 
 const BACKUP_APP_ID = "app108again";
-
-function dayStringFromTimestamp(timestamp: number) {
-    const date = new Date(timestamp);
-
-    return (
-        date.getUTCFullYear() +
-        "-" +
-        String(date.getUTCMonth() + 1).padStart(2, "0") +
-        "-" +
-        String(date.getUTCDate()).padStart(2, "0")
-    );
-}
 
 export function createAppOperationEngine(deps: AppOperationEngineDeps) {
     const now = deps.now ?? Date.now;
@@ -655,7 +646,9 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         }
 
         const syncMetadata = getWriteSyncMetadata();
-        const dayString = dayStringFromTimestamp(operationNow);
+        const dayString = formatCalendarDate(
+            new Date(operationNow)
+        );
         const existing = deps.sessionRepo.getSessionForDay(
             practiceId,
             dayString
@@ -722,7 +715,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                 deps.randomUUID(),
                 practiceId,
                 newTotal,
-                new Date(date + "T00:00:00Z").getTime(),
+                Date.parse(`${date}T00:00:00Z`),
                 syncMetadata
             );
         }
@@ -815,7 +808,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
             const date = new Date(today);
             date.setDate(today.getDate() - i);
 
-            const dayString = dayStringFromTimestamp(date.getTime());
+            const dayString = formatCalendarDate(date);
             const match = rows.find((row) => row.day === dayString);
 
             result.push({

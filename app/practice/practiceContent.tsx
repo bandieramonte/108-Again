@@ -30,6 +30,10 @@ import * as practiceService from "../../services/practiceService";
 import * as sessionService from "../../services/sessionService";
 import { APP_SIDE_PADDING } from "../../styles/global";
 import { colors, useAppTheme, useGlobalStyles } from "../../styles/theme";
+import {
+    formatCalendarDate,
+    getCalendarDateFromString,
+} from "../../utils/calendarMonth";
 import { subscribeData } from "../../utils/events";
 import {
     digitsOnly,
@@ -139,7 +143,7 @@ export default function PracticeContent({
     const hasDailyTarget =
         effectiveDailyTargetCount != null &&
         effectiveDailyTargetCount > 0;
-    const todayDate = formatDateKey(new Date());
+    const todayDate = formatCalendarDate(new Date());
     const todayCount = useMemo(() => {
         return calendarData.find(day => day.date === todayDate)?.count ?? 0;
     }, [calendarData, todayDate]);
@@ -452,16 +456,6 @@ export default function PracticeContent({
         setTimeout(() => {
             setDateAdjustedInfo(null);
         }, 4000);
-    }
-
-    function formatDateKey(date: Date) {
-        return (
-            date.getUTCFullYear() +
-            "-" +
-            String(date.getUTCMonth() + 1).padStart(2, "0") +
-            "-" +
-            String(date.getUTCDate()).padStart(2, "0")
-        );
     }
 
     function openReminderEditor() {
@@ -1178,7 +1172,10 @@ export default function PracticeContent({
                             );
                             setDailyTargetCount(String(newDaily));
 
-                            const selectedDate = new Date(selectedDateStr);
+                            const selectedDate =
+                                getCalendarDateFromString(
+                                    selectedDateStr
+                                );
 
                             const actualDate =
                                 practiceService.getExpectedTargetDate(

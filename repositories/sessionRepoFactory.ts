@@ -1,5 +1,6 @@
 import type { SqliteDatabase } from "../database/sqliteTypes";
 import type { SyncMetadata, SyncStatus } from "../types/sync";
+import { formatCalendarDate } from "../utils/calendarMonth";
 
 export type SessionRow = {
     id: string;
@@ -18,17 +19,20 @@ type PracticeTotalRow = {
 };
 
 const DAY_MS = 1000 * 60 * 60 * 24;
+const SESSION_DAY_SQL = `
+    CASE
+        WHEN (createdAt % ${DAY_MS}) = 0
+        THEN date(createdAt/1000,'unixepoch')
+        ELSE date(createdAt/1000,'unixepoch','localtime')
+    END
+`;
 
 function dayStringFromTimestamp(timestamp: number) {
-    const date = new Date(timestamp);
+    if (timestamp % DAY_MS === 0) {
+        return new Date(timestamp).toISOString().slice(0, 10);
+    }
 
-    return (
-        date.getUTCFullYear() +
-        "-" +
-        String(date.getUTCMonth() + 1).padStart(2, "0") +
-        "-" +
-        String(date.getUTCDate()).padStart(2, "0")
-    );
+    return formatCalendarDate(new Date(timestamp));
 }
 
 function dayStartTimestamp(day: string) {
@@ -169,7 +173,7 @@ export function createSessionRepo(database: SqliteDatabase) {
         return database.getAllSync(
             `
     SELECT
-      date(createdAt/1000,'unixepoch') as day,
+      ${SESSION_DAY_SQL} as day,
       SUM(count) as total
     FROM sessions
     WHERE practiceId = ?
@@ -199,9 +203,9 @@ export function createSessionRepo(database: SqliteDatabase) {
     function getSessionDays() {
         return database.getAllSync(`
     SELECT
-      date(createdAt/1000,'unixepoch') as day
+      ${SESSION_DAY_SQL} as day
     FROM sessions
-    GROUP BY date(createdAt/1000,'unixepoch')
+    GROUP BY day
     HAVING COALESCE(SUM(count), 0) > 0
     ORDER BY day DESC
   `) as { day: string }[];
@@ -333,7 +337,7 @@ export function createSessionRepo(database: SqliteDatabase) {
             lastSyncedAt
         FROM sessions
         WHERE practiceId = ?
-        AND date(createdAt/1000,'unixepoch') = ?
+        AND ${SESSION_DAY_SQL} = ?
         LIMIT 1
         `,
             practiceId,
@@ -376,7 +380,7 @@ export function createSessionRepo(database: SqliteDatabase) {
         SELECT *
         FROM sessions
         WHERE practiceId = ?
-        AND date(createdAt/1000,'unixepoch') = ?
+        AND ${SESSION_DAY_SQL} = ?
         AND deletedAt IS NOT NULL
         LIMIT 1
         `,
@@ -566,9 +570,9 @@ export function createSessionRepo(database: SqliteDatabase) {
             new Date(now);
         const todayUtc =
             new Date(Date.UTC(
-                today.getUTCFullYear(),
-                today.getUTCMonth(),
-                today.getUTCDate()
+                today.getFullYear(),
+                today.getMonth(),
+                today.getDate()
             ));
         const diffFromToday = Math.round(
             (todayUtc.getTime() - lastDate.getTime()) /

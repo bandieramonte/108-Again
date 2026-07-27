@@ -1,6 +1,5 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import {
-    Dimensions,
     Modal,
     Pressable,
     StyleSheet,
@@ -9,6 +8,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState } from "react";
+import { useStableScreenDimensions } from "../hooks/useStableScreenDimensions";
 import { useI18n } from "../i18n";
 import { useAppTheme } from "../styles/theme";
 import PracticeCalendar from "./PracticeCalendar";
@@ -41,7 +41,10 @@ export default function PracticeCalendarModal({
     const { colors } = useAppTheme();
     const { t } = useI18n();
     const [infoOpen, setInfoOpen] = useState(false);
+    const screen = useStableScreenDimensions();
     const sheetBottomPadding = Math.max(10, insets.bottom);
+    const sheetHeight =
+        screen.height * (screen.width > 700 ? 0.7 : 0.78);
 
     return (
         <>
@@ -55,7 +58,10 @@ export default function PracticeCalendarModal({
                 <Pressable
                     style={[
                         styles.calendarOverlay,
-                        { backgroundColor: colors.overlay },
+                        {
+                            backgroundColor: colors.overlay,
+                            height: screen.height,
+                        },
                     ]}
                     onPress={onClose}
                 >
@@ -66,6 +72,7 @@ export default function PracticeCalendarModal({
                                 backgroundColor: colors.background,
                                 shadowColor: colors.shadow,
                                 paddingBottom: sheetBottomPadding,
+                                height: sheetHeight,
                             },
                         ]}
                         onPress={() => { }}
@@ -115,6 +122,7 @@ export default function PracticeCalendarModal({
                         </View>
 
                         <PracticeCalendar
+                            active={visible}
                             data={data}
                             startDate={startDate}
                             endDate={endDate}
@@ -202,13 +210,15 @@ const styles = StyleSheet.create({
     },
 
     calendarOverlay: {
-        flex: 1,
+        position: "absolute",
+        top: 0,
+        right: 0,
+        left: 0,
         justifyContent: "flex-end",
         backgroundColor: "rgba(0,0,0,0.15)",
     },
 
     calendarSheet: {
-        height: Dimensions.get("window").width > 700 ? "70%" : "78%",
         backgroundColor: "white",
         borderTopLeftRadius: 18,
         borderTopRightRadius: 18,

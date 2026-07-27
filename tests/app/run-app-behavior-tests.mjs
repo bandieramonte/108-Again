@@ -260,6 +260,8 @@ const { formatMonthDayYear } =
 const {
   buildCalendarMonthDays,
   clampCalendarMonthIndex,
+  formatCalendarDate,
+  getCalendarDateFromString,
   getCalendarLoadedMonthIndexes,
   getCalendarMonthIndex,
   getCalendarPagerMonthIndexes,
@@ -915,6 +917,35 @@ await test(
 
     assert.equal(lifetimeStats.averageSessionSize, 50);
     assert.equal(lifetimeStats.largestSession, 200);
+  }
+);
+
+await test(
+  "practice days follow the phone calendar date instead of UTC",
+  () => {
+    const sessionTime = Date.parse("2026-07-26T22:30:00.000Z");
+    const expectedLocalDay = formatCalendarDate(
+      new Date(sessionTime)
+    );
+    const device = makeLocalDevice(null, () => sessionTime);
+    const practiceId = device.operations.createPractice(
+      "Local Calendar Day Practice",
+      10000
+    );
+
+    device.operations.addSession(practiceId, 108);
+
+    assert.deepEqual(
+      device.operations.getCalendarDailyData(practiceId),
+      [{ date: expectedLocalDay, count: 108 }]
+    );
+    assert.equal(
+      formatCalendarDate(
+        getCalendarDateFromString(expectedLocalDay)
+      ),
+      expectedLocalDay,
+      "Calendar date strings round trip in local time"
+    );
   }
 );
 
@@ -1930,7 +1961,7 @@ await test(
 await test(
   "calendar month pages keep the focused month clear",
   () => {
-    const july2026 = new Date(Date.UTC(2026, 6, 1));
+    const july2026 = new Date(2026, 6, 1);
     const julyMonthIndex = getCalendarMonthIndex(july2026);
     const days = buildCalendarMonthDays(julyMonthIndex);
 

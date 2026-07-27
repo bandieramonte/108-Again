@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import { formatCalendarDate } from "../utils/calendarMonth";
 import { formatNumber } from "../utils/numberUtils";
 
 const STORAGE_KEY_PREFIX = "practiceReminder:";
@@ -95,16 +96,6 @@ function isValidTime(hour: number, minute: number) {
         hour <= 23 &&
         minute >= 0 &&
         minute <= 59
-    );
-}
-
-function formatDateKey(date: Date) {
-    return (
-        date.getUTCFullYear() +
-        "-" +
-        String(date.getUTCMonth() + 1).padStart(2, "0") +
-        "-" +
-        String(date.getUTCDate()).padStart(2, "0")
     );
 }
 
@@ -284,7 +275,7 @@ function getDesiredReminderDates({
     reminderText,
 }: PracticeReminderSettings & ReminderScheduleContext) {
     const now = new Date();
-    const todayKey = formatDateKey(now);
+    const todayKey = formatCalendarDate(now);
     const isTodayFinished =
         dailyTargetCount != null &&
         dailyTargetCount > 0 &&
@@ -298,7 +289,7 @@ function getDesiredReminderDates({
 
         if (scheduledAt.getTime() <= now.getTime()) continue;
 
-        const date = formatDateKey(scheduledAt);
+        const date = formatCalendarDate(scheduledAt);
 
         if (date === todayKey && isTodayFinished) continue;
 
