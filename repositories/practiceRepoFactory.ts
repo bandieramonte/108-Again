@@ -13,6 +13,7 @@ export type PracticeRow = {
     reminderEnabled?: number | boolean | null;
     reminderHour?: number | null;
     reminderMinute?: number | null;
+    calendarStartDate?: number | null;
     userId?: string | null;
     updatedAt?: number | null;
     syncStatus?: SyncStatus;
@@ -38,6 +39,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
       reminderEnabled,
       reminderHour,
       reminderMinute,
+      calendarStartDate,
       userId,
       updatedAt,
       syncStatus,
@@ -64,6 +66,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
       reminderEnabled,
       reminderHour,
       reminderMinute,
+      calendarStartDate,
       userId,
       updatedAt,
       syncStatus,
@@ -86,7 +89,13 @@ export function createPracticeRepo(database: SqliteDatabase) {
         reminderEnabled: boolean | number = false,
         reminderHour: number = 20,
         reminderMinute: number = 0,
+        calendarStartDate: number | null = null,
     ): void {
+        const effectiveCalendarStartDate =
+            calendarStartDate ??
+            syncMetadata.updatedAt ??
+            Date.now();
+
         database.runSync(
             `INSERT INTO practices (
       id,
@@ -100,11 +109,12 @@ export function createPracticeRepo(database: SqliteDatabase) {
       reminderEnabled,
       reminderHour,
       reminderMinute,
+      calendarStartDate,
       userId,
       updatedAt,
       syncStatus,
       lastSyncedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             id,
             name,
             target,
@@ -116,6 +126,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
             reminderEnabled ? 1 : 0,
             reminderHour,
             reminderMinute,
+            effectiveCalendarStartDate,
             syncMetadata.userId,
             syncMetadata.updatedAt,
             syncMetadata.syncStatus,
@@ -364,6 +375,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
       reminderEnabled,
       reminderHour,
       reminderMinute,
+      calendarStartDate,
       userId,
       updatedAt,
       syncStatus,
@@ -428,6 +440,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
         reminder_enabled?: boolean | null;
         reminder_hour?: number | null;
         reminder_minute?: number | null;
+        calendar_start_date?: string | null;
         updated_at: string;
         deleted_at: string | null;
     }) {
@@ -450,12 +463,13 @@ export function createPracticeRepo(database: SqliteDatabase) {
         reminderEnabled,
         reminderHour,
         reminderMinute,
+        calendarStartDate,
         userId,
         updatedAt,
         syncStatus,
         lastSyncedAt
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
       ON CONFLICT(id) DO UPDATE SET
         name = excluded.name,
         targetCount = excluded.targetCount,
@@ -467,6 +481,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
         reminderEnabled = excluded.reminderEnabled,
         reminderHour = excluded.reminderHour,
         reminderMinute = excluded.reminderMinute,
+        calendarStartDate = excluded.calendarStartDate,
         userId = excluded.userId,
         updatedAt = excluded.updatedAt,
         syncStatus = 'synced',
@@ -483,6 +498,9 @@ export function createPracticeRepo(database: SqliteDatabase) {
             row.reminder_enabled ? 1 : 0,
             row.reminder_hour ?? 20,
             row.reminder_minute ?? 0,
+            row.calendar_start_date
+                ? new Date(row.calendar_start_date).getTime()
+                : new Date(row.updated_at).getTime(),
             row.user_id,
             new Date(row.updated_at).getTime(),
             Date.now()
@@ -526,11 +544,28 @@ export function createPracticeRepo(database: SqliteDatabase) {
         UPDATE practices
         SET
             totalOffset = 0,
+            calendarStartDate = ?,
             userId = ?,
             updatedAt = ?,
             syncStatus = 'pending',
             lastSyncedAt = NULL
-    `, userId, updatedAt);
+    `, updatedAt, userId, updatedAt);
+    }
+
+    function backfillMissingCalendarStartDates(fallbackDate: number) {
+        database.runSync(
+            `UPDATE practices
+             SET calendarStartDate = COALESCE(
+               (
+                 SELECT MIN(s.createdAt)
+                 FROM sessions s
+                 WHERE s.practiceId = practices.id
+               ),
+               ?
+             )
+             WHERE calendarStartDate IS NULL`,
+            fallbackDate
+        );
     }
 
     function markAllPracticesPending(userId: string, updatedAt: number) {
@@ -557,6 +592,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
 
     return {
         claimAnonymousPractices,
+        backfillMissingCalendarStartDates,
         deleteAllPractices,
         deletePractice,
         getAllPractices,

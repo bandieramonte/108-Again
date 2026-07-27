@@ -78,6 +78,17 @@ export function formatCalendarDate(date: Date) {
     );
 }
 
+export function isPracticeCalendarDateEditable(
+    dateString: string,
+    startDateString: string,
+    todayString: string
+) {
+    return (
+        dateString >= startDateString &&
+        dateString <= todayString
+    );
+}
+
 export function formatCalendarMonthLabel(
     monthIndex: number,
     locale: string

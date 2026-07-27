@@ -24,6 +24,7 @@ export type RemotePracticeRow = {
     reminder_enabled?: boolean | null;
     reminder_hour?: number | null;
     reminder_minute?: number | null;
+    calendar_start_date?: string | null;
     updated_at: string;
     deleted_at: string | null;
 };
@@ -50,6 +51,7 @@ export type LocalPracticeRow = {
     reminderEnabled?: number | boolean | null;
     reminderHour?: number | null;
     reminderMinute?: number | null;
+    calendarStartDate?: number | null;
     userId?: string | null;
     updatedAt?: number | null;
     syncStatus?: string | null;
@@ -487,6 +489,11 @@ export function createSyncEngine(deps: SyncEngineDeps) {
                     row.reminderEnabled === 1,
                 reminder_hour: row.reminderHour ?? 20,
                 reminder_minute: row.reminderMinute ?? 0,
+                calendar_start_date: new Date(
+                    row.calendarStartDate ??
+                    row.updatedAt ??
+                    now()
+                ).toISOString(),
                 updated_at: new Date(row.updatedAt ?? now()).toISOString(),
                 deleted_at: null,
             };
@@ -669,6 +676,9 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             reminder_enabled: parsed.reminderEnabled === true,
             reminder_hour: parsed.reminderHour ?? 20,
             reminder_minute: parsed.reminderMinute ?? 0,
+            calendar_start_date: new Date(
+                parsed.calendarStartDate ?? row.deletedAt
+            ).toISOString(),
             updated_at: deletedAt,
             deleted_at: deletedAt,
         };

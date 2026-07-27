@@ -16,6 +16,8 @@ import { useI18n } from "../i18n";
 import { useAppTheme } from "../styles/theme";
 import {
     formatCalendarDate,
+    getCalendarMonthIndex,
+    isPracticeCalendarDateEditable,
     type CalendarMonthDay,
 } from "../utils/calendarMonth";
 import {
@@ -24,6 +26,7 @@ import {
 } from "../utils/numberUtils";
 import ScrollableMonthCalendar, {
     type CalendarDayRenderContext,
+    type ScrollableMonthCalendarHandle,
 } from "./ScrollableMonthCalendar";
 
 type DayData = {
@@ -114,12 +117,26 @@ export default function PracticeCalendar({
         [data]
     );
     const today = useMemo(() => new Date(), []);
+    const todayMonthIndex = useMemo(
+        () => getCalendarMonthIndex(today),
+        [today]
+    );
     const todayString = useMemo(
         () => formatCalendarDate(today),
         [today]
     );
+    const startDateString = useMemo(
+        () => formatCalendarDate(startDate),
+        [startDate]
+    );
     const targetDateString = useMemo(
         () => targetDate ? formatCalendarDate(targetDate) : null,
+        [targetDate]
+    );
+    const targetMonthIndex = useMemo(
+        () => targetDate
+            ? getCalendarMonthIndex(targetDate)
+            : null,
         [targetDate]
     );
     const maximumMonth = useMemo(
@@ -129,6 +146,10 @@ export default function PracticeCalendar({
     const [editingDate, setEditingDate] =
         useState<string | null>(null);
     const [editingValue, setEditingValue] = useState("");
+    const [focusedMonthIndex, setFocusedMonthIndex] =
+        useState(todayMonthIndex);
+    const calendarRef =
+        useRef<ScrollableMonthCalendarHandle>(null);
     const inputRef = useRef<TextInput>(null);
     const commitInProgressRef = useRef(false);
 
@@ -155,7 +176,13 @@ export default function PracticeCalendar({
     }, [editingDate, editingValue, onEditDay]);
 
     const startEditing = useCallback((day: CalendarMonthDay) => {
-        if (day.dateString > todayString) return;
+        if (!isPracticeCalendarDateEditable(
+            day.dateString,
+            startDateString,
+            todayString
+        )) {
+            return;
+        }
 
         if (editingDate && editingDate !== day.dateString) {
             onEditDay(
@@ -178,12 +205,17 @@ export default function PracticeCalendar({
         editingValue,
         locale,
         onEditDay,
+        startDateString,
         todayString,
     ]);
 
     const renderDay = useCallback((day: CalendarDayRenderContext) => {
         const count = dataMap.get(day.dateString) ?? 0;
-        const editable = day.dateString <= todayString;
+        const editable = isPracticeCalendarDateEditable(
+            day.dateString,
+            startDateString,
+            todayString
+        );
         const isToday = day.dateString === todayString;
         const isTargetDate =
             targetDateString != null &&
@@ -297,9 +329,17 @@ export default function PracticeCalendar({
         getLocalizedDateLabel,
         getLocalizedNumber,
         startEditing,
+        startDateString,
         targetDateString,
         todayString,
     ]);
+    const handleFocusedMonthChange = useCallback((month: Date) => {
+        const monthIndex = getCalendarMonthIndex(month);
+
+        setFocusedMonthIndex(current =>
+            current === monthIndex ? current : monthIndex
+        );
+    }, []);
 
     const editor = editingDate ? (
         <View
@@ -377,19 +417,136 @@ export default function PracticeCalendar({
     return (
         <View style={styles.container}>
             <ScrollableMonthCalendar
+                ref={calendarRef}
                 headerAccessory={editor}
                 initialMonth={today}
                 maximumMonth={maximumMonth}
                 minimumMonth={startDate}
+                onFocusedMonthChange={handleFocusedMonthChange}
                 onRenderDay={renderDay}
             />
+
+            {targetDate && targetMonthIndex != null ? (
+                <View style={styles.jumpControls}>
+                    <CalendarJumpButton
+                        disabled={
+                            focusedMonthIndex === todayMonthIndex
+                        }
+                        icon="today"
+                        label={t("common.today")}
+                        onPress={() =>
+                            calendarRef.current?.focusMonth(today)
+                        }
+                    />
+
+                    <CalendarJumpButton
+                        accentColor={colors.warning}
+                        disabled={
+                            focusedMonthIndex === targetMonthIndex
+                        }
+                        icon="flag"
+                        label={t("practice.targetDate")}
+                        onPress={() =>
+                            calendarRef.current?.focusMonth(
+                                targetDate
+                            )
+                        }
+                    />
+                </View>
+            ) : null}
         </View>
+    );
+}
+
+type CalendarJumpButtonProps = {
+    accentColor?: string;
+    disabled: boolean;
+    icon: React.ComponentProps<typeof MaterialIcons>["name"];
+    label: string;
+    onPress: () => void;
+};
+
+function CalendarJumpButton({
+    accentColor,
+    disabled,
+    icon,
+    label,
+    onPress,
+}: CalendarJumpButtonProps) {
+    const { colors } = useAppTheme();
+    const buttonColor = accentColor ?? colors.primary;
+
+    return (
+        <Pressable
+            accessibilityLabel={label}
+            accessibilityRole="button"
+            accessibilityState={{ disabled }}
+            disabled={disabled}
+            onPress={onPress}
+            style={({ pressed }) => [
+                styles.jumpButton,
+                {
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor:
+                        accentColor ?? colors.borderSubtle,
+                },
+                disabled && styles.jumpButtonDisabled,
+                pressed && styles.pressed,
+            ]}
+        >
+            <MaterialIcons
+                name={icon}
+                size={17}
+                color={buttonColor}
+            />
+            <Text
+                numberOfLines={1}
+                style={[
+                    styles.jumpButtonText,
+                    { color: buttonColor },
+                ]}
+            >
+                {label}
+            </Text>
+        </Pressable>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         marginTop: 8,
+    },
+
+    jumpControls: {
+        marginTop: 8,
+        paddingHorizontal: 8,
+        flexDirection: "row",
+        justifyContent: "center",
+        gap: 8,
+    },
+
+    jumpButton: {
+        minWidth: 0,
+        maxWidth: 180,
+        minHeight: 36,
+        paddingHorizontal: 12,
+        borderWidth: 1,
+        borderRadius: 8,
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+    },
+
+    jumpButtonDisabled: {
+        opacity: 0.45,
+    },
+
+    jumpButtonText: {
+        minWidth: 0,
+        fontSize: 13,
+        fontWeight: "600",
     },
 
     editorBar: {

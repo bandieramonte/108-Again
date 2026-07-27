@@ -18,6 +18,7 @@ export type OperationPracticeRow = {
     reminderEnabled?: number | boolean | null;
     reminderHour?: number | null;
     reminderMinute?: number | null;
+    calendarStartDate?: number | null;
     userId?: string | null;
     updatedAt?: number | null;
     syncStatus?: string | null;
@@ -52,7 +53,8 @@ type OperationPracticeRepo = {
         totalOffset?: number,
         reminderEnabled?: boolean | number,
         reminderHour?: number,
-        reminderMinute?: number
+        reminderMinute?: number,
+        calendarStartDate?: number | null
     ): void;
     updatePractice(
         id: string,
@@ -593,6 +595,8 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                                 ),
                             reminderHour: practice.reminderHour ?? 20,
                             reminderMinute: practice.reminderMinute ?? 0,
+                            calendarStartDate:
+                                practice.calendarStartDate ?? deletedAt,
                         })
                     );
                 }
@@ -921,6 +925,9 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                                     reminderHour: practice.reminderHour ?? 20,
                                     reminderMinute:
                                         practice.reminderMinute ?? 0,
+                                    calendarStartDate:
+                                        practice.calendarStartDate ??
+                                        restoredAt,
                                 })
                             );
                         }
@@ -1038,6 +1045,29 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
             : [];
         const reminderByPracticeId = getReminderBackupByPracticeId(data);
         const syncMetadata = getBackupSyncMetadata();
+        const importedAt = syncMetadata.updatedAt ?? now();
+        const earliestSessionByPracticeId =
+            new Map<string, number>();
+
+        for (const session of sessions) {
+            if (
+                typeof session?.practiceId !== "string" ||
+                typeof session?.createdAt !== "number" ||
+                !Number.isFinite(session.createdAt)
+            ) {
+                continue;
+            }
+
+            const existing =
+                earliestSessionByPracticeId.get(session.practiceId);
+
+            if (existing == null || session.createdAt < existing) {
+                earliestSessionByPracticeId.set(
+                    session.practiceId,
+                    session.createdAt
+                );
+            }
+        }
 
         await deps.enqueueWrite(() => {
             deps.transaction(() => {
@@ -1063,7 +1093,9 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                         practice.totalOffset ?? 0,
                         reminder?.enabled ?? false,
                         reminder?.hour ?? 20,
-                        reminder?.minute ?? 0
+                        reminder?.minute ?? 0,
+                        earliestSessionByPracticeId.get(practice.id) ??
+                            importedAt
                     );
                 });
 

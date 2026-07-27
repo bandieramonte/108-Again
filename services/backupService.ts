@@ -199,6 +199,19 @@ export function validateBackup(data: any) {
             p.defaultAddCount,
             "default add count"
         );
+
+        if (
+            p.calendarStartDate != null &&
+            (
+                typeof p.calendarStartDate !== "number" ||
+                !Number.isFinite(p.calendarStartDate) ||
+                p.calendarStartDate < 0 ||
+                p.calendarStartDate >
+                    Date.now() + 1000 * 60 * 60 * 24 * 365 * 10
+            )
+        ) {
+            throw new Error("Invalid calendar start date");
+        }
     }
 
     if (Array.isArray(data.practiceReminders)) {

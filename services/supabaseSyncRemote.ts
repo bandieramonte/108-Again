@@ -34,6 +34,7 @@ export function createSupabaseSyncRemote(
                     reminder_enabled,
                     reminder_hour,
                     reminder_minute,
+                    calendar_start_date,
                     updated_at,
                     deleted_at
                 `)
@@ -84,6 +85,7 @@ export function createSupabaseSyncRemote(
                     reminder_enabled,
                     reminder_hour,
                     reminder_minute,
+                    calendar_start_date,
                     updated_at,
                     deleted_at
                 `)

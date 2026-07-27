@@ -47,7 +47,8 @@ export function initializeDatabaseSchema(db: SqliteDatabase) {
       totalOffset INTEGER,
       reminderEnabled INTEGER,
       reminderHour INTEGER,
-      reminderMinute INTEGER
+      reminderMinute INTEGER,
+      calendarStartDate INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
@@ -92,6 +93,7 @@ export function initializeDatabaseSchema(db: SqliteDatabase) {
   addColumnIfMissing(db, "practices", "reminderEnabled", "reminderEnabled INTEGER DEFAULT 0");
   addColumnIfMissing(db, "practices", "reminderHour", "reminderHour INTEGER DEFAULT 20");
   addColumnIfMissing(db, "practices", "reminderMinute", "reminderMinute INTEGER DEFAULT 0");
+  addColumnIfMissing(db, "practices", "calendarStartDate", "calendarStartDate INTEGER");
   addColumnIfMissing(db, "practices", "userId", "userId TEXT");
   addColumnIfMissing(db, "practices", "updatedAt", "updatedAt INTEGER");
   addColumnIfMissing(db, "practices", "syncStatus", "syncStatus TEXT DEFAULT 'synced'");

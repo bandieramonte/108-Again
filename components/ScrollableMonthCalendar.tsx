@@ -2,17 +2,20 @@ import React, {
     ReactNode,
     useCallback,
     useEffect,
+    useImperativeHandle,
     useMemo,
     useRef,
     useState,
 } from "react";
 import {
+    InteractionManager,
     StyleSheet,
     Text,
     useWindowDimensions,
     View,
 } from "react-native";
 import PagerView, {
+    type PageScrollStateChangedNativeEvent,
     type PagerViewOnPageSelectedEvent,
 } from "react-native-pager-view";
 import { useI18n } from "../i18n";
@@ -22,6 +25,7 @@ import {
     clampCalendarMonthIndex,
     formatCalendarMonthLabel,
     getCalendarLoadedMonthIndexes,
+    getCalendarMonthDate,
     getCalendarMonthIndex,
     getCalendarPagerMonthIndexes,
     type CalendarMonthDay,
@@ -38,7 +42,12 @@ type Props = {
     initialMonth: Date;
     maximumMonth: Date;
     minimumMonth: Date;
+    onFocusedMonthChange?: (month: Date) => void;
     onRenderDay: (day: CalendarDayRenderContext) => ReactNode;
+};
+
+export type ScrollableMonthCalendarHandle = {
+    focusMonth: (month: Date) => void;
 };
 
 type MonthPageProps = {
@@ -107,13 +116,17 @@ const CalendarMonthPage = React.memo(function CalendarMonthPage({
     );
 });
 
-export default function ScrollableMonthCalendar({
+const ScrollableMonthCalendar = React.forwardRef<
+    ScrollableMonthCalendarHandle,
+    Props
+>(function ScrollableMonthCalendar({
     headerAccessory,
     initialMonth,
     maximumMonth,
     minimumMonth,
+    onFocusedMonthChange,
     onRenderDay,
-}: Props) {
+}, ref) {
     const { colors } = useAppTheme();
     const { locale, t } = useI18n();
     const { width } = useWindowDimensions();
@@ -139,6 +152,11 @@ export default function ScrollableMonthCalendar({
         useState(requestedInitialMonthIndex);
     const [focusedMonthIndex, setFocusedMonthIndex] =
         useState(requestedInitialMonthIndex);
+    const focusedMonthIndexRef = useRef(
+        requestedInitialMonthIndex
+    );
+    const pendingRecenterMonthIndexRef =
+        useRef<number | null>(null);
     const [pagerGeneration, setPagerGeneration] = useState(0);
     const [loadedMonthIndexes, setLoadedMonthIndexes] = useState(
         () => new Set([requestedInitialMonthIndex])
@@ -210,9 +228,22 @@ export default function ScrollableMonthCalendar({
 
         setLoadedMonthIndexes(new Set([clampedMonthIndex]));
         setPagerAnchorMonthIndex(clampedMonthIndex);
+        focusedMonthIndexRef.current = clampedMonthIndex;
         setFocusedMonthIndex(clampedMonthIndex);
         setPagerGeneration(current => current + 1);
     }, [maximumMonthIndex, minimumMonthIndex]);
+
+    useImperativeHandle(ref, () => ({
+        focusMonth(month: Date) {
+            rebuildPager(getCalendarMonthIndex(month));
+        },
+    }), [rebuildPager]);
+
+    useEffect(() => {
+        onFocusedMonthChange?.(
+            getCalendarMonthDate(focusedMonthIndex)
+        );
+    }, [focusedMonthIndex, onFocusedMonthChange]);
 
     useEffect(() => {
         if (
@@ -228,14 +259,14 @@ export default function ScrollableMonthCalendar({
     }, [rebuildPager, requestedInitialMonthIndex]);
 
     useEffect(() => {
-        const frame = requestAnimationFrame(() => {
-            loadMonthAndNeighbors(focusedMonthIndex);
+        const task = InteractionManager.runAfterInteractions(() => {
+            loadMonthAndNeighbors(focusedMonthIndexRef.current);
         });
 
-        return () => cancelAnimationFrame(frame);
+        return () => task.cancel();
     }, [
-        focusedMonthIndex,
         loadMonthAndNeighbors,
+        pagerAnchorMonthIndex,
         pagerGeneration,
     ]);
 
@@ -248,8 +279,9 @@ export default function ScrollableMonthCalendar({
 
         if (
             typeof selectedMonthIndex === "number" &&
-            selectedMonthIndex !== focusedMonthIndex
+            selectedMonthIndex !== focusedMonthIndexRef.current
         ) {
+            focusedMonthIndexRef.current = selectedMonthIndex;
             setFocusedMonthIndex(selectedMonthIndex);
 
             const reachedFirstPage =
@@ -260,18 +292,32 @@ export default function ScrollableMonthCalendar({
                 selectedMonthIndex < maximumMonthIndex;
 
             if (reachedFirstPage || reachedLastPage) {
-                requestAnimationFrame(() => {
-                    rebuildPager(selectedMonthIndex);
-                });
+                pendingRecenterMonthIndexRef.current =
+                    selectedMonthIndex;
             }
         }
     }, [
-        focusedMonthIndex,
         maximumMonthIndex,
         minimumMonthIndex,
         pageMonthIndexes,
-        rebuildPager,
     ]);
+
+    const handlePageScrollStateChanged = useCallback((
+        event: PageScrollStateChangedNativeEvent
+    ) => {
+        if (event.nativeEvent.pageScrollState !== "idle") return;
+
+        const pendingRecenterMonthIndex =
+            pendingRecenterMonthIndexRef.current;
+
+        if (pendingRecenterMonthIndex != null) {
+            pendingRecenterMonthIndexRef.current = null;
+            rebuildPager(pendingRecenterMonthIndex);
+            return;
+        }
+
+        loadMonthAndNeighbors(focusedMonthIndexRef.current);
+    }, [loadMonthAndNeighbors, rebuildPager]);
 
     return (
         <View style={styles.container}>
@@ -314,7 +360,10 @@ export default function ScrollableMonthCalendar({
                 initialPage={anchorPageIndex}
                 offscreenPageLimit={1}
                 onPageSelected={handlePageSelected}
-                orientation="vertical"
+                onPageScrollStateChanged={
+                    handlePageScrollStateChanged
+                }
+                orientation="horizontal"
                 overScrollMode="never"
                 scrollEnabled={pageMonthIndexes.length > 1}
                 style={{ height: pageHeight }}
@@ -336,7 +385,9 @@ export default function ScrollableMonthCalendar({
             </PagerView>
         </View>
     );
-}
+});
+
+export default ScrollableMonthCalendar;
 
 const styles = StyleSheet.create({
     container: {

@@ -8,6 +8,7 @@ export const en = {
     "common.ok": "OK",
     "common.restore": "Restore",
     "common.save": "Save",
+    "common.today": "Today",
     "common.unknownError": "Unknown error",
 
     "theme.switchToDark": "Switch to dark theme",

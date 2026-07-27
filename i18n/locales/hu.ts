@@ -10,6 +10,7 @@ export const hu: Record<TranslationKey, string> = {
     "common.ok": "OK",
     "common.restore": "Visszaállítás",
     "common.save": "Mentés",
+    "common.today": "Ma",
     "common.unknownError": "Ismeretlen hiba",
 
     "theme.switchToDark": "Váltás sötét témára",

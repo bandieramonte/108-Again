@@ -33,12 +33,16 @@ export async function initializeApp() {
     const syncService = require("./syncService");
     const authService = require("../services/authService");
     const appMetaRepo = require("../repositories/appMetaRepo");
+    const practiceRepo = require("../repositories/practiceRepo");
     const seed = require("../database/seed");
 
     database.initializeDatabase();
     networkService.initializeNetworkListener();
     syncService.initializeSyncRetry();
     ensureInstallDate();
+    practiceRepo.backfillMissingCalendarStartDates(
+        getLegacyCalendarStartDateFallback()
+    );
     await authService.initializeAuth();
 
     const existing = database.db.getAllSync(
@@ -69,33 +73,48 @@ export function getCalendarStartDate(
     practiceId: string
 ): Date {
     const appMetaRepo = require("../repositories/appMetaRepo");
+    const practiceRepo = require("../repositories/practiceRepo");
     const sessionRepo = require("../repositories/sessionRepo");
+
+    const practice = practiceRepo.getPracticeById(practiceId);
+    if (
+        practice?.calendarStartDate != null &&
+        Number.isFinite(practice.calendarStartDate)
+    ) {
+        return new Date(practice.calendarStartDate);
+    }
 
     const install = appMetaRepo.getMeta("installDate");
     const restore = appMetaRepo.getMeta("lastRestoreDate");
     const earliestSession =
         sessionRepo.getEarliestSessionDateForPractice(practiceId);
-    const candidates: number[] = [];
-
-    if (install) {
-        candidates.push(new Date(install).getTime());
-    }
-
-    if (restore) {
-        candidates.push(new Date(restore).getTime());
-    }
 
     if (earliestSession != null) {
-        candidates.push(earliestSession);
+        return new Date(earliestSession);
     }
 
-    if (candidates.length === 0) {
-        return new Date();
-    }
+    const fallbackDates = [install, restore]
+        .filter((value): value is string => value != null)
+        .map(value => new Date(value).getTime())
+        .filter(Number.isFinite);
 
-    return new Date(
-        Math.min(...candidates)
-    );
+    return fallbackDates.length > 0
+        ? new Date(Math.max(...fallbackDates))
+        : new Date();
+}
+
+function getLegacyCalendarStartDateFallback() {
+    const appMetaRepo = require("../repositories/appMetaRepo");
+    const install = appMetaRepo.getMeta("installDate");
+    const restore = appMetaRepo.getMeta("lastRestoreDate");
+    const candidates = [install, restore]
+        .filter((value): value is string => value != null)
+        .map(value => new Date(value).getTime())
+        .filter(Number.isFinite);
+
+    return candidates.length > 0
+        ? Math.max(...candidates)
+        : Date.now();
 }
 
 export function ensureInstallDate() {

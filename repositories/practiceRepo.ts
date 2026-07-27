@@ -9,6 +9,7 @@ export {
 const defaultRepo = createPracticeRepo(db);
 
 export const {
+    backfillMissingCalendarStartDates,
     claimAnonymousPractices,
     deleteAllPractices,
     deletePractice,

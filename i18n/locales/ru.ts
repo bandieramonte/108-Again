@@ -10,6 +10,7 @@ export const ru: Record<TranslationKey, string> = {
     "common.ok": "OK",
     "common.restore": "Восстановить",
     "common.save": "Сохранить",
+    "common.today": "Сегодня",
     "common.unknownError": "Неизвестная ошибка",
 
     "theme.switchToDark": "Переключить на тёмную тему",

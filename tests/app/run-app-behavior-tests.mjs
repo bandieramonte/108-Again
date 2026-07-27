@@ -263,6 +263,7 @@ const {
   getCalendarLoadedMonthIndexes,
   getCalendarMonthIndex,
   getCalendarPagerMonthIndexes,
+  isPracticeCalendarDateEditable,
 } =
   require("../.build/utils/calendarMonth.js");
 const {
@@ -859,7 +860,8 @@ await test(
 await test(
   "new practices disable daily targets and default sessions to 108",
   () => {
-    const device = makeLocalDevice();
+    const createdAt = Date.parse("2026-07-26T10:30:00.000Z");
+    const device = makeLocalDevice(null, () => createdAt);
     const practiceId = device.operations.createPractice(
       "Default Count Practice",
       10000
@@ -868,6 +870,7 @@ await test(
 
     assert.equal(practice.dailyTargetCount, null);
     assert.equal(practice.defaultSessionCount, 108);
+    assert.equal(practice.calendarStartDate, createdAt);
   }
 );
 
@@ -1122,13 +1125,20 @@ await test(
 await test(
   "backup round trips daily targets and default session counts",
   async () => {
-    const source = makeLocalDevice();
+    let sourceNow = Date.parse("2026-07-10T12:00:00.000Z");
+    const source = makeLocalDevice(null, () => sourceNow);
     const practiceId = source.operations.createPractice(
       "Backup Count Practice",
       10000,
       500,
       125
     );
+
+    sourceNow = Date.parse("2026-06-05T08:00:00.000Z");
+    source.operations.addSession(practiceId, 108);
+    sourceNow = Date.parse("2026-06-03T08:00:00.000Z");
+    source.operations.addSession(practiceId, 54);
+
     const backup = source.operations.getBackupData();
     const exportedPractice = backup.practices.find(
       (practice) => practice.id === practiceId
@@ -1138,7 +1148,8 @@ await test(
     assert.equal(exportedPractice.defaultSessionCount, 125);
     assert.doesNotThrow(() => validateBackup(backup));
 
-    const destination = makeLocalDevice();
+    const importedAt = Date.parse("2026-08-01T09:00:00.000Z");
+    const destination = makeLocalDevice(null, () => importedAt);
     await destination.operations.restoreBackupData(backup);
 
     const restoredPractice = destination.practiceRepo.getPracticeById(
@@ -1146,6 +1157,37 @@ await test(
     );
     assert.equal(restoredPractice.dailyTargetCount, 500);
     assert.equal(restoredPractice.defaultSessionCount, 125);
+    assert.equal(
+      restoredPractice.calendarStartDate,
+      Date.parse("2026-06-03T08:00:00.000Z"),
+      "Backup import starts editing at that practice's first session"
+    );
+  }
+);
+
+await test(
+  "backup practices without sessions start on the import date",
+  async () => {
+    const source = makeLocalDevice(
+      null,
+      () => Date.parse("2026-05-01T10:00:00.000Z")
+    );
+    const practiceId = source.operations.createPractice(
+      "Empty Backup Practice",
+      10000
+    );
+    const backup = source.operations.getBackupData();
+    const importedAt = Date.parse("2026-08-02T10:00:00.000Z");
+    const destination = makeLocalDevice(null, () => importedAt);
+
+    await destination.operations.restoreBackupData(backup);
+
+    assert.equal(
+      destination.practiceRepo
+        .getPracticeById(practiceId)
+        .calendarStartDate,
+      importedAt
+    );
   }
 );
 
@@ -1508,6 +1550,10 @@ await test(
     assert.equal(remotePractice.reminder_enabled, true);
     assert.equal(remotePractice.reminder_hour, 6);
     assert.equal(remotePractice.reminder_minute, 15);
+    assert.equal(
+      remotePractice.calendar_start_date,
+      "2026-06-01T08:00:00.000Z"
+    );
 
     const destination = makeLocalDevice(userId);
     const destinationEngine = createSyncEngineForDevice(
@@ -1524,6 +1570,10 @@ await test(
     assert.equal(pulledPractice.reminderEnabled, 1);
     assert.equal(pulledPractice.reminderHour, 6);
     assert.equal(pulledPractice.reminderMinute, 15);
+    assert.equal(
+      pulledPractice.calendarStartDate,
+      Date.parse("2026-06-01T08:00:00.000Z")
+    );
     assert.equal(pulledPractice.syncStatus, "synced");
     assert.equal(pulledPractice.userId, userId);
     assert.deepEqual(
@@ -1587,7 +1637,8 @@ await test(
 await test(
   "restore defaults resets default practice order",
   async () => {
-    const device = makeLocalDevice();
+    let currentTime = Date.parse("2026-07-20T09:00:00.000Z");
+    const device = makeLocalDevice(null, () => currentTime);
 
     await device.operations.restoreDefaults();
     device.operations.reorderPractices(
@@ -1599,11 +1650,18 @@ await test(
       DEFAULT_PRACTICES.map(practice => practice.id).reverse()
     );
 
+    currentTime = Date.parse("2026-07-26T09:00:00.000Z");
     await device.operations.restoreDefaults();
 
     assert.deepEqual(
       device.practiceRepo.getAllPractices().map(practice => practice.id),
       DEFAULT_PRACTICES.map(practice => practice.id)
+    );
+    assert.ok(
+      device.practiceRepo.getAllPractices().every(
+        practice => practice.calendarStartDate === currentTime
+      ),
+      "Restoring defaults resets every practice calendar start date"
     );
   }
 );
@@ -1913,6 +1971,24 @@ await test(
         julyMonthIndex + 1,
       ],
       "Only the focused month and its immediate neighbors stay rendered"
+    );
+    assert.equal(
+      isPracticeCalendarDateEditable(
+        "2026-07-25",
+        "2026-07-26",
+        "2026-07-30"
+      ),
+      false,
+      "Days before practice creation are not editable"
+    );
+    assert.equal(
+      isPracticeCalendarDateEditable(
+        "2026-07-26",
+        "2026-07-26",
+        "2026-07-30"
+      ),
+      true,
+      "The practice creation day is editable"
     );
     assert.deepEqual(
       getCalendarPagerMonthIndexes(
