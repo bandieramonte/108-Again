@@ -69,6 +69,9 @@ export default {
                     imageWidth: 340,
                     resizeMode: "contain",
                     backgroundColor: "#F9F5F1",
+                    android: {
+                        imageWidth: 240,
+                    },
                 },
             ],
             "expo-sqlite",
