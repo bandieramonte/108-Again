@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { MaterialIcons } from "@expo/vector-icons";
 import {
     Modal,
     Pressable,
@@ -26,6 +27,7 @@ type Props = {
     currentTargetDate: Date | null;
     onClose: () => void;
     onSave: (newDailyCount: number, selectedDate: string) => void;
+    onUnset: () => void;
 };
 
 function getMaximumTargetMonth(
@@ -53,6 +55,7 @@ export default function TargetDateEditor({
     currentTargetDate,
     onClose,
     onSave,
+    onUnset,
 }: Props) {
     const { colors } = useAppTheme();
     const { locale, t } = useI18n();
@@ -119,6 +122,11 @@ export default function TargetDateEditor({
             );
 
         onSave(required, selectedDate);
+        onClose();
+    }
+
+    function unset() {
+        onUnset();
         onClose();
     }
 
@@ -229,6 +237,31 @@ export default function TargetDateEditor({
                         onRenderDay={renderDay}
                     />
 
+                    {currentTargetDate ? (
+                        <Pressable
+                            accessibilityRole="button"
+                            onPress={unset}
+                            style={({ pressed }) => [
+                                styles.unsetButton,
+                                pressed && styles.pressed,
+                            ]}
+                        >
+                            <MaterialIcons
+                                name="event-busy"
+                                size={20}
+                                color={colors.destructive}
+                            />
+                            <Text
+                                style={[
+                                    styles.unsetButtonText,
+                                    { color: colors.destructive },
+                                ]}
+                            >
+                                {t("targetDateEditor.unset")}
+                            </Text>
+                        </Pressable>
+                    ) : null}
+
                     <View style={styles.buttons}>
                         <Pressable
                             onPress={onClose}
@@ -328,6 +361,21 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "flex-end",
         gap: 4,
+    },
+
+    unsetButton: {
+        minHeight: 44,
+        marginTop: 12,
+        paddingHorizontal: 12,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+    },
+
+    unsetButtonText: {
+        fontSize: 15,
+        fontWeight: "600",
     },
 
     actionButton: {

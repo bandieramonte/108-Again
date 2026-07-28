@@ -299,6 +299,7 @@ export const pl: Record<TranslationKey, string> = {
     "reminderNotification.unavailableOnWeb": "Przypomnienia praktyki są dostępne na iOS i Androidzie.",
 
     "targetDateEditor.title": "Edytuj datę docelową",
+    "targetDateEditor.unset": "Usuń datę docelową",
 
     "update.checkAgain": "Sprawdź ponownie",
     "update.maintenanceMessage": "108 Again jest tymczasowo niedostępne, ponieważ przygotowywana jest ważna aktualizacja. Spróbuj ponownie za chwilę.",

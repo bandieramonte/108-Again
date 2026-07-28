@@ -299,6 +299,7 @@ export const cs: Record<TranslationKey, string> = {
     "reminderNotification.unavailableOnWeb": "Připomenutí praxe jsou dostupná na iOS a Androidu.",
 
     "targetDateEditor.title": "Upravit cílové datum",
+    "targetDateEditor.unset": "Zrušit cílové datum",
 
     "update.checkAgain": "Zkontrolovat znovu",
     "update.maintenanceMessage": "108 Again je dočasně nedostupná, protože se připravuje důležitá aktualizace. Zkus to prosím brzy znovu.",

@@ -297,6 +297,7 @@ export const en = {
     "reminderNotification.unavailableOnWeb": "Practice reminders are available on iOS and Android.",
 
     "targetDateEditor.title": "Edit target date",
+    "targetDateEditor.unset": "Unset target date",
 
     "update.checkAgain": "Check again",
     "update.maintenanceMessage": "108 Again is temporarily unavailable while an important update is being prepared. Please try again shortly.",

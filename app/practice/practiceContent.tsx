@@ -1165,6 +1165,13 @@ export default function PracticeContent({
                         total={total}
                         currentTargetDate={targetDate}
                         onClose={() => setTargetEditOpen(false)}
+                        onUnset={() => {
+                            practiceService.updatePracticeDailyTargetCount(
+                                practiceId,
+                                null
+                            );
+                            setDailyTargetCount("");
+                        }}
                         onSave={(newDaily, selectedDateStr) => {
                             practiceService.updatePracticeDailyTargetCount(
                                 practiceId,

@@ -301,6 +301,7 @@ export const ru: Record<TranslationKey, string> = {
     "reminderNotification.unavailableOnWeb": "Напоминания о практике доступны на iOS и Android.",
 
     "targetDateEditor.title": "Изменить целевую дату",
+    "targetDateEditor.unset": "Сбросить целевую дату",
 
     "update.checkAgain": "Проверить снова",
     "update.maintenanceMessage": "108 Again временно недоступно, пока готовится важное обновление. Попробуйте снова чуть позже.",

@@ -299,6 +299,7 @@ export const hu: Record<TranslationKey, string> = {
     "reminderNotification.unavailableOnWeb": "A gyakorlati emlékeztetők iOS-en és Androidon érhetők el.",
 
     "targetDateEditor.title": "Céldátum szerkesztése",
+    "targetDateEditor.unset": "Céldátum törlése",
 
     "update.checkAgain": "Újraellenőrzés",
     "update.maintenanceMessage": "A 108 Again átmenetileg nem érhető el, amíg egy fontos frissítés készül. Kérlek, próbáld újra rövidesen.",

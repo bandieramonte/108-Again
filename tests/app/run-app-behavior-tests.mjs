@@ -877,6 +877,29 @@ await test(
 );
 
 await test(
+  "unsetting a target date clears its derived daily target",
+  () => {
+    const device = makeLocalDevice();
+    const practiceId = device.operations.createPractice(
+      "Unset Target Date Practice",
+      10000,
+      108
+    );
+
+    device.operations.updatePracticeDailyTargetCount(
+      practiceId,
+      null
+    );
+
+    assert.equal(
+      device.practiceRepo.getPracticeById(practiceId)
+        .dailyTargetCount,
+      null
+    );
+  }
+);
+
+await test(
   "practice average includes zero-count days within the selected range",
   () => {
     let nowMs = Date.parse("2026-07-10T12:00:00Z");
