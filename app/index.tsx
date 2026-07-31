@@ -187,15 +187,12 @@ export default function Dashboard() {
   const [defaultSessionInput, setDefaultSessionInput] = useState("");
   const [dailyTargetPromptPractice, setDailyTargetPromptPractice] =
     useState<{ id: string; name: string } | null>(null);
-  const [showQuickAddHint, setShowQuickAddHint] = useState(false);
-  const quickAddRefs = useRef<Record<string, View | null>>({});
   const practiceRowRefs = useRef<Record<string, View | null>>({});
   const practicesRef = useRef<Practice[]>([]);
   const [draggingPracticeId, setDraggingPracticeId] = useState<string | null>(null);
   const [dragPreviewOrderIds, setDragPreviewOrderIds] = useState<string[] | null>(null);
   const [dragOverlayPractice, setDragOverlayPractice] = useState<Practice | null>(null);
   const [dragOverlayFrame, setDragOverlayFrame] = useState<DragOverlayFrame | null>(null);
-  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
   const [menuPractice, setMenuPractice] = useState<Practice | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<PracticeMenuAnchor | null>(null);
   const [calendarPractice, setCalendarPractice] =
@@ -344,41 +341,7 @@ export default function Dashboard() {
     );
   }
 
-  async function maybeShowQuickAddHint(practiceId: string) {
-    const seen = await AsyncStorage.getItem("quickAddLongPressHintSeen");
-
-    if (seen) return;
-
-    const target = quickAddRefs.current[practiceId];
-    if (!target) return;
-
-    // Prefer measuring via the ref; UIManager.measureInWindow is deprecated.
-    (target as any).measureInWindow(async (x: number, y: number, width: number, height: number) => {
-      const tooltipWidth = 240;
-      let left = x + width / 2 - tooltipWidth / 2;
-
-      left = Math.max(12, left);
-      left = Math.min(left, screenWidth - tooltipWidth - 12);
-
-      setTooltipPosition({
-        top: y - 108,
-        left: left
-      });
-
-      setTimeout(() => {
-        setShowQuickAddHint(true);
-      }, 300);
-
-      await AsyncStorage.setItem("quickAddLongPressHintSeen", "true");
-
-      setTimeout(() => {
-        setShowQuickAddHint(false);
-        setTooltipPosition(null);
-      }, 5000);
-    });
-  }
-
-  async function quickAdd(practice: Practice) {
+  function quickAdd(practice: Practice) {
     const count = practice.defaultSessionCount ?? 108;
 
     try {
@@ -386,8 +349,6 @@ export default function Dashboard() {
     } catch (error: any) {
       alert(error.message);
     }
-
-    await maybeShowQuickAddHint(practice.id);
   }
 
   function openEditDefaultModal(practiceId: string, practiceName: string, currentDefaultSession: number) {
@@ -1088,12 +1049,7 @@ export default function Dashboard() {
 
                 </TouchableOpacity>
 
-                <View
-                  ref={(node) => {
-                    quickAddRefs.current[practice.id] = node;
-                  }}
-                  style={styles.quickAddContainer}
-                >
+                <View style={styles.quickAddContainer}>
                   <View style={[styles.quickAddButton, quickAddThemeStyle]}>
                     <Pressable
                       style={({ pressed }) => [
@@ -1247,36 +1203,6 @@ export default function Dashboard() {
             onEditDay={handleCalendarEdit}
             onClose={closePracticeCalendar}
           />
-
-          {showQuickAddHint && tooltipPosition && (
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={() => {
-                setShowQuickAddHint(false);
-                setTooltipPosition(null);
-              }}
-            >
-              <View
-                style={[
-                  styles.anchoredTooltip,
-                  { backgroundColor: themeColors.tooltipBackground },
-                  {
-                    top: tooltipPosition.top,
-                    left: tooltipPosition.left,
-                  }
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.anchoredTooltipText,
-                    { color: themeColors.background },
-                  ]}
-                >
-                  {t("dashboard.quickAddTip")}
-                </Text>
-              </View>
-            </Pressable>
-          )}
 
           <Modal
             visible={infoOpen}
@@ -1671,47 +1597,6 @@ const styles = StyleSheet.create({
 
   quickAddEditButtonPressed: {
     backgroundColor: "#DBE4FF",
-  },
-
-  tooltipOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: "flex-start",
-    alignItems: "center",
-    paddingTop: 80,
-  },
-
-  tooltipBox: {
-    backgroundColor: "#111",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    maxWidth: 280,
-  },
-
-  tooltipText: {
-    color: "white",
-    fontSize: 13,
-    textAlign: "center",
-  },
-
-  anchoredTooltip: {
-    position: "absolute",
-    width: 240,
-    backgroundColor: "#111",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    zIndex: 1000,
-  },
-
-  anchoredTooltipText: {
-    color: "white",
-    fontSize: 13,
-    textAlign: "center",
   },
 
   targetDateRow: {

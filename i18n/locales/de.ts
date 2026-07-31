@@ -221,7 +221,6 @@ export const de: Record<TranslationKey, string> = {
     "dashboard.infoLongPressPractice": "Halte eine Praxis lange gedrückt, um sie zu bearbeiten, ihren Verlauf oder Kalender anzusehen oder sie zu löschen.",
     "dashboard.infoStreak": "Deine Serie zeigt, an wie vielen aufeinanderfolgenden Tagen du mindestens einmal irgendeine Praxis gemacht hast.",
     "dashboard.infoTitle": "Dashboard-Info",
-    "dashboard.quickAddTip": "Tipp: Halte diese Schaltfläche lange gedrückt, um die Standardanzahl pro Sitzung zu ändern.",
     "dashboard.reorderPractice": "Praxis neu anordnen",
     "dashboard.setDailyTarget": "Tagesziel festlegen",
     "dashboard.streak": "{{count}} {{unit}} Serie",

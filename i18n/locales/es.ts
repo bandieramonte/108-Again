@@ -221,7 +221,6 @@ export const es: Record<TranslationKey, string> = {
     "dashboard.infoLongPressPractice": "Mantén pulsada una práctica para editarla, ver su historial o calendario, o eliminarla.",
     "dashboard.infoStreak": "Tu racha muestra cuántos días consecutivos hiciste alguna práctica al menos una vez.",
     "dashboard.infoTitle": "Información del panel",
-    "dashboard.quickAddTip": "Consejo: mantén pulsado este botón para cambiar el conteo predeterminado por sesión.",
     "dashboard.reorderPractice": "Reordenar práctica",
     "dashboard.setDailyTarget": "Establecer objetivo diario",
     "dashboard.streak": "{{count}} {{unit}} de racha",

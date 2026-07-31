@@ -219,7 +219,6 @@ export const en = {
     "dashboard.infoLongPressPractice": "Long press a practice to edit it, view its history or calendar, or delete it.",
     "dashboard.infoStreak": "Your streak shows how many consecutive days you did any practice at least once.",
     "dashboard.infoTitle": "Dashboard Info",
-    "dashboard.quickAddTip": "Tip: Long press this button to change the default session count.",
     "dashboard.reorderPractice": "Reorder practice",
     "dashboard.setDailyTarget": "Set daily target",
     "dashboard.streak": "{{count}} {{unit}} streak",

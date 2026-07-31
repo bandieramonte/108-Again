@@ -221,7 +221,6 @@ export const cs: Record<TranslationKey, string> = {
     "dashboard.infoLongPressPractice": "Dlouhým stiskem praxe ji můžeš upravit, zobrazit její historii nebo kalendář, případně ji smazat.",
     "dashboard.infoStreak": "Tvoje série ukazuje, kolik po sobě jdoucích dní jsi alespoň jednou provedl(a) nějakou praxi.",
     "dashboard.infoTitle": "Informace panelu",
-    "dashboard.quickAddTip": "Tip: Dlouhým stiskem tohoto tlačítka změníš výchozí počet v sezení.",
     "dashboard.reorderPractice": "Změnit pořadí praxe",
     "dashboard.setDailyTarget": "Nastavit denní cíl",
     "dashboard.streak": "{{count}} {{unit}} série",

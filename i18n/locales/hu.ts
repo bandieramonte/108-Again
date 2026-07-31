@@ -221,7 +221,6 @@ export const hu: Record<TranslationKey, string> = {
     "dashboard.infoLongPressPractice": "Tartsd hosszan lenyomva a gyakorlatot a szerkesztéshez, az előzmények vagy a naptár megtekintéséhez, illetve törléshez.",
     "dashboard.infoStreak": "A sorozat azt mutatja, hány egymást követő napon végeztél legalább egyszer bármilyen gyakorlatot.",
     "dashboard.infoTitle": "Vezérlőpult információ",
-    "dashboard.quickAddTip": "Tipp: tartsd hosszan lenyomva ezt a gombot az alapértelmezett ülésmennyiség módosításához.",
     "dashboard.reorderPractice": "Gyakorlat átrendezése",
     "dashboard.setDailyTarget": "Napi cél beállítása",
     "dashboard.streak": "{{count}} {{unit}} sorozat",

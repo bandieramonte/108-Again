@@ -223,7 +223,6 @@ export const ru: Record<TranslationKey, string> = {
     "dashboard.infoLongPressPractice": "Удерживайте практику, чтобы изменить ее, посмотреть историю или удалить.",
     "dashboard.infoStreak": "Серия показывает, сколько дней подряд вы выполняли любую практику хотя бы один раз.",
     "dashboard.infoTitle": "Информация о панели",
-    "dashboard.quickAddTip": "Подсказка: удерживайте эту кнопку, чтобы изменить количество в сеансе по умолчанию.",
     "dashboard.reorderPractice": "Изменить порядок практики",
     "dashboard.setDailyTarget": "Задать дневную цель",
     "dashboard.streak": "{{count}} {{unit}} подряд",

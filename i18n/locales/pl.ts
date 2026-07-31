@@ -221,7 +221,6 @@ export const pl: Record<TranslationKey, string> = {
     "dashboard.infoLongPressPractice": "Przytrzymaj praktykę, aby ją edytować, zobaczyć historię lub kalendarz albo ją usunąć.",
     "dashboard.infoStreak": "Twoja seria pokazuje, przez ile kolejnych dni wykonałeś przynajmniej raz jakąkolwiek praktykę.",
     "dashboard.infoTitle": "Informacje panelu",
-    "dashboard.quickAddTip": "Wskazówka: przytrzymaj ten przycisk, aby zmienić domyślną liczbę w sesji.",
     "dashboard.reorderPractice": "Zmień kolejność praktyki",
     "dashboard.setDailyTarget": "Ustaw cel dzienny",
     "dashboard.streak": "{{count}} {{unit}} serii",
