@@ -33,6 +33,7 @@ export type OperationSessionRow = {
     practiceId: string;
     count: number;
     createdAt: number;
+    localDate?: string | null;
     userId?: string | null;
     updatedAt?: number | null;
     syncStatus?: string | null;
@@ -128,7 +129,8 @@ type OperationSessionRepo = {
         practiceId: string,
         count: number,
         createdAt: number,
-        syncMetadata: SyncMetadata
+        syncMetadata: SyncMetadata,
+        localDate?: string | null
     ): void;
     updateSessionCount(
         id: string,
@@ -557,6 +559,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                             JSON.stringify({
                                 practiceId: session.practiceId,
                                 createdAt: session.createdAt,
+                                localDate: session.localDate ?? null,
                             })
                         );
                     }
@@ -680,7 +683,8 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                     practiceId,
                     count,
                     operationNow,
-                    syncMetadata
+                    syncMetadata,
+                    dayString
                 );
             }
         }
@@ -716,7 +720,8 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                 practiceId,
                 newTotal,
                 Date.parse(`${date}T00:00:00Z`),
-                syncMetadata
+                syncMetadata,
+                date
             );
         }
 
@@ -1102,7 +1107,8 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                         session.practiceId,
                         session.count,
                         session.createdAt,
-                        syncMetadata
+                        syncMetadata,
+                        session.localDate ?? null
                     );
                 });
 

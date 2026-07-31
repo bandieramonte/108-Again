@@ -1,12 +1,16 @@
 import type { SqliteDatabase } from "../database/sqliteTypes";
 import type { SyncMetadata, SyncStatus } from "../types/sync";
-import { formatCalendarDate } from "../utils/calendarMonth";
+import {
+    formatCalendarDate,
+    isCalendarDateString,
+} from "../utils/calendarMonth";
 
 export type SessionRow = {
     id: string;
     practiceId: string;
     count: number;
     createdAt: number;
+    localDate?: string | null;
     userId?: string | null;
     updatedAt?: number | null;
     syncStatus?: SyncStatus;
@@ -21,9 +25,13 @@ type PracticeTotalRow = {
 const DAY_MS = 1000 * 60 * 60 * 24;
 const SESSION_DAY_SQL = `
     CASE
+        WHEN localDate IS NOT NULL
+          AND length(localDate) = 10
+          AND date(localDate) = localDate
+        THEN localDate
         WHEN (createdAt % ${DAY_MS}) = 0
-        THEN date(createdAt/1000,'unixepoch')
-        ELSE date(createdAt/1000,'unixepoch','localtime')
+        THEN date(createdAt/1000, 'unixepoch')
+        ELSE date(createdAt/1000, 'unixepoch', 'localtime')
     END
 `;
 
@@ -39,29 +47,46 @@ function dayStartTimestamp(day: string) {
     return Date.parse(`${day}T00:00:00Z`);
 }
 
+function resolveSessionLocalDate(
+    createdAt: number,
+    localDate?: string | null
+) {
+    return isCalendarDateString(localDate)
+        ? localDate
+        : dayStringFromTimestamp(createdAt);
+}
+
 export function createSessionRepo(database: SqliteDatabase) {
     function insertSession(
         id: string,
         practiceId: string,
         count: number,
         createdAt: number,
-        syncMetadata: SyncMetadata
+        syncMetadata: SyncMetadata,
+        localDate?: string | null
     ) {
+        const resolvedLocalDate = resolveSessionLocalDate(
+            createdAt,
+            localDate
+        );
+
         database.runSync(
             `INSERT INTO sessions (
       id,
       practiceId,
       count,
       createdAt,
+      localDate,
       userId,
       updatedAt,
       syncStatus,
       lastSyncedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             id,
             practiceId,
             count,
             createdAt,
+            resolvedLocalDate,
             syncMetadata.userId,
             syncMetadata.updatedAt,
             syncMetadata.syncStatus,
@@ -98,6 +123,7 @@ export function createSessionRepo(database: SqliteDatabase) {
       practiceId,
       count,
       createdAt,
+      localDate,
       userId,
       updatedAt,
       syncStatus,
@@ -117,6 +143,7 @@ export function createSessionRepo(database: SqliteDatabase) {
       practiceId,
       count,
       createdAt,
+      localDate,
       userId,
       updatedAt,
       syncStatus,
@@ -139,6 +166,7 @@ export function createSessionRepo(database: SqliteDatabase) {
       practiceId,
       count,
       createdAt,
+      localDate,
       userId,
       updatedAt,
       syncStatus,
@@ -188,6 +216,7 @@ export function createSessionRepo(database: SqliteDatabase) {
     SELECT
       s.count,
       s.createdAt,
+      s.localDate,
       p.name AS practiceName,
       p.orderIndex
     FROM sessions s
@@ -236,6 +265,7 @@ export function createSessionRepo(database: SqliteDatabase) {
         practice_id: string;
         count: number;
         created_at: string;
+        local_date?: string | null;
         updated_at: string;
         deleted_at: string | null;
     }) {
@@ -251,16 +281,18 @@ export function createSessionRepo(database: SqliteDatabase) {
         practiceId,
         count,
         createdAt,
+        localDate,
         userId,
         updatedAt,
         syncStatus,
         lastSyncedAt
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         practiceId = excluded.practiceId,
         count = excluded.count,
         createdAt = excluded.createdAt,
+        localDate = excluded.localDate,
         userId = excluded.userId,
         updatedAt = excluded.updatedAt,
         syncStatus = 'synced',
@@ -270,6 +302,10 @@ export function createSessionRepo(database: SqliteDatabase) {
             row.practice_id,
             row.count,
             new Date(row.created_at).getTime(),
+            resolveSessionLocalDate(
+                new Date(row.created_at).getTime(),
+                row.local_date
+            ),
             row.user_id,
             new Date(row.updated_at).getTime(),
             "synced",
@@ -302,6 +338,7 @@ export function createSessionRepo(database: SqliteDatabase) {
       practiceId,
       count,
       createdAt,
+      localDate,
       userId,
       updatedAt,
       syncStatus,
@@ -331,6 +368,7 @@ export function createSessionRepo(database: SqliteDatabase) {
             practiceId,
             count,
             createdAt,
+            localDate,
             userId,
             updatedAt,
             syncStatus,

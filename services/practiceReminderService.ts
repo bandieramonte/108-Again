@@ -14,6 +14,7 @@ export type ScheduledPracticeReminder = {
     date: string;
     id: string;
     body: string;
+    scheduledAt: number;
 };
 
 export type PracticeReminderSettings = {
@@ -136,10 +137,6 @@ function getPracticeIdFromNotificationResponse(
     return data.practiceId;
 }
 
-export function formatReminderTime(hour: number, minute: number) {
-    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-}
-
 function parseSettings(value: string | null): PracticeReminderSettings {
     if (!value) return getDefaultSettings();
 
@@ -168,6 +165,11 @@ function parseSettings(value: string | null): PracticeReminderSettings {
                     .map(item => ({
                         date: item.date,
                         id: item.id,
+                        scheduledAt:
+                            typeof item.scheduledAt === "number" &&
+                            Number.isFinite(item.scheduledAt)
+                                ? item.scheduledAt
+                                : 0,
                         body:
                             typeof item.body === "string"
                                 ? item.body
@@ -311,7 +313,7 @@ function getDesiredReminderDates({
 
 function hasSameScheduledDates(
     settings: PracticeReminderSettings,
-    desired: { date: string; body: string }[]
+    desired: { date: string; scheduledAt: Date; body: string }[]
 ) {
     if (settings.scheduledNotifications.length !== desired.length) {
         return false;
@@ -320,6 +322,8 @@ function hasSameScheduledDates(
     return settings.scheduledNotifications.every(
         (notification, index) =>
             notification.date === desired[index]?.date &&
+            notification.scheduledAt ===
+                desired[index]?.scheduledAt.getTime() &&
             notification.body === desired[index]?.body
     );
 }
@@ -332,7 +336,6 @@ async function scheduleNotifications(
         ...settings,
         ...context,
     });
-
     if (hasSameScheduledDates(settings, desired)) {
         return settings.scheduledNotifications;
     }
@@ -343,7 +346,12 @@ async function scheduleNotifications(
 
     for (const reminder of desired) {
         const id = await Notifications.scheduleNotificationAsync({
-            identifier: `${STORAGE_KEY_PREFIX}${context.practiceId}:${reminder.date}`,
+            identifier: [
+                `${STORAGE_KEY_PREFIX}${context.practiceId}`,
+                reminder.date,
+                settings.hour,
+                settings.minute,
+            ].join(":"),
             content: {
                 title: getReminderText(context.reminderText)
                     .notificationTitle(context.practiceName),
@@ -364,6 +372,7 @@ async function scheduleNotifications(
             date: reminder.date,
             id,
             body: reminder.body,
+            scheduledAt: reminder.scheduledAt.getTime(),
         });
     }
 

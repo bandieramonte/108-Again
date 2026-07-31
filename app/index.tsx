@@ -19,6 +19,7 @@ import QuickAddEditor from "../components/QuickAddEditor";
 import WelcomeModal from "../components/WelcomeModal";
 import { practiceImages } from "../constants/practiceImages";
 import { usePracticeActions } from "../hooks/usePracticeActions";
+import { useCurrentLocalDate } from "../hooks/useCurrentLocalDate";
 import { useReachedCelebration } from "../hooks/useReachedCelebration";
 import { useI18n } from "../i18n";
 import { getPracticeDisplayName } from "../i18n/practiceNames";
@@ -211,6 +212,7 @@ export default function Dashboard() {
     isCelebrating,
   } = useReachedCelebration();
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentLocalDate = useCurrentLocalDate();
   const [infoOpen, setInfoOpen] = useState(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const welcomeCheckStarted = useRef(false);
@@ -294,6 +296,10 @@ export default function Dashboard() {
       scheduleDashboardRefresh();
     }, [scheduleDashboardRefresh])
   );
+
+  useEffect(() => {
+    scheduleDashboardRefresh();
+  }, [currentLocalDate, scheduleDashboardRefresh]);
 
   useEffect(() => {
     practicesRef.current = practices;

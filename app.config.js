@@ -31,7 +31,6 @@ export default {
 
             edgeToEdgeEnabled: true,
             predictiveBackGestureEnabled: false,
-
             intentFilters: [
                 {
                     action: "VIEW",
@@ -61,6 +60,7 @@ export default {
                 },
             ],
             "./plugins/withPlayInAppUpdates",
+            "./plugins/withReminderTimeChangeReceiver",
             "./plugins/withAndroidEdgeToEdgeCleanup",
             [
                 "expo-splash-screen",

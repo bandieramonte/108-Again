@@ -16,6 +16,7 @@ import Svg, {
 import { useI18n } from "../i18n";
 import * as sessionService from "../services/sessionService";
 import { useAppTheme } from "../styles/theme";
+import { getCalendarDateFromString } from "../utils/calendarMonth";
 
 type DailyData = {
     date: string;
@@ -78,7 +79,7 @@ export default function PracticeHistoryModal({
     }, [practiceId, rangeDays, visible]);
 
     function formatShortDate(date: string) {
-        const d = new Date(date);
+        const d = getCalendarDateFromString(date);
 
         return d.toLocaleDateString(locale, {
             month: "short",

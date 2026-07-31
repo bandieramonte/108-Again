@@ -3,4 +3,5 @@ export type PracticeSession = {
   practiceId: string
   count: number
   createdAt: number
+  localDate?: string | null
 }

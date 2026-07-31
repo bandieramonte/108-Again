@@ -3,8 +3,9 @@ import HeaderMenu from "@/components/HeaderMenu";
 import HeaderTitle from "@/components/HeaderTitle";
 import UpdateRequiredScreen from "@/components/UpdateRequiredScreen";
 import { I18nProvider, useI18n } from "@/i18n";
+import { useCurrentLocalDate } from "@/hooks/useCurrentLocalDate";
 import { AppThemeProvider, useAppTheme } from "@/styles/theme";
-import { subscribeAuth } from "@/utils/events";
+import { emitDataChanged, subscribeAuth } from "@/utils/events";
 import {
     Stack,
     router,
@@ -21,6 +22,7 @@ import * as authService from "../services/authService";
 import * as lastPracticeScreenService from "../services/lastPracticeScreenService";
 import * as practiceService from "../services/practiceService";
 import * as practiceReminderService from "../services/practiceReminderService";
+import * as practiceReminderRefreshService from "../services/practiceReminderRefreshService";
 import * as syncService from "../services/syncService";
 import { shouldShowHeaderBack } from "../utils/headerBackVisibility";
 
@@ -45,6 +47,7 @@ function LayoutContent() {
     const [updateRequirement, setUpdateRequirement] =
         useState<UpdateRequirement | null>(null);
     const [checkingForUpdate, setCheckingForUpdate] = useState(true);
+    const currentLocalDate = useCurrentLocalDate();
     const pathname = usePathname();
     const searchParams = useGlobalSearchParams<{
         confirmed?: string | string[];
@@ -124,6 +127,14 @@ function LayoutContent() {
     useEffect(() => {
         pathnameRef.current = pathname;
     }, [pathname]);
+
+    useEffect(() => {
+        if (!appInitialized) return;
+
+        emitDataChanged();
+        practiceReminderRefreshService
+            .queueRefreshAllPracticeReminders();
+    }, [appInitialized, currentLocalDate]);
 
     useEffect(() => {
         if (!appInitialized) return;

@@ -3,9 +3,13 @@ import { db } from "../database/db";
 const DAY_MS = 1000 * 60 * 60 * 24;
 const SESSION_DAY_SQL = `
   CASE
+    WHEN s.localDate IS NOT NULL
+      AND length(s.localDate) = 10
+      AND date(s.localDate) = s.localDate
+    THEN s.localDate
     WHEN (s.createdAt % ${DAY_MS}) = 0
-    THEN date(s.createdAt/1000,'unixepoch')
-    ELSE date(s.createdAt/1000,'unixepoch','localtime')
+    THEN date(s.createdAt/1000, 'unixepoch')
+    ELSE date(s.createdAt/1000, 'unixepoch', 'localtime')
   END
 `;
 

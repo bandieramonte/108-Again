@@ -56,6 +56,7 @@ export function initializeDatabaseSchema(db: SqliteDatabase) {
       practiceId TEXT,
       count INTEGER,
       createdAt INTEGER,
+      localDate TEXT,
       userId TEXT,
       updatedAt INTEGER,
       syncStatus TEXT,
@@ -139,9 +140,39 @@ export function initializeDatabaseSchema(db: SqliteDatabase) {
     );
   }
 
+  const shouldBackfillSessionLocalDate =
+    !hasColumn(db, "sessions", "localDate");
+
   addColumnIfMissing(db, "sessions", "userId", "userId TEXT");
   addColumnIfMissing(db, "sessions", "updatedAt", "updatedAt INTEGER");
   addColumnIfMissing(db, "sessions", "syncStatus", "syncStatus TEXT DEFAULT 'synced'");
   addColumnIfMissing(db, "sessions", "lastSyncedAt", "lastSyncedAt INTEGER");
   addColumnIfMissing(db, "sessions", "deletedAt", "deletedAt INTEGER");
+  addColumnIfMissing(db, "sessions", "localDate", "localDate TEXT");
+
+  // Capture the phone-local calendar day separately from the absolute
+  // timestamp used for sync and conflict ordering.
+  db.execSync(`
+    UPDATE sessions
+    SET localDate = CASE
+      WHEN (createdAt % 86400000) = 0
+      THEN date(createdAt/1000, 'unixepoch')
+      ELSE date(createdAt/1000, 'unixepoch', 'localtime')
+    END
+    WHERE localDate IS NULL
+       OR length(localDate) != 10
+       OR date(localDate) IS NULL
+       OR date(localDate) != localDate;
+  `);
+
+  if (shouldBackfillSessionLocalDate) {
+    db.runSync(
+      `UPDATE sessions
+       SET updatedAt = ?,
+           syncStatus = 'pending',
+           lastSyncedAt = NULL
+       WHERE userId IS NOT NULL`,
+      Date.now()
+    );
+  }
 }

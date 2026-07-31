@@ -1,4 +1,8 @@
 import { SyncMetadata } from "../types/sync";
+import {
+  formatCalendarDate,
+  getCalendarDayDifference,
+} from "../utils/calendarMonth";
 import { getAppOperationEngine } from "./appOperationRuntime";
 
 export function getWriteSyncMetadata() : SyncMetadata {
@@ -149,10 +153,9 @@ export function calculateRequiredDailyCount(
     targetDate: Date
 ) {
     const today = new Date();
-
-    const diffDays = Math.ceil(
-        (targetDate.getTime() - today.getTime()) /
-        (1000 * 60 * 60 * 24)
+    const diffDays = getCalendarDayDifference(
+        formatCalendarDate(targetDate),
+        formatCalendarDate(today)
     );
 
     if (diffDays <= 0) return targetCount - total;

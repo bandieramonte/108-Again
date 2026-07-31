@@ -19,6 +19,7 @@ import QuickAddEditor from "../../components/QuickAddEditor";
 import TargetDateEditor from "../../components/TargetDateEditor";
 import { practiceImages } from "../../constants/practiceImages";
 import { useReachedCelebration } from "../../hooks/useReachedCelebration";
+import { useCurrentLocalDate } from "../../hooks/useCurrentLocalDate";
 import { useI18n } from "../../i18n";
 import { getPracticeDisplayName } from "../../i18n/practiceNames";
 import { createPracticeReminderText } from "../../i18n/reminderText";
@@ -83,6 +84,9 @@ export default function PracticeContent({
     );
     const timeLocale =
         Localization.getLocales()[0]?.languageTag ?? locale;
+    const uses24HourClock =
+        Localization.getCalendars()[0]?.uses24hourClock ?? null;
+    const currentLocalDate = useCurrentLocalDate();
     const [total, setTotal] = useState(() =>
         sessionService.getPracticeTotal(practiceId).total
     );
@@ -143,7 +147,7 @@ export default function PracticeContent({
     const hasDailyTarget =
         effectiveDailyTargetCount != null &&
         effectiveDailyTargetCount > 0;
-    const todayDate = formatCalendarDate(new Date());
+    const todayDate = formatCalendarDate(currentLocalDate);
     const todayCount = useMemo(() => {
         return calendarData.find(day => day.date === todayDate)?.count ?? 0;
     }, [calendarData, todayDate]);
@@ -155,7 +159,8 @@ export default function PracticeContent({
             time: formatReminderTimeForLocale(
                 reminderHour,
                 reminderMinute,
-                timeLocale
+                timeLocale,
+                uses24HourClock
             ),
         })
         : t("practice.reminderOff");
@@ -294,6 +299,10 @@ export default function PracticeContent({
             schedulePracticeRefresh();
         }, [schedulePracticeRefresh])
     );
+
+    useEffect(() => {
+        schedulePracticeRefresh();
+    }, [currentLocalDate, schedulePracticeRefresh]);
 
     useEffect(() => {
         if (scrollResetPracticeId !== practiceId) return;

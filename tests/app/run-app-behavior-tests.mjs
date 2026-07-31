@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -188,7 +189,7 @@ async function withPracticeReminderServiceHarness(fn) {
 
     if (request === "react-native") {
       return {
-        Platform: { OS: "android" },
+        Platform: { OS: "android", Version: 34 },
       };
     }
 
@@ -251,6 +252,8 @@ const { createSyncCoordinator } =
   require("../.build/services/syncCoordinator.js");
 const { createSyncEngine } =
   require("../.build/services/syncEngine.js");
+const { createSupabaseSyncRemote } =
+  require("../.build/services/supabaseSyncRemote.js");
 const { detectSupportedLanguageFromLocale } =
   require("../.build/i18n/languageDetection.js");
 const { resolveInitialLanguagePreference } =
@@ -958,6 +961,15 @@ await test(
 
     device.operations.addSession(practiceId, 108);
 
+    const storedSession =
+      device.sessionRepo.getAllSessionsForSync()[0];
+
+    assert.equal(
+      storedSession.localDate,
+      expectedLocalDay,
+      "The phone-local calendar date is stored separately from the UTC instant"
+    );
+
     assert.deepEqual(
       device.operations.getCalendarDailyData(practiceId),
       [{ date: expectedLocalDay, count: 108 }]
@@ -969,6 +981,120 @@ await test(
       expectedLocalDay,
       "Calendar date strings round trip in local time"
     );
+  }
+);
+
+await test(
+  "backup preserves the recorded phone-local day across timezones",
+  async () => {
+    const originalTimezone = process.env.TZ;
+
+    try {
+      process.env.TZ = "Pacific/Kiritimati";
+
+      const sessionTime = Date.parse("2026-07-26T10:30:00.000Z");
+      const source = makeLocalDevice(null, () => sessionTime);
+      const practiceId = source.operations.createPractice(
+        "Timezone Backup Practice",
+        10000
+      );
+
+      source.operations.addSession(practiceId, 108);
+      const backup = source.operations.getBackupData();
+
+      assert.equal(backup.sessions[0].localDate, "2026-07-27");
+
+      process.env.TZ = "America/Los_Angeles";
+
+      const destination = makeLocalDevice();
+      await destination.operations.restoreBackupData(backup);
+
+      assert.deepEqual(
+        destination.operations.getCalendarDailyData(practiceId),
+        [{ date: "2026-07-27", count: 108 }]
+      );
+      assert.equal(
+        getCalendarDateFromString("2026-07-27").getDate(),
+        27,
+        "Calendar labels parse as local civil dates west of UTC"
+      );
+    } finally {
+      if (originalTimezone === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = originalTimezone;
+      }
+    }
+  }
+);
+
+await test(
+  "legacy synced sessions backfill a local day and are republished",
+  () => {
+    const originalTimezone = process.env.TZ;
+
+    try {
+      process.env.TZ = "Pacific/Kiritimati";
+
+      const database = createBetterSqliteDatabase();
+      database.execSync(`
+        CREATE TABLE sessions (
+          id TEXT PRIMARY KEY,
+          practiceId TEXT,
+          count INTEGER,
+          createdAt INTEGER,
+          userId TEXT,
+          updatedAt INTEGER,
+          syncStatus TEXT,
+          lastSyncedAt INTEGER,
+          deletedAt INTEGER
+        )
+      `);
+      database.runSync(
+        `INSERT INTO sessions (
+          id,
+          practiceId,
+          count,
+          createdAt,
+          userId,
+          updatedAt,
+          syncStatus,
+          lastSyncedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        "legacy-session",
+        "legacy-practice",
+        108,
+        Date.parse("2026-07-26T22:30:00.000Z"),
+        "legacy-user",
+        Date.parse("2026-07-26T10:31:00.000Z"),
+        "synced",
+        Date.parse("2026-07-26T10:32:00.000Z")
+      );
+
+      initializeDatabaseSchema(database);
+
+      const expectedLocalDate = database.getAllSync(
+        `SELECT date(
+          ?/1000,
+          'unixepoch',
+          'localtime'
+        ) AS day`,
+        Date.parse("2026-07-26T22:30:00.000Z")
+      )[0].day;
+      const migrated = database.getAllSync(
+        "SELECT localDate, syncStatus, lastSyncedAt FROM sessions"
+      )[0];
+
+      assert.equal(migrated.localDate, expectedLocalDate);
+      assert.equal(migrated.syncStatus, "pending");
+      assert.equal(migrated.lastSyncedAt, null);
+    } finally {
+      if (originalTimezone === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = originalTimezone;
+      }
+    }
   }
 );
 
@@ -1644,6 +1770,117 @@ await test(
 );
 
 await test(
+  "sync preserves a session's recorded phone-local calendar day",
+  async () => {
+    const originalTimezone = process.env.TZ;
+
+    try {
+      const userId = "local-date-sync-user";
+      const remote = createMemorySyncRemote();
+      const sessionTime = Date.parse("2026-07-26T10:30:00.000Z");
+
+      process.env.TZ = "Pacific/Kiritimati";
+
+      const source = makeLocalDevice(userId, () => sessionTime);
+      const practiceId = source.operations.createPractice(
+        "Local Date Sync Practice",
+        10000
+      );
+      source.operations.addSession(practiceId, 108);
+
+      await createSyncEngineForDevice(
+        source,
+        remote,
+        () => sessionTime + 1000
+      ).executeSync(userId, "merge_local");
+
+      const remoteSessions = await remote.pullSessions(userId);
+      assert.equal(remoteSessions[0].local_date, "2026-07-27");
+
+      process.env.TZ = "America/Los_Angeles";
+
+      const destination = makeLocalDevice(userId, () => sessionTime + 2000);
+      await createSyncEngineForDevice(
+        destination,
+        remote,
+        () => sessionTime + 3000
+      ).executeSync(userId, "remote_overwrite_local");
+
+      assert.deepEqual(
+        destination.operations.getCalendarDailyData(practiceId),
+        [{ date: "2026-07-27", count: 108 }]
+      );
+    } finally {
+      if (originalTimezone === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = originalTimezone;
+      }
+    }
+  }
+);
+
+await test(
+  "production session reads include the recorded phone-local day",
+  async () => {
+    const selectedSessionColumns = [];
+    const client = {
+      from(table) {
+        return {
+          select(columns) {
+            if (table === "sessions") {
+              selectedSessionColumns.push(columns);
+            }
+            return this;
+          },
+          eq() {
+            return this;
+          },
+          order() {
+            return Promise.resolve({ data: [], error: null });
+          },
+          in() {
+            return Promise.resolve({ data: [], error: null });
+          },
+        };
+      },
+    };
+    const remote = createSupabaseSyncRemote(() => client);
+
+    await remote.pullSessions("local-date-read-user");
+    await remote.getSessionsById(
+      "local-date-read-user",
+      ["session-id"]
+    );
+
+    assert.equal(selectedSessionColumns.length, 2);
+    for (const columns of selectedSessionColumns) {
+      assert.match(columns, /\blocal_date\b/);
+    }
+  }
+);
+
+await test(
+  "production local-date migration leaves legacy session days unset",
+  () => {
+    const migrationSql = readFileSync(
+      new URL(
+        "../../supabase/migrations/20260731153000_add_session_local_date.sql",
+        import.meta.url
+      ),
+      "utf8"
+    );
+
+    assert.match(
+      migrationSql,
+      /add column if not exists local_date date/i
+    );
+    assert.doesNotMatch(migrationSql, /created_at\s*::\s*date/i);
+    assert.doesNotMatch(migrationSql, /update\s+public\.sessions/i);
+  }
+);
+
+await test(
   "deleted seed practices can be restored with their fixed image",
   async () => {
     const device = makeLocalDevice();
@@ -2121,6 +2358,61 @@ await test(
         );
       }
     );
+  }
+);
+
+await test(
+  "reminders reschedule when the phone timezone changes",
+  async () => {
+    const originalTimezone = process.env.TZ;
+
+    try {
+      await withPracticeReminderServiceHarness(
+        async (practiceReminderService, state) => {
+          const practiceId = "travel-reminder-practice";
+
+          process.env.TZ = "UTC";
+          await practiceReminderService.restorePracticeReminderBackupData(
+            [
+              {
+                practiceId,
+                enabled: true,
+                hour: 20,
+                minute: 30,
+              },
+            ],
+            new Set([practiceId])
+          );
+          await practiceReminderService.refreshPracticeReminderSchedule({
+            practiceId,
+            practiceName: "Travel reminder",
+            todayCount: 0,
+            dailyTargetCount: 108,
+          });
+
+          const firstScheduleCount = state.scheduledNotifications;
+
+          process.env.TZ = "America/Los_Angeles";
+          await practiceReminderService.refreshPracticeReminderSchedule({
+            practiceId,
+            practiceName: "Travel reminder",
+            todayCount: 0,
+            dailyTargetCount: 108,
+          });
+
+          assert.ok(
+            state.scheduledNotifications > firstScheduleCount,
+            "The absolute trigger instants are replaced for the new local timezone"
+          );
+        }
+      );
+    } finally {
+      if (originalTimezone === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = originalTimezone;
+      }
+    }
   }
 );
 

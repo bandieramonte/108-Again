@@ -1,4 +1,8 @@
 import { DEFAULT_PRACTICES, SEEDED_IDS } from "../constants/defaultPractices";
+import {
+    formatCalendarDate,
+    isCalendarDateString,
+} from "../utils/calendarMonth";
 
 export const REMOTE_AUTHORITATIVE_SYNC_USER_ID_META =
     "remoteAuthoritativeSyncUserId";
@@ -35,6 +39,7 @@ export type RemoteSessionRow = {
     practice_id: string;
     count: number;
     created_at: string;
+    local_date?: string | null;
     updated_at: string;
     deleted_at: string | null;
 };
@@ -63,6 +68,7 @@ export type LocalSessionRow = {
     practiceId: string;
     count: number;
     createdAt: number;
+    localDate?: string | null;
     userId?: string | null;
     updatedAt?: number | null;
     syncStatus?: string | null;
@@ -175,6 +181,21 @@ function remoteTimestamp(row: {
         toTimestamp(row.updated_at),
         toTimestamp(row.deleted_at)
     );
+}
+
+function resolveLocalDateForSync(row: {
+    createdAt: number;
+    localDate?: string | null;
+}) {
+    if (isCalendarDateString(row.localDate)) {
+        return row.localDate;
+    }
+
+    if (row.createdAt % (24 * 60 * 60 * 1000) === 0) {
+        return new Date(row.createdAt).toISOString().slice(0, 10);
+    }
+
+    return formatCalendarDate(new Date(row.createdAt));
 }
 
 function isDirty(syncStatus: string | null | undefined) {
@@ -542,6 +563,7 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             practice_id: row.practiceId,
             count: row.count,
             created_at: new Date(row.createdAt).toISOString(),
+            local_date: resolveLocalDateForSync(row),
             updated_at: new Date(row.updatedAt ?? now()).toISOString(),
             deleted_at: null,
         }));
@@ -633,6 +655,10 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             practice_id: parsed.practiceId,
             count: 0,
             created_at: new Date(parsed.createdAt).toISOString(),
+            local_date: resolveLocalDateForSync({
+                createdAt: parsed.createdAt,
+                localDate: parsed.localDate,
+            }),
             updated_at: deletedAt,
             deleted_at: deletedAt,
         };

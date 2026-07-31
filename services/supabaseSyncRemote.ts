@@ -55,6 +55,7 @@ export function createSupabaseSyncRemote(
                     practice_id,
                     count,
                     created_at,
+                    local_date,
                     updated_at,
                     deleted_at
                 `)
@@ -113,6 +114,7 @@ export function createSupabaseSyncRemote(
                     practice_id,
                     count,
                     created_at,
+                    local_date,
                     updated_at,
                     deleted_at
                 `)

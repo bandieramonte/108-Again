@@ -1,4 +1,5 @@
 import { MAX_PRACTICE_COUNT, MAX_REPETITIONS_PER_DAY, MAX_TARGET_COUNT } from "../utils/numberUtils";
+import { isCalendarDateString } from "../utils/calendarMonth";
 import { getAppOperationEngine } from "./appOperationRuntime";
 
 const BACKUP_APP_ID = "app108again";
@@ -263,6 +264,13 @@ export function validateBackup(data: any) {
             s.createdAt > Date.now() + 1000 * 60 * 60 * 24 * 365 * 10
         ) {
             throw new Error("Invalid session date");
+        }
+
+        if (
+            s.localDate != null &&
+            !isCalendarDateString(s.localDate)
+        ) {
+            throw new Error("Invalid session local date");
         }
     }
 

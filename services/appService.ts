@@ -1,4 +1,5 @@
 import { getAppOperationEngine } from "./appOperationRuntime";
+import { emitDataChanged } from "../utils/events";
 import * as practiceReminderRefreshService from "./practiceReminderRefreshService";
 
 const INACTIVE_THRESHOLD = 10 * 60 * 1000; //10 minutes
@@ -63,6 +64,7 @@ export async function initializeApp() {
     await practiceReminderRefreshService
         .migrateStoredPracticeReminderSettingsToDatabase();
     practiceReminderRefreshService.queueRefreshAllPracticeReminders();
+    emitDataChanged();
 }
 
 export async function restoreDefaults() {
@@ -146,6 +148,7 @@ export async function handleAppResume() {
     console.log(inactiveMs);
 
     practiceReminderRefreshService.queueRefreshAllPracticeReminders();
+    emitDataChanged();
 
     if (inactiveMs < INACTIVE_THRESHOLD) {
         return;
