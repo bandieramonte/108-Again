@@ -302,7 +302,9 @@ async function runUpdateCheck(): Promise<UpdateRequirement> {
         await getCurrentAndroidVersionCode(appUpdateModule);
     const [policy, playUpdate] = await Promise.all([
         getEffectivePolicy(),
-        getPlayUpdateAvailability(appUpdateModule),
+        __DEV__
+            ? Promise.resolve(null)
+            : getPlayUpdateAvailability(appUpdateModule),
     ]);
     const requirement = determineUpdateRequirement({
         currentVersionCode,
@@ -313,6 +315,32 @@ async function runUpdateCheck(): Promise<UpdateRequirement> {
     applyUpdateRequirement(requirement);
     await maybeShowOptionalPrompt(requirement);
     return requirement;
+}
+
+export async function getCachedAppUpdateRequirement(): Promise<UpdateRequirement> {
+    if (Platform.OS !== "android") {
+        return { kind: "none" };
+    }
+
+    try {
+        const appUpdateModule = getAppUpdateModule();
+        const currentVersionCode =
+            await getCurrentAndroidVersionCode(appUpdateModule);
+        const policy = await readCachedPolicy();
+        const requirement = determineUpdateRequirement({
+            currentVersionCode,
+            policy,
+            playUpdate: null,
+        });
+
+        applyUpdateRequirement(requirement);
+        return requirement;
+    } catch (error) {
+        console.warn("Cached app update policy check failed", error);
+        const requirement = { kind: "none" } as const;
+        applyUpdateRequirement(requirement);
+        return requirement;
+    }
 }
 
 export function checkForAppUpdate(): Promise<UpdateRequirement> {

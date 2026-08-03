@@ -240,12 +240,16 @@ const { ONE_ACCOUNT_PER_DEVICE_MESSAGE } =
   require("../.build/services/authAccountGuard.js");
 const { isUnrecoverableRefreshTokenError } =
   require("../.build/services/authSessionPolicy.js");
+const { createAuthSessionEngine } =
+  require("../.build/services/authSessionEngine.js");
 const { getLocalizedAuthErrorMessage } =
   require("../.build/utils/authErrorText.js");
 const { shouldShowHeaderBack } =
   require("../.build/utils/headerBackVisibility.js");
 const { determineUpdateRequirement } =
   require("../.build/services/appUpdatePolicy.js");
+const { initializeOfflineFirstStartup } =
+  require("../.build/services/offlineFirstStartup.js");
 const { createLastPracticeScreenService } =
   require("../.build/services/lastPracticeScreenService.js");
 const { createSyncCoordinator } =
@@ -732,6 +736,99 @@ await test(
       false,
       "Routes without navigation history still hide the back arrow"
     );
+  }
+);
+
+await test(
+  "cached auth restores local UI without waiting for a remote profile",
+  async () => {
+    const warnings = [];
+    const syncRequests = [];
+    let rejectRemoteProfile;
+    const remoteProfile = new Promise((_, reject) => {
+      rejectRemoteProfile = reject;
+    });
+    const engine = createAuthSessionEngine({
+      appMetaRepo: {
+        getLocalDataOwnerUserId: () => "offline-user",
+        setLocalDataOwnerUserId: () => {},
+      },
+      claimAnonymousLocalDataIfNeeded: async () => {},
+      emitAuthChanged: () => {},
+      fetchRemoteProfile: () => remoteProfile,
+      logger: {
+        warn: (...args) => warnings.push(args),
+      },
+      now: () => 123,
+      profileRepo: {
+        getUserProfileById: () => ({
+          userId: "offline-user",
+          email: "offline@example.com",
+          firstName: "Cached name",
+          updatedAt: 100,
+        }),
+        upsertUserProfile: () => {},
+      },
+      requestSync: (userId, options) => {
+        syncRequests.push({ options, userId });
+      },
+      requireRemoteAuthoritativeSync: () => {},
+    });
+
+    const result = engine.restoreSession({
+      id: "offline-user",
+      email: "offline@example.com",
+    });
+
+    assert.equal(result, undefined);
+    assert.deepEqual(engine.getAuthState(), {
+      isAuthenticated: true,
+      userId: "offline-user",
+      email: "offline@example.com",
+      firstName: "Cached name",
+    });
+    assert.deepEqual(syncRequests, [{
+      userId: "offline-user",
+      options: { immediate: true, mode: "merge_local" },
+    }]);
+
+    rejectRemoteProfile(new TypeError("Network request failed"));
+    await waitFor(
+      () => warnings.length === 1,
+      "Expected the failed background profile refresh to be contained"
+    );
+    assert.equal(engine.getAuthState().firstName, "Cached name");
+  }
+);
+
+await test(
+  "offline-first startup does not wait for the remote update check",
+  async () => {
+    const events = [];
+    const remoteCheckNeverCompletes = new Promise(() => {});
+
+    await initializeOfflineFirstStartup({
+      initializeLocalApp: async () => {
+        events.push("local-started");
+        await Promise.resolve();
+        events.push("local-complete");
+      },
+      readCachedUpdateRequirement: async () => {
+        events.push("cached-policy-read");
+        return { kind: "none" };
+      },
+      applyCachedUpdateRequirement: (requirement) => {
+        events.push(`cached-policy-applied:${requirement.kind}`);
+      },
+      checkRemoteUpdate: () => {
+        events.push("remote-check-started");
+        return remoteCheckNeverCompletes;
+      },
+    });
+
+    assert.ok(events.includes("local-complete"));
+    assert.ok(events.includes("cached-policy-applied:none"));
+    assert.equal(events.at(-1), "remote-check-started");
   }
 );
 

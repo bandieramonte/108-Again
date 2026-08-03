@@ -1,6 +1,8 @@
 import NetInfo from "@react-native-community/netinfo";
 
-let isOnline = true;
+// Start conservatively until NetInfo supplies the real device state. Assuming
+// online here can launch remote work during an offline cold start.
+let isOnline = false;
 let listeners: (() => void)[] = [];
 
 export function initializeNetworkListener() {

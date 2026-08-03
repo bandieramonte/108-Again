@@ -76,7 +76,7 @@ export function createAuthSessionEngine(deps: AuthSessionEngineDeps) {
             : "remote_overwrite_local";
     }
 
-    async function loadProfileIntoState(
+    function loadLocalProfileIntoState(
         user: AuthSessionUser,
         syncMode: SyncMode
     ) {
@@ -94,7 +94,25 @@ export function createAuthSessionEngine(deps: AuthSessionEngineDeps) {
             firstName: localProfile?.firstName ?? null,
         });
 
+        deps.requestSync(user.id, {
+            immediate: true,
+            mode: syncMode,
+        });
+
+        return { email, localProfile };
+    }
+
+    async function refreshRemoteProfile(
+        user: AuthSessionUser,
+        email: string | null,
+        localProfile: RemoteProfile | null
+    ) {
         const remoteProfile = await deps.fetchRemoteProfile(user.id);
+
+        // A slow request from an earlier auth session must never replace the
+        // currently displayed account.
+        if (getAuthState().userId !== user.id) return;
+
         const firstName =
             remoteProfile?.firstName ?? localProfile?.firstName ?? null;
 
@@ -111,18 +129,32 @@ export function createAuthSessionEngine(deps: AuthSessionEngineDeps) {
             email,
             firstName,
         });
-
-        deps.requestSync(user.id, {
-            immediate: true,
-            mode: syncMode,
-        });
     }
 
-    async function restoreSession(user: AuthSessionUser) {
-        await loadProfileIntoState(
-            user,
-            getLoginSyncMode(user.id)
-        );
+    async function loadProfileIntoState(
+        user: AuthSessionUser,
+        syncMode: SyncMode
+    ) {
+        const { email, localProfile } =
+            loadLocalProfileIntoState(user, syncMode);
+
+        await refreshRemoteProfile(user, email, localProfile);
+    }
+
+    function restoreSession(user: AuthSessionUser) {
+        const syncMode = getLoginSyncMode(user.id);
+        const { email, localProfile } =
+            loadLocalProfileIntoState(user, syncMode);
+
+        // Cached auth and profile data are sufficient for startup. Refreshing
+        // the profile is best-effort remote work and must not gate local UI.
+        void refreshRemoteProfile(user, email, localProfile)
+            .catch((error) => {
+                deps.logger.warn(
+                    "Remote profile refresh postponed",
+                    error
+                );
+            });
     }
 
     function assertCanCreateAccount(email: string) {

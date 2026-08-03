@@ -37,6 +37,7 @@ export type { AuthState } from "./authSessionEngine";
 
 let authInitialized = false;
 let authSubscriptionInitialized = false;
+let authStateEventVersion = 0;
 
 const authSessionEngine = createAuthSessionEngine({
     appMetaRepo,
@@ -86,27 +87,24 @@ export async function initializeAuth() {
     if (!authSubscriptionInitialized) {
         authSubscriptionInitialized = true;
         const supabase = getSupabase();
-        supabase.auth.onAuthStateChange(async (event, session) => {
+        supabase.auth.onAuthStateChange((_event, session) => {
+            authStateEventVersion += 1;
 
             if (blockAuthStateHandler) {
                 console.log("Auth state handler blocked");
                 return;
             }
 
-            try {
-                if (isPasswordRecoveryFlow) {
-                    console.log("Skipping initializeAuth during password recovery");
-                    return;
-                }
-                if (!session?.user) {
-                    authSessionEngine.clearSession();
-                    return;
-                }
-
-                await authSessionEngine.restoreSession(session.user);
-            } catch (error) {
-                console.error("onAuthStateChange error", error);
+            if (isPasswordRecoveryFlow) {
+                console.log("Skipping initializeAuth during password recovery");
+                return;
             }
+            if (!session?.user) {
+                authSessionEngine.clearSession();
+                return;
+            }
+
+            authSessionEngine.restoreSession(session.user);
         });
         
         subscribeAuthInvalid(async () => {
@@ -123,42 +121,56 @@ export async function initializeAuth() {
     }
 
     if (authInitialized) return;
-    const {
-        data: { session },
-        error,
-    } = await getSupabase().auth.getSession();
+    authInitialized = true;
 
-    if (error) {
-        if (isUnrecoverableRefreshTokenError(error)) {
-            const { error: signOutError } =
-                await getSupabase().auth.signOut({ scope: "local" });
+    // Supabase also emits INITIAL_SESSION through onAuthStateChange. This
+    // explicit read is a fallback, but it deliberately runs in the background:
+    // expired-token refreshes can wait on the network and must never block the
+    // offline-first database/UI startup path.
+    const eventVersionAtStart = authStateEventVersion;
 
-            if (
-                signOutError &&
-                !isUnrecoverableRefreshTokenError(signOutError)
-            ) {
-                console.warn(
-                    "Failed to clear invalid local session",
-                    signOutError
-                );
+    void (async () => {
+        try {
+            const {
+                data: { session },
+                error,
+            } = await getSupabase().auth.getSession();
+
+            if (authStateEventVersion !== eventVersionAtStart) return;
+
+            if (error) {
+                if (isUnrecoverableRefreshTokenError(error)) {
+                    const { error: signOutError } =
+                        await getSupabase().auth.signOut({ scope: "local" });
+
+                    if (
+                        signOutError &&
+                        !isUnrecoverableRefreshTokenError(signOutError)
+                    ) {
+                        console.warn(
+                            "Failed to clear invalid local session",
+                            signOutError
+                        );
+                    }
+
+                    authSessionEngine.clearSession();
+                    return;
+                }
+
+                console.warn("Cached auth session check postponed", error);
+                return;
             }
 
-            authSessionEngine.clearSession();
-            authInitialized = true;
-            return;
+            if (!session?.user) {
+                authSessionEngine.clearSession();
+                return;
+            }
+
+            authSessionEngine.restoreSession(session.user);
+        } catch (error) {
+            console.warn("Cached auth session check postponed", error);
         }
-
-        throw error;
-    }
-
-    if (!session?.user) {
-        authSessionEngine.clearSession();
-        authInitialized = true;
-        return;
-    }
-
-    await authSessionEngine.restoreSession(session.user);
-    authInitialized = true;
+    })();
 }
 
 export async function signUp(

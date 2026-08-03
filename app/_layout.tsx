@@ -20,6 +20,7 @@ import type { UpdateRequirement } from "../services/appUpdatePolicy";
 import * as appUpdateService from "../services/appUpdateService";
 import * as authService from "../services/authService";
 import * as lastPracticeScreenService from "../services/lastPracticeScreenService";
+import { initializeOfflineFirstStartup } from "../services/offlineFirstStartup";
 import * as practiceService from "../services/practiceService";
 import * as practiceReminderService from "../services/practiceReminderService";
 import * as practiceReminderRefreshService from "../services/practiceReminderRefreshService";
@@ -91,14 +92,22 @@ function LayoutContent() {
     useEffect(() => {
         let cancelled = false;
 
-        async function initialize() {
-            const accessAllowed = await checkAppAccess();
-
-            if (cancelled || !accessAllowed) return;
-            await initializeAppOnce();
-        }
-
-        initialize();
+        void initializeOfflineFirstStartup({
+            initializeLocalApp: initializeAppOnce,
+            readCachedUpdateRequirement:
+                appUpdateService.getCachedAppUpdateRequirement,
+            applyCachedUpdateRequirement: (requirement) => {
+                if (!cancelled) {
+                    setUpdateRequirement(requirement);
+                }
+            },
+            checkRemoteUpdate: async () => {
+                if (cancelled) return;
+                await checkAppAccess();
+            },
+        }).catch((error) => {
+            console.error("Local app initialization failed", error);
+        });
 
         return () => {
             cancelled = true;
@@ -110,9 +119,7 @@ function LayoutContent() {
         appService.initAppStateListener(() => {
             void (async () => {
                 const wasInitialized = appInitializedRef.current;
-                const accessAllowed = await checkAppAccess();
-
-                if (!accessAllowed) return;
+                void checkAppAccess();
 
                 if (!wasInitialized) {
                     await initializeAppOnce();
