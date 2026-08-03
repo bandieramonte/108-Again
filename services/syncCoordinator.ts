@@ -27,6 +27,7 @@ type SyncCoordinatorDeps = {
     emitAuthInvalid(): void;
     emitDataChanged(): void;
     emitSyncChanged(): void;
+    getCurrentSessionUserId(): Promise<string | null>;
     getIsOnline(): boolean;
     isAppAccessBlocked(): boolean;
     isNetworkTimeout(error: unknown): boolean;
@@ -56,6 +57,30 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
 
     function getSyncState(): SyncState {
         return syncState;
+    }
+
+    function clearUserSyncState(userId?: string) {
+        if (
+            userId &&
+            lastUserId !== userId &&
+            pendingSyncUserId !== userId
+        ) {
+            return;
+        }
+
+        if (scheduledSyncTimeout) {
+            deps.cancelTimer(scheduledSyncTimeout);
+            scheduledSyncTimeout = null;
+        }
+
+        pendingSyncUserId = null;
+        pendingSyncMode = null;
+        lastUserId = null;
+        retryCount = 0;
+
+        if (!syncInFlight) {
+            setSyncState("idle");
+        }
     }
 
     function chooseSyncMode(
@@ -131,6 +156,17 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
             return "offline";
         }
 
+        const currentSessionUserId =
+            await deps.getCurrentSessionUserId();
+
+        if (currentSessionUserId !== userId) {
+            deps.logger.log(
+                "Skipping sync for a signed-out or different user"
+            );
+            clearUserSyncState(userId);
+            return "skipped";
+        }
+
         const remoteAccess = await deps.verifyRemoteSyncAccess();
 
         if (remoteAccess === "blocked") return "update_required";
@@ -146,6 +182,12 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
             return "auth_invalid";
         }
 
+        if (await deps.getCurrentSessionUserId() !== userId) {
+            deps.logger.log("Sync session changed before data transfer");
+            clearUserSyncState(userId);
+            return "skipped";
+        }
+
         try {
             setSyncState("syncing");
 
@@ -158,6 +200,12 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
             retryCount = 0;
             return "success";
         } catch (error: unknown) {
+            if (await deps.getCurrentSessionUserId() !== userId) {
+                deps.logger.log("Sync stopped because the session changed");
+                clearUserSyncState(userId);
+                return "skipped";
+            }
+
             deps.logger.error("syncNow error", error);
 
             if (await deps.isUserDeleted()) {
@@ -277,6 +325,7 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
     }
 
     return {
+        clearUserSyncState,
         getSyncState,
         handleConnectivityChanged,
         requestSync,

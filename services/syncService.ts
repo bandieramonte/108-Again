@@ -46,6 +46,22 @@ async function markLocalDataOwnerIfSessionIsCurrent(userId: string) {
     }
 }
 
+async function getCurrentSessionUserId(): Promise<string | null> {
+    try {
+        const { data, error } = await getSupabase().auth.getSession();
+
+        if (error) {
+            console.warn("Current sync session check failed:", error);
+            return null;
+        }
+
+        return data.session?.user?.id ?? null;
+    } catch (error) {
+        console.warn("Current sync session check failed:", error);
+        return null;
+    }
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -157,6 +173,7 @@ function getSyncCoordinator() {
             emitAuthInvalid,
             emitDataChanged,
             emitSyncChanged,
+            getCurrentSessionUserId,
             getIsOnline,
             isAppAccessBlocked,
             isNetworkTimeout,
@@ -183,6 +200,10 @@ export function resetStaleSyncStateAfterResume() {
 
 export function getSyncState() {
     return getSyncCoordinator().getSyncState();
+}
+
+export function clearUserSyncState(userId?: string) {
+    getSyncCoordinator().clearUserSyncState(userId);
 }
 
 export async function syncNow(

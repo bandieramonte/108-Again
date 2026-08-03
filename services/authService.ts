@@ -100,6 +100,7 @@ export async function initializeAuth() {
                 return;
             }
             if (!session?.user) {
+                syncService.clearUserSyncState();
                 authSessionEngine.clearSession();
                 return;
             }
@@ -325,6 +326,7 @@ export async function signOut() {
         throw error;
     }
 
+    syncService.clearUserSyncState();
     authSessionEngine.clearSession();
 }
 

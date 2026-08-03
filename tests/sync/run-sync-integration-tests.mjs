@@ -213,6 +213,7 @@ function makeLocalDevice(name, remote) {
     emitAuthInvalid: () => {},
     emitDataChanged: () => {},
     emitSyncChanged: () => {},
+    getCurrentSessionUserId: async () => device.userId,
     getIsOnline: () => true,
     isAppAccessBlocked: () => false,
     isNetworkTimeout: (error) =>
@@ -2200,6 +2201,85 @@ async function runRestoreDefaultsBeatsStaleRemoteOverwriteTest() {
   );
 }
 
+async function runLoggedOutPartialDefaultBackupReconnectTest() {
+  const { client, device, remote, user } =
+    await createLoggedInDeviceA({ seedDefaults: true });
+  const omittedSeed = DEFAULT_PRACTICES[0];
+
+  await device.flushAuthSync();
+  await device.operations.restoreDefaults();
+  await device.sync("merge_local");
+
+  let remoteSnapshot = await pullRemoteSnapshot(remote, user.id);
+  assertOnlySeededRemoteZero(
+    remoteSnapshot,
+    "Remote before logged-out partial backup import"
+  );
+
+  await clearDeviceSession(device, client);
+
+  const partialBackup = device.operations.getBackupData();
+  partialBackup.practices = partialBackup.practices.filter(
+    (practice) => practice.id !== omittedSeed.id
+  );
+  partialBackup.sessions = partialBackup.sessions.filter(
+    (session) => session.practiceId !== omittedSeed.id
+  );
+  partialBackup.practiceReminders =
+    partialBackup.practiceReminders.filter(
+      (reminder) => reminder.practiceId !== omittedSeed.id
+    );
+
+  await device.operations.restoreBackupData(partialBackup);
+
+  const staleReconnectResult =
+    await device.syncCoordinator.syncNow(user.id, {
+      mode: "merge_local",
+    });
+
+  assert.equal(
+    staleReconnectResult,
+    "skipped",
+    "A connectivity retry for the logged-out user must be rejected"
+  );
+  assert.ok(
+    device.practiceRepo
+      .getAllPractices()
+      .every((practice) => practice.userId == null),
+    "The stale retry must not claim anonymous backup rows"
+  );
+
+  await signInDevice(
+    device,
+    client,
+    TEST_EMAIL,
+    TEST_PASSWORD
+  );
+
+  remoteSnapshot = await pullRemoteSnapshot(remote, user.id);
+  const activeRemoteIds = activeRemotePractices(remoteSnapshot)
+    .map((practice) => practice.id);
+
+  assert.equal(
+    activeRemoteIds.includes(omittedSeed.id),
+    false,
+    "Short Refuge stays absent after login sync"
+  );
+  assert.deepEqual(
+    activeRemoteIds.sort(),
+    DEFAULT_PRACTICES
+      .slice(1)
+      .map((practice) => practice.id)
+      .sort(),
+    "Remote exactly matches the imported partial-default backup"
+  );
+  assert.equal(
+    device.practiceRepo.getPracticeById(omittedSeed.id),
+    null,
+    "Short Refuge stays absent locally after login sync"
+  );
+}
+
 const tests = [
   [
     "legacy and new practice count columns remain compatible",
@@ -2260,6 +2340,10 @@ const tests = [
   [
     "restore defaults beats stale remote-overwrite sync",
     runRestoreDefaultsBeatsStaleRemoteOverwriteTest,
+  ],
+  [
+    "logged-out partial-default backup survives reconnect and login sync",
+    runLoggedOutPartialDefaultBackupReconnectTest,
   ],
 ];
 

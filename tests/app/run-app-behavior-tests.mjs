@@ -331,6 +331,10 @@ function makeLocalDevice(currentUserId = null, now = () => Date.now()) {
   const deletedRecordRepo = createDeletedRecordRepo(database);
   const practiceRepo = createPracticeRepo(database);
   const sessionRepo = createSessionRepo(database);
+  const getCurrentUserId =
+    typeof currentUserId === "function"
+      ? currentUserId
+      : () => currentUserId;
 
   const operations = createAppOperationEngine({
     appMetaRepo,
@@ -339,7 +343,7 @@ function makeLocalDevice(currentUserId = null, now = () => Date.now()) {
     enqueueWrite: async (fn) => {
       await fn();
     },
-    getCurrentUserId: () => currentUserId,
+    getCurrentUserId,
     now,
     practiceRepo,
     randomUUID,
@@ -484,6 +488,7 @@ function createSyncCoordinatorHarness() {
     authInvalidEvents: 0,
     createdEngines: 0,
     executedSyncs: [],
+    currentSessionUserId: null,
     isOnline: true,
     remoteAccessChecks: 0,
     remoteAccessStatus: "allowed",
@@ -513,6 +518,7 @@ function createSyncCoordinatorHarness() {
     },
     emitDataChanged: () => {},
     emitSyncChanged: () => {},
+    getCurrentSessionUserId: async () => state.currentSessionUserId,
     getIsOnline: () => state.isOnline,
     isAppAccessBlocked: () => state.appAccessBlocked,
     isNetworkTimeout: () => false,
@@ -1337,6 +1343,7 @@ await test(
 
     const offline = createSyncCoordinatorHarness();
     offline.state.isOnline = false;
+    offline.state.currentSessionUserId = "user-2";
 
     assert.equal(
       await offline.coordinator.syncNow("user-2", {
@@ -1366,7 +1373,41 @@ await test(
     ]);
     assert.equal(offline.state.remoteAccessChecks, 1);
 
+    const signedOutRetry = createSyncCoordinatorHarness();
+    signedOutRetry.state.currentSessionUserId = "previous-user";
+    signedOutRetry.state.isOnline = false;
+
+    assert.equal(
+      await signedOutRetry.coordinator.syncNow("previous-user"),
+      "offline"
+    );
+
+    signedOutRetry.state.currentSessionUserId = null;
+    signedOutRetry.state.isOnline = true;
+    signedOutRetry.coordinator.handleConnectivityChanged();
+    signedOutRetry.runNextTimer();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(signedOutRetry.state.remoteAccessChecks, 0);
+    assert.equal(signedOutRetry.state.executedSyncs.length, 0);
+    signedOutRetry.coordinator.handleConnectivityChanged();
+    assert.equal(
+      signedOutRetry.state.scheduledTimers.size,
+      0,
+      "A rejected signed-out retry must forget the previous user"
+    );
+
+    const explicitlySignedOut = createSyncCoordinatorHarness();
+    explicitlySignedOut.state.currentSessionUserId = "previous-user";
+    explicitlySignedOut.state.isOnline = false;
+    await explicitlySignedOut.coordinator.syncNow("previous-user");
+    explicitlySignedOut.coordinator.clearUserSyncState("previous-user");
+    explicitlySignedOut.state.isOnline = true;
+    explicitlySignedOut.coordinator.handleConnectivityChanged();
+    assert.equal(explicitlySignedOut.state.scheduledTimers.size, 0);
+
     const newlyBlocked = createSyncCoordinatorHarness();
+    newlyBlocked.state.currentSessionUserId = "user-blocked";
     newlyBlocked.state.remoteAccessStatus = "blocked";
 
     assert.equal(
@@ -1377,6 +1418,7 @@ await test(
     assert.equal(newlyBlocked.state.executedSyncs.length, 0);
 
     const policyUnavailable = createSyncCoordinatorHarness();
+    policyUnavailable.state.currentSessionUserId = "user-unavailable";
     policyUnavailable.state.remoteAccessStatus = "unavailable";
 
     assert.equal(
@@ -1388,6 +1430,7 @@ await test(
     assert.equal(policyUnavailable.coordinator.getSyncState(), "error");
 
     const deleted = createSyncCoordinatorHarness();
+    deleted.state.currentSessionUserId = "user-3";
     deleted.state.userDeleted = true;
 
     assert.equal(
@@ -1464,6 +1507,78 @@ await test(
         .getPracticeById(practiceId)
         .calendarStartDate,
       importedAt
+    );
+  }
+);
+
+await test(
+  "logged-out partial-default backup replaces the same user's remote defaults",
+  async () => {
+    const userId = "backup-edge-user";
+    let currentUserId = userId;
+    let currentTime = Date.parse("2026-08-03T10:00:00.000Z");
+    const device = makeLocalDevice(
+      () => currentUserId,
+      () => {
+        currentTime += 1000;
+        return currentTime;
+      }
+    );
+    const remote = createMemorySyncRemote();
+    const syncEngine = createSyncEngineForDevice(
+      device,
+      remote,
+      () => {
+        currentTime += 1000;
+        return currentTime;
+      }
+    );
+    const omittedSeedId = DEFAULT_PRACTICES[0].id;
+
+    await device.operations.restoreDefaults();
+    await syncEngine.executeSync(userId, "merge_local");
+
+    assert.equal(
+      (await remote.pullPractices(userId))
+        .filter((practice) => !practice.deleted_at)
+        .length,
+      DEFAULT_PRACTICES.length
+    );
+
+    currentUserId = null;
+    const partialBackup = device.operations.getBackupData();
+    partialBackup.practices = partialBackup.practices.filter(
+      (practice) => practice.id !== omittedSeedId
+    );
+    partialBackup.sessions = partialBackup.sessions.filter(
+      (session) => session.practiceId !== omittedSeedId
+    );
+    partialBackup.practiceReminders =
+      partialBackup.practiceReminders.filter(
+        (reminder) => reminder.practiceId !== omittedSeedId
+      );
+
+    await device.operations.restoreBackupData(partialBackup);
+    assert.equal(device.practiceRepo.getPracticeById(omittedSeedId), null);
+
+    currentUserId = userId;
+    await syncEngine.executeSync(userId, "merge_local");
+
+    const activeRemoteIds = (await remote.pullPractices(userId))
+      .filter((practice) => !practice.deleted_at)
+      .map((practice) => practice.id);
+
+    assert.equal(
+      activeRemoteIds.includes(omittedSeedId),
+      false,
+      "The default omitted from the backup must stay deleted after login sync"
+    );
+    assert.deepEqual(
+      activeRemoteIds.sort(),
+      DEFAULT_PRACTICES
+        .slice(1)
+        .map((practice) => practice.id)
+        .sort()
     );
   }
 );
