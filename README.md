@@ -355,45 +355,7 @@ This required solving product and engineering problems around:
 
 ---
 
-## What This Project Demonstrates
-
-108 Again is an independently developed application and represents end-to-end ownership of a React Native product—from product decisions and frontend implementation through persistence, synchronization, testing, and release.
-
-From an engineering perspective, the project demonstrates work with:
-
-- React Native and TypeScript
-- Mobile product development
-- Component-based UI architecture
-- Local-first application design
-- Relational persistence with SQLite
-- Cloud integration with Supabase
-- Authentication
-- Synchronization and conflict-sensitive data flows
-- Repository and service abstractions
-- Data visualization
-- Responsive mobile/tablet interfaces
-- Automated testing
-- Production deployment
-
----
-
 ## Developer
 
 **Gian Piero Bandieramonte**  
 Senior Software Engineer
-
-Professional experience includes full-stack product development, React applications, API integrations, fintech, payments, and trading systems.
-
-- Portfolio: https://www.bandieramonte.com/
-- LinkedIn: https://www.linkedin.com/in/gbandieramonte/
-- GitHub: https://github.com/bandieramonte
-
-For examples of my commercial engineering work—including React platform modernization and fintech/trading systems—see my professional portfolio.
-
----
-
-## Android App
-
-108 Again is available on Google Play:
-
-**[View 108 Again on Google Play](https://play.google.com/store/apps/details?id=com.bandieramonte.app108again)**
