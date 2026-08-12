@@ -3,7 +3,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, type LayoutChangeEvent } from "react-native";
+import { ActivityIndicator, Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View, type LayoutChangeEvent } from "react-native";
 import Reanimated, { LinearTransition } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CelebrationOverlay from "../components/CelebrationOverlay";
@@ -66,6 +66,7 @@ function DashboardTotalProgressBar({
   progress,
 }: DashboardTotalProgressBarProps) {
   const { colors: themeColors, isDark } = useAppTheme();
+  const { fontScale } = useWindowDimensions();
   const [trackWidth, setTrackWidth] = useState(0);
   const safeProgress =
     Number.isFinite(progress)
@@ -73,6 +74,10 @@ function DashboardTotalProgressBar({
       : 0;
   const percent = Math.round(safeProgress * 100);
   const fillWidth = `${safeProgress * 100}%` as `${number}%`;
+  const textVerticalOffset = Math.max(
+    0,
+    2 - Math.max(fontScale - 1, 0) * 8
+  );
 
   function handleTrackLayout(event: LayoutChangeEvent) {
     setTrackWidth(event.nativeEvent.layout.width);
@@ -112,6 +117,7 @@ function DashboardTotalProgressBar({
             {
               color: themeColors.textPrimary,
               fontWeight: isDark ? "400" : "700",
+              transform: [{ translateY: textVerticalOffset }],
             },
           ]}
           numberOfLines={1}
@@ -140,7 +146,10 @@ function DashboardTotalProgressBar({
               style={[
                 styles.totalProgressText,
                 styles.totalProgressTextFilled,
-                { fontWeight: isDark ? "400" : "700" },
+                {
+                  fontWeight: isDark ? "400" : "700",
+                  transform: [{ translateY: textVerticalOffset }],
+                },
               ]}
               numberOfLines={1}
               adjustsFontSizeToFit
@@ -1490,7 +1499,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
     includeFontPadding: false,
-    transform: [{ translateY: 2 }],
   },
 
   totalProgressTextFull: {
