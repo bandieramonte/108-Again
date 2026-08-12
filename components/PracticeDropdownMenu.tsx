@@ -1,5 +1,5 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import React from "react";
+import React, { useState } from "react";
 import {
     Modal,
     Pressable,
@@ -39,11 +39,23 @@ export default function PracticeDropdownMenu({
 }: Props) {
     const { colors } = useAppTheme();
     const { t } = useI18n();
-    const { width: screenWidth, height: screenHeight } =
+    const {
+        width: screenWidth,
+        height: screenHeight,
+        fontScale,
+    } =
         useWindowDimensions();
-    const menuWidth = 220;
-    const estimatedMenuHeight = onCalendar ? 184 : 138;
     const screenMargin = 12;
+    const itemCount = onCalendar ? 4 : 3;
+    const menuWidth = Math.min(
+        screenWidth - screenMargin * 2,
+        Math.max(240, 240 * Math.min(fontScale, 1.4))
+    );
+    const fallbackMenuHeight =
+        itemCount * Math.max(46, 24 + 36 * fontScale) + 12;
+    const [measuredMenuHeight, setMeasuredMenuHeight] =
+        useState<number | null>(null);
+    const menuHeight = measuredMenuHeight ?? fallbackMenuHeight;
 
     const menuLeft = anchor
         ? Math.min(
@@ -61,11 +73,11 @@ export default function PracticeDropdownMenu({
 
     const menuTop =
         anchor &&
-            preferredMenuTop + estimatedMenuHeight >
+            preferredMenuTop + menuHeight >
             screenHeight - screenMargin
             ? Math.max(
                 screenMargin,
-                anchor.y - estimatedMenuHeight - 8
+                anchor.y - menuHeight - 8
             )
             : preferredMenuTop;
 
@@ -90,11 +102,23 @@ export default function PracticeDropdownMenu({
                             {
                                 top: menuTop,
                                 left: menuLeft,
+                                width: menuWidth,
                                 backgroundColor: colors.surfaceElevated,
                                 shadowColor: colors.shadow,
                                 borderColor: colors.borderSubtle,
                             },
                         ]}
+                        onLayout={({ nativeEvent }) => {
+                            const nextHeight = Math.ceil(
+                                nativeEvent.layout.height
+                            );
+
+                            setMeasuredMenuHeight(currentHeight =>
+                                currentHeight === nextHeight
+                                    ? currentHeight
+                                    : nextHeight
+                            );
+                        }}
                     >
                         <Pressable
                             style={styles.item}
@@ -105,7 +129,11 @@ export default function PracticeDropdownMenu({
                                 size={18}
                                 color={colors.icon}
                             />
-                            <Text style={[styles.text, { color: colors.textPrimary }]}>
+                            <Text
+                                numberOfLines={2}
+                                ellipsizeMode="tail"
+                                style={[styles.text, { color: colors.textPrimary }]}
+                            >
                                 {t("practiceMenu.edit")}
                             </Text>
                         </Pressable>
@@ -119,7 +147,11 @@ export default function PracticeDropdownMenu({
                                 size={18}
                                 color={colors.icon}
                             />
-                            <Text style={[styles.text, { color: colors.textPrimary }]}>
+                            <Text
+                                numberOfLines={2}
+                                ellipsizeMode="tail"
+                                style={[styles.text, { color: colors.textPrimary }]}
+                            >
                                 {t("practiceMenu.history")}
                             </Text>
                         </Pressable>
@@ -134,7 +166,11 @@ export default function PracticeDropdownMenu({
                                     size={18}
                                     color={colors.icon}
                                 />
-                                <Text style={[styles.text, { color: colors.textPrimary }]}>
+                                <Text
+                                    numberOfLines={2}
+                                    ellipsizeMode="tail"
+                                    style={[styles.text, { color: colors.textPrimary }]}
+                                >
                                     {t("practiceMenu.calendar")}
                                 </Text>
                             </Pressable>
@@ -150,6 +186,8 @@ export default function PracticeDropdownMenu({
                                 color={colors.destructive}
                             />
                             <Text
+                                numberOfLines={2}
+                                ellipsizeMode="tail"
                                 style={[
                                     styles.deleteText,
                                     { color: colors.destructive },
@@ -172,7 +210,6 @@ const styles = StyleSheet.create({
 
     menu: {
         position: "absolute",
-        width: 220,
         backgroundColor: "white",
         borderWidth: 1,
         borderRadius: 10,
@@ -196,11 +233,17 @@ const styles = StyleSheet.create({
     },
 
     text: {
+        flex: 1,
+        flexShrink: 1,
+        minWidth: 0,
         fontSize: 15,
         color: "#333",
     },
 
     deleteText: {
+        flex: 1,
+        flexShrink: 1,
+        minWidth: 0,
         fontSize: 15,
         color: "#c62828",
     },

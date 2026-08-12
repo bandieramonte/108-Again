@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    BackHandler,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -21,6 +22,11 @@ import { useAppTheme, useGlobalStyles } from "../styles/theme";
 import { getLocalizedAuthErrorMessage } from "../utils/authErrorText";
 import { subscribeAuth, subscribeSync } from "../utils/events";
 
+type SyncNotice = {
+    title: string;
+    message: string;
+};
+
 export default function AccountScreen() {
     const insets = useSafeAreaInsets();
     const globalStyles = useGlobalStyles();
@@ -35,6 +41,7 @@ export default function AccountScreen() {
     const [syncing, setSyncing] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [privacyVisible, setPrivacyVisible] = useState(false);
+    const [syncNotice, setSyncNotice] = useState<SyncNotice | null>(null);
 
     useEffect(() => {
         let active = true;
@@ -78,6 +85,20 @@ export default function AccountScreen() {
         }
     }, [authChecked, authState.isAuthenticated]);
 
+    useEffect(() => {
+        if (!syncNotice) return;
+
+        const subscription = BackHandler.addEventListener(
+            "hardwareBackPress",
+            () => {
+                setSyncNotice(null);
+                return true;
+            }
+        );
+
+        return () => subscription.remove();
+    }, [syncNotice]);
+
     async function handleSignOut() {
         try {
             await authService.signOut();
@@ -117,10 +138,10 @@ export default function AccountScreen() {
             console.log("SYNC: start");
 
             if (!getIsOnline()) {
-                Alert.alert(
-                    t("account.offlineTitle"),
-                    t("account.offlineMessage")
-                );
+                setSyncNotice({
+                    title: t("account.offlineTitle"),
+                    message: t("account.offlineMessage"),
+                });
                 return;
             }
 
@@ -131,10 +152,10 @@ export default function AccountScreen() {
             }
 
             if (result === "policy_unavailable") {
-                Alert.alert(
-                    t("account.syncPostponedTitle"),
-                    t("account.syncPostponedMessage")
-                );
+                setSyncNotice({
+                    title: t("account.syncPostponedTitle"),
+                    message: t("account.syncPostponedMessage"),
+                });
                 return;
             }
 
@@ -146,26 +167,26 @@ export default function AccountScreen() {
             const state = syncService.getSyncState();
 
             if (state === "success") {
-                Alert.alert(
-                    t("account.syncCompleteTitle"),
-                    t("account.syncCompleteMessage")
-                );
+                setSyncNotice({
+                    title: t("account.syncCompleteTitle"),
+                    message: t("account.syncCompleteMessage"),
+                });
             } else if (state === "error") {
-                Alert.alert(
-                    t("account.syncFailedTitle"),
-                    t("account.syncFailedMessage")
-                );
+                setSyncNotice({
+                    title: t("account.syncFailedTitle"),
+                    message: t("account.syncFailedMessage"),
+                });
             } else if (state === "timeout") {
-                Alert.alert(
-                    t("account.syncTimeoutTitle"),
-                    t("account.syncTimeoutMessage")
-                );
+                setSyncNotice({
+                    title: t("account.syncTimeoutTitle"),
+                    message: t("account.syncTimeoutMessage"),
+                });
             }
         } catch (error: any) {
-            Alert.alert(
-                t("account.syncFailedTitle"),
-                error?.message ?? t("common.unknownError")
-            );
+            setSyncNotice({
+                title: t("account.syncFailedTitle"),
+                message: error?.message ?? t("common.unknownError"),
+            });
         } finally {
             setSyncing(false);
         }
@@ -235,20 +256,30 @@ export default function AccountScreen() {
                 }}
             />
 
-            <ScrollView
-                style={{
-                    flex: 1,
-                    backgroundColor: colors.background,
-                }}
-                contentContainerStyle={[
-                    globalStyles.sidePadding,
-                    styles.container,
-                    {
-                        backgroundColor: colors.background,
-                        paddingBottom: bottomPadding,
-                    },
+            <View
+                style={[
+                    styles.screen,
+                    { backgroundColor: colors.background },
                 ]}
             >
+                <ScrollView
+                    pointerEvents={syncNotice ? "none" : "auto"}
+                    importantForAccessibility={
+                        syncNotice ? "no-hide-descendants" : "auto"
+                    }
+                    style={{
+                        flex: 1,
+                        backgroundColor: colors.background,
+                    }}
+                    contentContainerStyle={[
+                        globalStyles.sidePadding,
+                        styles.container,
+                        {
+                            backgroundColor: colors.background,
+                            paddingBottom: bottomPadding,
+                        },
+                    ]}
+                >
                 <Text style={[styles.title, { color: colors.textPrimary }]}>
                     {t("account.title")}
                 </Text>
@@ -319,10 +350,11 @@ export default function AccountScreen() {
                                 styles.button,
                                 { backgroundColor: colors.surface },
                                 pressed && styles.buttonPressed,
-                                (syncing || !getIsOnline()) && styles.buttonDisabled,
+                                (syncing || !!syncNotice || !getIsOnline()) &&
+                                    styles.buttonDisabled,
                             ]}
                             onPress={handleSyncNow}
-                            disabled={syncing || !getIsOnline()}
+                            disabled={syncing || !!syncNotice || !getIsOnline()}
                         >
                             {syncing ? (
                                 <ActivityIndicator color={colors.primary} />
@@ -395,16 +427,86 @@ export default function AccountScreen() {
                         </Pressable>
                     </>
                 )}
+                </ScrollView>
+
+                {syncNotice && (
+                    <View
+                        style={styles.syncNoticeOverlay}
+                        accessibilityViewIsModal
+                        importantForAccessibility="yes"
+                    >
+                        <Pressable
+                            style={[
+                                StyleSheet.absoluteFill,
+                                { backgroundColor: colors.overlay },
+                            ]}
+                            onPress={() => {}}
+                            accessible={false}
+                        />
+                        <View
+                            style={[
+                                styles.syncNoticeDialog,
+                                {
+                                    backgroundColor: colors.surfaceElevated,
+                                    borderColor: colors.borderSubtle,
+                                    shadowColor: colors.shadow,
+                                },
+                            ]}
+                        >
+                            <ScrollView
+                                bounces={false}
+                                showsVerticalScrollIndicator={false}
+                                style={styles.syncNoticeBody}
+                            >
+                                <Text
+                                    style={[
+                                        styles.syncNoticeTitle,
+                                        { color: colors.textPrimary },
+                                    ]}
+                                >
+                                    {syncNotice.title}
+                                </Text>
+                                <Text
+                                    style={[
+                                        styles.syncNoticeMessage,
+                                        { color: colors.textPrimary },
+                                    ]}
+                                >
+                                    {syncNotice.message}
+                                </Text>
+                            </ScrollView>
+                            <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={t("common.ok")}
+                                onPress={() => setSyncNotice(null)}
+                                style={({ pressed }) => [
+                                    styles.syncNoticeButton,
+                                    { backgroundColor: colors.primary },
+                                    pressed && styles.buttonPressed,
+                                ]}
+                            >
+                                <Text style={styles.syncNoticeButtonText}>
+                                    {t("common.ok")}
+                                </Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                )}
+
                 <PrivacyModal
                     visible={privacyVisible}
                     onClose={() => setPrivacyVisible(false)}
                 />
-
-            </ScrollView></>
+            </View>
+        </>
     );
 }
 
 const styles = StyleSheet.create({
+    screen: {
+        flex: 1,
+    },
+
     container: {
         flexGrow: 1,
         paddingVertical: 14,
@@ -491,5 +593,58 @@ const styles = StyleSheet.create({
         textAlign: "center",
         fontWeight: "600",
         fontSize: 16,
+    },
+
+    syncNoticeOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 100,
+        elevation: 100,
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+    },
+
+    syncNoticeDialog: {
+        width: "100%",
+        maxWidth: 420,
+        maxHeight: "80%",
+        borderWidth: 1,
+        borderRadius: 14,
+        padding: 20,
+        elevation: 12,
+        shadowOpacity: 0.22,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 5 },
+    },
+
+    syncNoticeBody: {
+        flexGrow: 0,
+        flexShrink: 1,
+    },
+
+    syncNoticeTitle: {
+        fontSize: 20,
+        fontWeight: "700",
+        marginBottom: 10,
+    },
+
+    syncNoticeMessage: {
+        fontSize: 16,
+        lineHeight: 23,
+    },
+
+    syncNoticeButton: {
+        minHeight: 48,
+        marginTop: 20,
+        borderRadius: 10,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 20,
+    },
+
+    syncNoticeButtonText: {
+        color: "white",
+        fontSize: 16,
+        fontWeight: "700",
     },
 });
