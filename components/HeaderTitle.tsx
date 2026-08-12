@@ -1,6 +1,8 @@
 import { useI18n } from "@/i18n";
+import * as lastPracticeScreenService from "@/services/lastPracticeScreenService";
 import { useAppTheme } from "@/styles/theme";
 import { router } from "expo-router";
+import { useRef } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 type Props = {
@@ -14,14 +16,29 @@ const darkTitleImage = require("../assets/images/title-dark.png");
 export default function HeaderTitle({ firstName, isAuthenticated }: Props) {
     const { colors, isDark } = useAppTheme();
     const { t } = useI18n();
+    const dashboardNavigationInProgress = useRef(false);
+
+    async function navigateToDashboard() {
+        if (dashboardNavigationInProgress.current) return;
+
+        dashboardNavigationInProgress.current = true;
+
+        try {
+            // Clear this before navigating so a concurrent development
+            // remount cannot restore the practice screen we are leaving.
+            await lastPracticeScreenService.clearLastPracticeScreen();
+        } finally {
+            // This is one atomic operation: dismiss to an existing dashboard
+            // route, or replace the current route if it is not in the stack.
+            router.dismissTo("/");
+            dashboardNavigationInProgress.current = false;
+        }
+    }
 
     return (
         <Pressable
             onPress={() => {
-                if (router.canGoBack()) {
-                    router.dismissAll();
-                }
-                router.navigate("/");
+                void navigateToDashboard();
             }}
             style={styles.container}
         >
