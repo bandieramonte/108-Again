@@ -1,5 +1,5 @@
 import * as Localization from "expo-localization";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
     Modal,
     Pressable,
@@ -45,9 +45,13 @@ export default function PracticeReminderEditor({
     const { fontScale } = useWindowDimensions();
     const usesLargeText = fontScale > 1;
     const scrollRef = useRef<ScrollView | null>(null);
-    const [timeLocale, setTimeLocale] = useState(locale);
+    const [timeLocale, setTimeLocale] = useState(
+        () => Localization.getLocales()[0]?.languageTag ?? locale
+    );
     const [uses24HourClock, setUses24HourClock] =
-        useState<boolean | null>(null);
+        useState<boolean | null>(
+            () => Localization.getCalendars()[0]?.uses24hourClock ?? null
+        );
     const [timeOptions, setTimeOptions] =
         useState<ReminderTimeOption[]>(() => buildReminderTimeOptions());
     const [currentTime, setCurrentTime] = useState(
@@ -57,6 +61,28 @@ export default function PracticeReminderEditor({
         hour: initialHour,
         minute: initialMinute,
     });
+    const localizedTimeOptions = useMemo(
+        () => timeOptions.map(option => ({
+            ...option,
+            label: formatReminderTimeForLocale(
+                option.hour,
+                option.minute,
+                timeLocale,
+                uses24HourClock
+            ),
+        })),
+        [timeLocale, timeOptions, uses24HourClock]
+    );
+
+    useEffect(() => {
+        setTimeLocale(
+            Localization.getLocales()[0]?.languageTag ?? locale
+        );
+        setUses24HourClock(
+            Localization.getCalendars()[0]?.uses24hourClock ?? null
+        );
+    }, [locale]);
+
     useEffect(() => {
         if (!visible) return;
 
@@ -71,16 +97,39 @@ export default function PracticeReminderEditor({
             : null;
         const nextSelected = savedOption ?? nearestCurrentTime;
 
-        setTimeOptions(nextOptions);
-        setCurrentTime(nearestCurrentTime);
-        setSelectedTime(nextSelected);
-        setTimeLocale(
-            Localization.getLocales()[0]?.languageTag ?? locale
-        );
-        setUses24HourClock(
-            Localization.getCalendars()[0]?.uses24hourClock ?? null
-        );
+        setTimeOptions(currentOptions => {
+            const currentFirst = currentOptions[0];
+            const nextFirst = nextOptions[0];
+            const optionsAreCurrent =
+                currentOptions.length === nextOptions.length &&
+                currentFirst != null &&
+                nextFirst != null &&
+                reminderTimeMatches(
+                    currentFirst,
+                    nextFirst.hour,
+                    nextFirst.minute
+                );
 
+            return optionsAreCurrent ? currentOptions : nextOptions;
+        });
+        setCurrentTime(current =>
+            reminderTimeMatches(
+                current,
+                nearestCurrentTime.hour,
+                nearestCurrentTime.minute
+            )
+                ? current
+                : nearestCurrentTime
+        );
+        setSelectedTime(current =>
+            reminderTimeMatches(
+                current,
+                nextSelected.hour,
+                nextSelected.minute
+            )
+                ? current
+                : nextSelected
+        );
         const currentTimeIndex = nextOptions.findIndex(option =>
             reminderTimeMatches(
                 option,
@@ -107,7 +156,7 @@ export default function PracticeReminderEditor({
         <Modal
             visible={visible}
             transparent
-            animationType="fade"
+            animationType="none"
             onRequestClose={onClose}
         >
             <Pressable
@@ -151,7 +200,7 @@ export default function PracticeReminderEditor({
                         ]}
                         contentContainerStyle={styles.timeListContent}
                     >
-                        {timeOptions.map(option => {
+                        {localizedTimeOptions.map(option => {
                             const selected =
                                 reminderTimeMatches(
                                     option,
@@ -192,12 +241,7 @@ export default function PracticeReminderEditor({
                                                 styles.timeOptionTextSelected,
                                         ]}
                                     >
-                                        {formatReminderTimeForLocale(
-                                            option.hour,
-                                            option.minute,
-                                            timeLocale,
-                                            uses24HourClock
-                                        )}
+                                        {option.label}
                                     </Text>
                                 </Pressable>
                             );

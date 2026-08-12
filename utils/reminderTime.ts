@@ -6,6 +6,7 @@ export type ReminderTimeOption = {
 
 const HALF_HOUR_MINUTES = 30;
 const DAY_MINUTES = 24 * 60;
+const timeFormatterCache = new Map<string, Intl.DateTimeFormat>();
 
 function normalizeMinutes(minutes: number) {
     return ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
@@ -92,10 +93,25 @@ export function formatReminderTimeForLocale(
     }
 
     try {
-        return new Intl.DateTimeFormat(
-            locale || undefined,
-            options
-        ).format(date);
+        const formatterKey = [
+            locale || "device",
+            uses24HourClock == null
+                ? "device"
+                : uses24HourClock
+                    ? "24"
+                    : "12",
+        ].join(":");
+        let formatter = timeFormatterCache.get(formatterKey);
+
+        if (!formatter) {
+            formatter = new Intl.DateTimeFormat(
+                locale || undefined,
+                options
+            );
+            timeFormatterCache.set(formatterKey, formatter);
+        }
+
+        return formatter.format(date);
     } catch {
         return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
     }

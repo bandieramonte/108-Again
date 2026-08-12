@@ -586,6 +586,11 @@ export default function PracticeContent({
             return;
         }
 
+        if (reminderEnabled) {
+            setReminderOpen(true);
+            return;
+        }
+
         try {
             const permission =
                 await practiceReminderRefreshService
