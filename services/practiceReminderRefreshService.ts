@@ -7,6 +7,7 @@ import * as practiceRepo from "../repositories/practiceRepo";
 import * as sessionRepo from "../repositories/sessionRepo";
 import { formatCalendarDate } from "../utils/calendarMonth";
 import { getPracticeReminderBackupRowFromPractice } from "../utils/practiceReminderState";
+import { getAppOperationEngine } from "./appOperationRuntime";
 import * as practiceReminderService from "./practiceReminderService";
 import type {
     PracticeReminderSettings,
@@ -133,6 +134,40 @@ function warnRefreshFailed(
     (logger ?? console).warn(message, error);
 }
 
+function disableAllReminderPreferences() {
+    const enabledPractices = practiceRepo
+        .getAllPractices()
+        .filter(practice => Boolean(practice.reminderEnabled));
+
+    if (enabledPractices.length === 0) return;
+
+    const operations = getAppOperationEngine();
+
+    for (const practice of enabledPractices) {
+        operations.updatePracticeReminderSettings(
+            practice.id,
+            false,
+            practice.reminderHour ?? 20,
+            practice.reminderMinute ?? 0
+        );
+    }
+}
+
+export async function requestPracticeReminderPermission(
+    reminderText?: PracticeReminderText
+) {
+    const granted =
+        await practiceReminderService.requestPracticeReminderPermission(
+            reminderText
+        );
+
+    if (!granted) {
+        disableAllReminderPreferences();
+    }
+
+    return granted;
+}
+
 export async function refreshReminderForPractice(
     practiceId: string,
     options?: RefreshReminderOptions
@@ -154,13 +189,20 @@ export async function refreshReminderForPractice(
     const practiceName =
         getPracticeDisplayName(practice.id, practice.name, t);
 
-    return practiceReminderService.refreshPracticeReminderSchedule({
+    const settings =
+        await practiceReminderService.refreshPracticeReminderSchedule({
         practiceId,
         practiceName,
         todayCount: getTodayCount(practiceId),
         dailyTargetCount: practice.dailyTargetCount ?? null,
         reminderText,
     });
+
+    if (currentSettings.enabled && !settings.enabled) {
+        disableAllReminderPreferences();
+    }
+
+    return settings;
 }
 
 async function refreshPracticeReminderIds(

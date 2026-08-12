@@ -467,7 +467,7 @@ export default function PracticeContent({
         }, 4000);
     }
 
-    function openReminderEditor() {
+    async function openReminderEditor() {
         if (!hasDailyTarget) {
             Alert.alert(
                 t("practice.enableDailyTarget"),
@@ -482,11 +482,31 @@ export default function PracticeContent({
             return;
         }
 
+        const permissionGranted =
+            await practiceReminderRefreshService
+                .requestPracticeReminderPermission(reminderText);
+
+        if (!permissionGranted) {
+            setReminderOpen(false);
+            loadPracticeData();
+            return;
+        }
+
         setReminderOpen(true);
     }
 
     async function saveReminder(hour: number, minute: number) {
         try {
+            const permissionGranted =
+                await practiceReminderRefreshService
+                    .requestPracticeReminderPermission(reminderText);
+
+            if (!permissionGranted) {
+                setReminderOpen(false);
+                loadPracticeData();
+                return;
+            }
+
             const settings =
                 await practiceReminderService.savePracticeReminderSettings({
                     practiceId,

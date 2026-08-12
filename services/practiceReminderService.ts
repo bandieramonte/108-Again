@@ -5,6 +5,8 @@ import { formatCalendarDate } from "../utils/calendarMonth";
 import { formatNumber } from "../utils/numberUtils";
 
 const STORAGE_KEY_PREFIX = "practiceReminder:";
+const NOTIFICATION_PERMISSION_DECLINED_KEY =
+    "practiceReminderNotificationPermissionDeclined";
 const CHANNEL_ID = "practice-reminders";
 const DAYS_TO_SCHEDULE = 14;
 const DEFAULT_HOUR = 20;
@@ -58,7 +60,12 @@ export type PracticeReminderText = {
 
 let notificationHandlerRegistered = false;
 let notificationPermissionRequest:
-    Promise<void> | null = null;
+    Promise<NotificationPermissionResult> | null = null;
+
+type NotificationPermissionResult =
+    | "denied"
+    | "granted"
+    | "unavailable";
 
 export function initializePracticeReminderNotifications() {
     if (notificationHandlerRegistered) return;
@@ -220,14 +227,15 @@ async function cancelScheduledNotifications(
 }
 
 async function requestNotificationPermission(
-    reminderText?: PracticeReminderText
-) {
+    reminderText?: PracticeReminderText,
+    retryAfterPreviousDecline = false
+): Promise<NotificationPermissionResult> {
     const text = getReminderText(reminderText);
 
     initializePracticeReminderNotifications();
 
     if (Platform.OS === "web") {
-        throw new Error(text.unavailableOnWebMessage);
+        return "unavailable";
     }
 
     if (Platform.OS === "android") {
@@ -238,30 +246,62 @@ async function requestNotificationPermission(
     }
 
     const existing = await Notifications.getPermissionsAsync();
-    let finalStatus = existing.status;
 
-    if (finalStatus !== "granted") {
-        const requested = await Notifications.requestPermissionsAsync();
-        finalStatus = requested.status;
+    if (existing.status === "granted") {
+        await AsyncStorage.removeItem(
+            NOTIFICATION_PERMISSION_DECLINED_KEY
+        );
+        return "granted";
     }
 
-    if (finalStatus !== "granted") {
-        throw new Error(text.permissionDeniedMessage);
+    const previouslyDeclined =
+        await AsyncStorage.getItem(
+            NOTIFICATION_PERMISSION_DECLINED_KEY
+        ) === "true";
+
+    if (
+        (previouslyDeclined && !retryAfterPreviousDecline) ||
+        existing.canAskAgain === false
+    ) {
+        await AsyncStorage.setItem(
+            NOTIFICATION_PERMISSION_DECLINED_KEY,
+            "true"
+        );
+        return "denied";
     }
+
+    const requested = await Notifications.requestPermissionsAsync();
+
+    if (requested.status === "granted") {
+        await AsyncStorage.removeItem(
+            NOTIFICATION_PERMISSION_DECLINED_KEY
+        );
+        return "granted";
+    }
+
+    await AsyncStorage.setItem(
+        NOTIFICATION_PERMISSION_DECLINED_KEY,
+        "true"
+    );
+    return "denied";
 }
 
 async function ensureNotificationPermission(
-    reminderText?: PracticeReminderText
-) {
+    reminderText?: PracticeReminderText,
+    retryAfterPreviousDecline = false
+): Promise<NotificationPermissionResult> {
     if (notificationPermissionRequest) {
         return notificationPermissionRequest;
     }
 
-    const request = requestNotificationPermission(reminderText);
+    const request = requestNotificationPermission(
+        reminderText,
+        retryAfterPreviousDecline
+    );
     notificationPermissionRequest = request;
 
     try {
-        await request;
+        return await request;
     } finally {
         if (notificationPermissionRequest === request) {
             notificationPermissionRequest = null;
@@ -528,7 +568,16 @@ export async function savePracticeReminderSettings({
         throw new Error(text.dailyTargetRequiredMessage);
     }
 
-    await ensureNotificationPermission(text);
+    const permission = await ensureNotificationPermission(text, true);
+
+    if (permission === "unavailable") {
+        throw new Error(text.unavailableOnWebMessage);
+    }
+
+    if (permission !== "granted") {
+        await disableAllPracticeReminders();
+        throw new Error(text.permissionDeniedMessage);
+    }
 
     const current = await getPracticeReminderSettings(practiceId);
     const next: PracticeReminderSettings = {
@@ -567,6 +616,54 @@ export async function disablePracticeReminder(
     return next;
 }
 
+export async function disableAllPracticeReminders(): Promise<string[]> {
+    const reminderEntries = await getReminderStorageEntries();
+    const disabledPracticeIds: string[] = [];
+
+    await Promise.all(
+        reminderEntries.map(async ([key, value]) => {
+            const practiceId = key.slice(STORAGE_KEY_PREFIX.length);
+            const current = parseSettings(value);
+
+            if (!practiceId) return;
+
+            if (current.enabled) {
+                disabledPracticeIds.push(practiceId);
+            }
+
+            if (
+                !current.enabled &&
+                current.scheduledNotifications.length === 0
+            ) {
+                return;
+            }
+
+            await cancelScheduledNotifications(current);
+            await saveSettings(practiceId, {
+                ...current,
+                enabled: false,
+                scheduledNotifications: [],
+            });
+        })
+    );
+
+    return disabledPracticeIds;
+}
+
+export async function requestPracticeReminderPermission(
+    reminderText?: PracticeReminderText
+): Promise<boolean> {
+    const permission = await ensureNotificationPermission(
+        reminderText,
+        true
+    );
+
+    if (permission === "granted") return true;
+
+    await disableAllPracticeReminders();
+    return false;
+}
+
 export async function refreshPracticeReminderSchedule(
     context: ReminderScheduleContext
 ): Promise<PracticeReminderSettings> {
@@ -581,7 +678,13 @@ export async function refreshPracticeReminderSchedule(
         return disablePracticeReminder(context.practiceId);
     }
 
-    await ensureNotificationPermission(context.reminderText);
+    const permission =
+        await ensureNotificationPermission(context.reminderText);
+
+    if (permission !== "granted") {
+        await disableAllPracticeReminders();
+        return getPracticeReminderSettings(context.practiceId);
+    }
 
     const next: PracticeReminderSettings = {
         ...current,

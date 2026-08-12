@@ -143,7 +143,9 @@ async function withBackupServiceHarness(device, storage, fn) {
 async function withPracticeReminderServiceHarness(fn) {
   const storage = createMemoryStorage();
   const state = {
+    permissionCanAskAgain: true,
     permissionRequests: 0,
+    permissionRequestStatus: "granted",
     permissionStatus: "undetermined",
     scheduledNotifications: 0,
   };
@@ -171,12 +173,16 @@ async function withPracticeReminderServiceHarness(fn) {
         clearLastNotificationResponse: () => {},
         getLastNotificationResponse: () => null,
         getPermissionsAsync: async () => ({
+          canAskAgain: state.permissionCanAskAgain,
           status: state.permissionStatus,
         }),
         requestPermissionsAsync: async () => {
           state.permissionRequests += 1;
-          state.permissionStatus = "granted";
-          return { status: "granted" };
+          state.permissionStatus = state.permissionRequestStatus;
+          return {
+            canAskAgain: state.permissionCanAskAgain,
+            status: state.permissionStatus,
+          };
         },
         scheduleNotificationAsync: async ({ identifier }) => {
           state.scheduledNotifications += 1;
@@ -2567,6 +2573,155 @@ await test(
           state.permissionRequests,
           1,
           "Already granted permission is not requested again"
+        );
+      }
+    );
+  }
+);
+
+await test(
+  "fresh Android installs request permission for synced reminders when allowed",
+  async () => {
+    await withPracticeReminderServiceHarness(
+      async (practiceReminderService, state) => {
+        const practiceId = "fresh-install-synced-reminder";
+
+        // Android can initially describe an ungranted permission as denied
+        // while canAskAgain still indicates that the app may show the prompt.
+        state.permissionStatus = "denied";
+        state.permissionCanAskAgain = true;
+
+        await practiceReminderService.restorePracticeReminderBackupData(
+          [
+            {
+              practiceId,
+              enabled: true,
+              hour: 20,
+              minute: 30,
+            },
+          ],
+          new Set([practiceId])
+        );
+
+        await practiceReminderService.refreshPracticeReminderSchedule({
+          practiceId,
+          practiceName: "Synced reminder",
+          todayCount: 0,
+          dailyTargetCount: 108,
+        });
+
+        assert.equal(
+          state.permissionRequests,
+          1,
+          "A fresh install must show the Android permission prompt"
+        );
+        assert.ok(
+          state.scheduledNotifications > 0,
+          "The synced reminder schedules after permission is granted"
+        );
+      }
+    );
+  }
+);
+
+await test(
+  "notification refusal disables every reminder and explicit retries can enable one",
+  async () => {
+    await withPracticeReminderServiceHarness(
+      async (practiceReminderService, state) => {
+        const practiceId = "denied-reminder-practice";
+        const otherPracticeId = "other-enabled-reminder-practice";
+
+        state.permissionRequestStatus = "denied";
+
+        await practiceReminderService.restorePracticeReminderBackupData(
+          [
+            {
+              practiceId,
+              enabled: true,
+              hour: 20,
+              minute: 30,
+            },
+            {
+              practiceId: otherPracticeId,
+              enabled: true,
+              hour: 8,
+              minute: 0,
+            },
+          ],
+          new Set([practiceId, otherPracticeId])
+        );
+
+        const refreshed =
+          await practiceReminderService.refreshPracticeReminderSchedule({
+            practiceId,
+            practiceName: "Denied reminder",
+            todayCount: 0,
+            dailyTargetCount: 108,
+          });
+
+        assert.equal(state.permissionRequests, 1);
+        assert.equal(refreshed.enabled, false);
+        assert.deepEqual(refreshed.scheduledNotifications, []);
+        assert.equal(
+          (
+            await practiceReminderService
+              .getPracticeReminderSettings(otherPracticeId)
+          ).enabled,
+          false,
+          "Refusing Android notifications disables every practice reminder"
+        );
+
+        state.permissionStatus = "undetermined";
+
+        await practiceReminderService.refreshPracticeReminderSchedule({
+          practiceId,
+          practiceName: "Denied reminder",
+          todayCount: 0,
+          dailyTargetCount: 108,
+        });
+
+        assert.equal(
+          state.permissionRequests,
+          1,
+          "A background refresh must not reopen a denied permission prompt"
+        );
+
+        const declinedAgain =
+          await practiceReminderService
+            .requestPracticeReminderPermission();
+
+        assert.equal(declinedAgain, false);
+        assert.equal(
+          state.permissionRequests,
+          2,
+          "An explicit enable attempt asks Android again"
+        );
+
+        state.permissionRequestStatus = "granted";
+        state.permissionStatus = "denied";
+
+        const accepted =
+          await practiceReminderService
+            .requestPracticeReminderPermission();
+
+        assert.equal(accepted, true);
+        assert.equal(state.permissionRequests, 3);
+
+        const granted =
+          await practiceReminderService.savePracticeReminderSettings({
+            practiceId,
+            practiceName: "Denied reminder",
+            todayCount: 0,
+            dailyTargetCount: 108,
+            hour: 20,
+            minute: 30,
+          });
+
+        assert.equal(granted.enabled, true);
+        assert.ok(
+          granted.scheduledNotifications.length > 0,
+          "The selected reminder can be enabled after permission is granted"
         );
       }
     );
