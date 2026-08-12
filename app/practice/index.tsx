@@ -101,6 +101,7 @@ export default function PracticePager() {
             <View style={{ flex: 1 }}>
                 <PracticeContent
                     practiceId={practices[0].id}
+                    isActive
                     openCalendarInitially={openCalendar === "1"}
                     scrollResetPracticeId={scrollResetTarget}
                     scrollResetVersion={scrollResetVersion}
@@ -168,6 +169,7 @@ export default function PracticePager() {
                     {loaded.has(i) ? (
                         <PracticeContent
                             practiceId={p.id}
+                            isActive={i === currentIndex}
                             openCalendarInitially={
                                 openCalendar === "1" && i === initialPage
                             }

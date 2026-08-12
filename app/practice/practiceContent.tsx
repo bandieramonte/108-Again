@@ -51,11 +51,13 @@ import { formatReminderTimeForLocale } from "../../utils/reminderTime";
 
 export default function PracticeContent({
     practiceId,
+    isActive = true,
     openCalendarInitially = false,
     scrollResetPracticeId,
     scrollResetVersion = 0,
 }: {
     practiceId: string;
+    isActive?: boolean;
     openCalendarInitially?: boolean;
     scrollResetPracticeId?: string | null;
     scrollResetVersion?: number;
@@ -70,6 +72,8 @@ export default function PracticeContent({
     const [progressEditOpen, setProgressEditOpen] = useState(false);
     const [targetEditOpen, setTargetEditOpen] = useState(false);
     const [reminderOpen, setReminderOpen] = useState(false);
+    const [reminderEditorReady, setReminderEditorReady] =
+        useState(false);
     const notificationSettingsFlowRef = useRef({
         leftApp: false,
         waiting: false,
@@ -295,6 +299,16 @@ export default function PracticeContent({
     useEffect(() => {
         schedulePracticeRefresh();
     }, [schedulePracticeRefresh]);
+
+    useEffect(() => {
+        if (!isActive || reminderEditorReady) return;
+
+        const taskId = setImmediate(() => {
+            setReminderEditorReady(true);
+        });
+
+        return () => clearImmediate(taskId);
+    }, [isActive, reminderEditorReady]);
 
     useEffect(() => {
         if (!reminderSettings.enabled) return;
@@ -1299,16 +1313,18 @@ export default function PracticeContent({
                         onSave={saveDailyTarget}
                     />
 
-                    <PracticeReminderEditor
-                        visible={reminderOpen}
-                        enabled={reminderEnabled}
-                        practiceName={displayPracticeName}
-                        initialHour={reminderHour}
-                        initialMinute={reminderMinute}
-                        onClose={() => setReminderOpen(false)}
-                        onDisable={disableReminder}
-                        onSave={saveReminder}
-                    />
+                    {(reminderEditorReady || reminderOpen) && (
+                        <PracticeReminderEditor
+                            visible={reminderOpen}
+                            enabled={reminderEnabled}
+                            practiceName={displayPracticeName}
+                            initialHour={reminderHour}
+                            initialMinute={reminderMinute}
+                            onClose={() => setReminderOpen(false)}
+                            onDisable={disableReminder}
+                            onSave={saveReminder}
+                        />
+                    )}
 
                     <TargetDateEditor
                         visible={targetEditOpen}
