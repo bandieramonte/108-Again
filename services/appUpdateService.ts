@@ -6,7 +6,6 @@ import { getSupabase } from "../lib/supabase";
 import {
     type AppUpdatePolicy,
     determineUpdateRequirement,
-    type PlayUpdateAvailability,
     type RemoteSyncAccess,
     type UpdateRequirement,
 } from "./appUpdatePolicy";
@@ -20,7 +19,6 @@ const RECENT_POLICY_REUSE_MS = 60_000;
 
 type AppUpdateNativeModule = {
     getCurrentVersionCode?: () => Promise<number>;
-    getUpdateAvailability?: () => Promise<PlayUpdateAvailability>;
     startImmediateUpdate?: () => Promise<boolean>;
 };
 
@@ -242,21 +240,6 @@ async function maybeShowOptionalPrompt(
     await showOptionalUpdatePrompt(requirement.availableVersionCode);
 }
 
-async function getPlayUpdateAvailability(
-    appUpdateModule: AppUpdateNativeModule | null
-): Promise<PlayUpdateAvailability | null> {
-    if (typeof appUpdateModule?.getUpdateAvailability !== "function") {
-        return null;
-    }
-
-    try {
-        return await appUpdateModule.getUpdateAvailability();
-    } catch (error) {
-        console.warn("Google Play update check failed", error);
-        return null;
-    }
-}
-
 function getAppUpdateModule(): AppUpdateNativeModule | null {
     const module = NativeModules.AppUpdateModule as
         | AppUpdateNativeModule
@@ -300,16 +283,10 @@ async function runUpdateCheck(): Promise<UpdateRequirement> {
     const appUpdateModule = getAppUpdateModule();
     const currentVersionCode =
         await getCurrentAndroidVersionCode(appUpdateModule);
-    const [policy, playUpdate] = await Promise.all([
-        getEffectivePolicy(),
-        __DEV__
-            ? Promise.resolve(null)
-            : getPlayUpdateAvailability(appUpdateModule),
-    ]);
+    const policy = await getEffectivePolicy();
     const requirement = determineUpdateRequirement({
         currentVersionCode,
         policy,
-        playUpdate,
     });
 
     applyUpdateRequirement(requirement);
@@ -330,7 +307,6 @@ export async function getCachedAppUpdateRequirement(): Promise<UpdateRequirement
         const requirement = determineUpdateRequirement({
             currentVersionCode,
             policy,
-            playUpdate: null,
         });
 
         applyUpdateRequirement(requirement);
@@ -379,7 +355,6 @@ export async function verifyRemoteSyncAccess(): Promise<RemoteSyncAccess> {
         const requirement = determineUpdateRequirement({
             currentVersionCode,
             policy,
-            playUpdate: null,
         });
 
         applyUpdateRequirement(requirement);
@@ -393,7 +368,6 @@ export async function verifyRemoteSyncAccess(): Promise<RemoteSyncAccess> {
                 const cachedRequirement = determineUpdateRequirement({
                     currentVersionCode,
                     policy: cachedPolicy,
-                    playUpdate: null,
                 });
 
                 applyUpdateRequirement(cachedRequirement);

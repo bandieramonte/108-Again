@@ -1214,7 +1214,6 @@ await test(
       determineUpdateRequirement({
         currentVersionCode: 24,
         policy: basePolicy,
-        playUpdate: null,
       }),
       {
         kind: "required",
@@ -1228,7 +1227,6 @@ await test(
       determineUpdateRequirement({
         currentVersionCode: 28,
         policy: basePolicy,
-        playUpdate: null,
       }),
       {
         kind: "optional",
@@ -1240,9 +1238,35 @@ await test(
       determineUpdateRequirement({
         currentVersionCode: 30,
         policy: basePolicy,
-        playUpdate: null,
       }),
       { kind: "none" }
+    );
+
+    assert.deepEqual(
+      determineUpdateRequirement({
+        currentVersionCode: 31,
+        policy: basePolicy,
+      }),
+      { kind: "none" },
+      "a policy latest version below the installed version must not prompt"
+    );
+
+    assert.deepEqual(
+      determineUpdateRequirement({
+        currentVersionCode: 30,
+        policy: {
+          ...basePolicy,
+          latestVersionCode: 31,
+          minimumSupportedVersionCode: 31,
+        },
+      }),
+      {
+        kind: "required",
+        reason: "minimum-version",
+        availableVersionCode: 31,
+        message: null,
+      },
+      "minimum supported version above the installed version must still block"
     );
   }
 );
@@ -1257,7 +1281,6 @@ await test(
         maintenanceMode: true,
         message: "Brief maintenance in progress.",
       },
-      playUpdate: null,
     });
 
     assert.deepEqual(requirement, {
@@ -1279,7 +1302,6 @@ await test(
           ...basePolicy,
           message: "update.requiredMessage",
         },
-        playUpdate: null,
       }),
       {
         kind: "required",
@@ -1297,7 +1319,6 @@ await test(
           maintenanceMode: true,
           message: "update.maintenanceMessage",
         },
-        playUpdate: null,
       }),
       {
         kind: "required",

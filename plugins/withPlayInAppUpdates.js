@@ -14,7 +14,6 @@ function createAppUpdateModule(packageName) {
     return `package ${packageName}
 
 import android.os.Build
-import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -50,45 +49,6 @@ class AppUpdateModule(
         } catch (error: Exception) {
             promise.reject("APP_VERSION_CHECK_FAILED", error)
         }
-    }
-
-    @ReactMethod
-    fun getUpdateAvailability(promise: Promise) {
-        val appUpdateManager =
-            AppUpdateManagerFactory.create(reactApplicationContext)
-
-        appUpdateManager.appUpdateInfo
-            .addOnSuccessListener { info ->
-                val updateAvailable =
-                    info.updateAvailability() ==
-                        UpdateAvailability.UPDATE_AVAILABLE
-
-                val result = Arguments.createMap().apply {
-                    putBoolean("isUpdateAvailable", updateAvailable)
-                    putBoolean(
-                        "isFlexibleUpdateAllowed",
-                        info.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)
-                    )
-                    putBoolean(
-                        "isImmediateUpdateAllowed",
-                        info.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)
-                    )
-                    putInt("availableVersionCode", info.availableVersionCode())
-                    putInt("updatePriority", info.updatePriority())
-
-                    val stalenessDays = info.clientVersionStalenessDays()
-                    if (stalenessDays == null) {
-                        putNull("clientVersionStalenessDays")
-                    } else {
-                        putInt("clientVersionStalenessDays", stalenessDays)
-                    }
-                }
-
-                promise.resolve(result)
-            }
-            .addOnFailureListener { error ->
-                promise.reject("APP_UPDATE_CHECK_FAILED", error)
-            }
     }
 
     @ReactMethod

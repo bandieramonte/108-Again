@@ -5,15 +5,6 @@ export type AppUpdatePolicy = {
     message: string | null;
 };
 
-export type PlayUpdateAvailability = {
-    isUpdateAvailable: boolean;
-    isFlexibleUpdateAllowed: boolean;
-    isImmediateUpdateAllowed: boolean;
-    availableVersionCode: number;
-    updatePriority: number;
-    clientVersionStalenessDays: number | null;
-};
-
 export type RemoteSyncAccess = "allowed" | "blocked" | "unavailable";
 
 export type UpdateRequirement =
@@ -32,7 +23,6 @@ export type UpdateRequirement =
 type DetermineUpdateRequirementOptions = {
     currentVersionCode: number;
     policy: AppUpdatePolicy | null;
-    playUpdate: PlayUpdateAvailability | null;
 };
 
 function getPolicyMessage(message: string | null | undefined) {
@@ -51,12 +41,8 @@ function getPolicyMessage(message: string | null | undefined) {
 export function determineUpdateRequirement({
     currentVersionCode,
     policy,
-    playUpdate,
 }: DetermineUpdateRequirementOptions): UpdateRequirement {
-    const availableVersionCode = Math.max(
-        policy?.latestVersionCode ?? 0,
-        playUpdate?.availableVersionCode ?? 0
-    );
+    const availableVersionCode = policy?.latestVersionCode ?? 0;
 
     if (policy?.maintenanceMode) {
         return {
@@ -85,17 +71,11 @@ export function determineUpdateRequirement({
         };
     }
 
-    const playOffersUpdate =
-        playUpdate?.isUpdateAvailable &&
-        (
-            playUpdate.isFlexibleUpdateAllowed ||
-            playUpdate.isImmediateUpdateAllowed
-        );
     const policyOffersUpdate =
         policy != null &&
         currentVersionCode < policy.latestVersionCode;
 
-    if (playOffersUpdate || policyOffersUpdate) {
+    if (policyOffersUpdate) {
         return {
             kind: "optional",
             availableVersionCode,
