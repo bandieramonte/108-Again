@@ -2687,11 +2687,28 @@ await test(
           "A background refresh must not reopen a denied permission prompt"
         );
 
+        state.permissionStatus = "denied";
+        state.permissionCanAskAgain = false;
+
+        const blocked =
+          await practiceReminderService
+            .requestPracticeReminderPermission();
+
+        assert.equal(blocked, "blocked");
+        assert.equal(
+          state.permissionRequests,
+          1,
+          "Android cannot reopen a native prompt after blocking requests"
+        );
+
+        state.permissionStatus = "undetermined";
+        state.permissionCanAskAgain = true;
+
         const declinedAgain =
           await practiceReminderService
             .requestPracticeReminderPermission();
 
-        assert.equal(declinedAgain, false);
+        assert.equal(declinedAgain, "denied");
         assert.equal(
           state.permissionRequests,
           2,
@@ -2705,7 +2722,7 @@ await test(
           await practiceReminderService
             .requestPracticeReminderPermission();
 
-        assert.equal(accepted, true);
+        assert.equal(accepted, "granted");
         assert.equal(state.permissionRequests, 3);
 
         const granted =

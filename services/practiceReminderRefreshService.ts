@@ -161,7 +161,7 @@ export async function requestPracticeReminderPermission(
             reminderText
         );
 
-    if (!granted) {
+    if (granted !== "granted") {
         disableAllReminderPreferences();
     }
 

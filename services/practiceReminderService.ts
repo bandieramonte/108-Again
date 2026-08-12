@@ -63,9 +63,13 @@ let notificationPermissionRequest:
     Promise<NotificationPermissionResult> | null = null;
 
 type NotificationPermissionResult =
+    | "blocked"
     | "denied"
     | "granted"
     | "unavailable";
+
+export type PracticeReminderPermissionResult =
+    NotificationPermissionResult;
 
 export function initializePracticeReminderNotifications() {
     if (notificationHandlerRegistered) return;
@@ -259,14 +263,15 @@ async function requestNotificationPermission(
             NOTIFICATION_PERMISSION_DECLINED_KEY
         ) === "true";
 
-    if (
-        (previouslyDeclined && !retryAfterPreviousDecline) ||
-        existing.canAskAgain === false
-    ) {
+    if (existing.canAskAgain === false) {
         await AsyncStorage.setItem(
             NOTIFICATION_PERMISSION_DECLINED_KEY,
             "true"
         );
+        return "blocked";
+    }
+
+    if (previouslyDeclined && !retryAfterPreviousDecline) {
         return "denied";
     }
 
@@ -652,16 +657,16 @@ export async function disableAllPracticeReminders(): Promise<string[]> {
 
 export async function requestPracticeReminderPermission(
     reminderText?: PracticeReminderText
-): Promise<boolean> {
+): Promise<PracticeReminderPermissionResult> {
     const permission = await ensureNotificationPermission(
         reminderText,
         true
     );
 
-    if (permission === "granted") return true;
+    if (permission === "granted") return permission;
 
     await disableAllPracticeReminders();
-    return false;
+    return permission;
 }
 
 export async function refreshPracticeReminderSchedule(

@@ -1,8 +1,9 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import * as Localization from "expo-localization";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Alert, Animated, AppState, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CelebrationOverlay from "../../components/CelebrationOverlay";
 import DailyGoalProgress from "../../components/DailyGoalProgress";
@@ -69,6 +70,10 @@ export default function PracticeContent({
     const [progressEditOpen, setProgressEditOpen] = useState(false);
     const [targetEditOpen, setTargetEditOpen] = useState(false);
     const [reminderOpen, setReminderOpen] = useState(false);
+    const notificationSettingsFlowRef = useRef({
+        leftApp: false,
+        waiting: false,
+    });
     const initialPractice = practiceService.getPractice(practiceId);
     const [reminderSettings, setReminderSettings] =
         useState<PracticeReminderSettings>(() =>
@@ -245,6 +250,42 @@ export default function PracticeContent({
             loadSessions(practice.targetCount);
         }
     }, [loadSessions, practiceId]);
+
+    useEffect(() => {
+        const subscription = AppState.addEventListener(
+            "change",
+            nextState => {
+                const flow = notificationSettingsFlowRef.current;
+
+                if (!flow.waiting) return;
+
+                if (nextState !== "active") {
+                    flow.leftApp = true;
+                    return;
+                }
+
+                if (!flow.leftApp) return;
+
+                flow.waiting = false;
+                flow.leftApp = false;
+
+                void practiceReminderRefreshService
+                    .requestPracticeReminderPermission(reminderText)
+                    .then(permission => {
+                        loadPracticeData();
+
+                        if (permission === "granted") {
+                            setReminderOpen(true);
+                        }
+                    })
+                    .catch(error => {
+                        alert(error.message);
+                    });
+            }
+        );
+
+        return () => subscription.remove();
+    }, [loadPracticeData, reminderText]);
 
     const schedulePracticeRefresh = useCallback(() => {
         loadPracticeData();
@@ -467,6 +508,69 @@ export default function PracticeContent({
         }, 4000);
     }
 
+    async function openNotificationSettings() {
+        setReminderOpen(false);
+        notificationSettingsFlowRef.current = {
+            leftApp: false,
+            waiting: true,
+        };
+
+        try {
+            const androidPackage =
+                Constants.expoConfig?.android?.package;
+
+            if (
+                Platform.OS === "android" &&
+                Number(Platform.Version) >= 26 &&
+                androidPackage
+            ) {
+                await Linking.sendIntent(
+                    "android.settings.APP_NOTIFICATION_SETTINGS",
+                    [
+                        {
+                            key: "android.provider.extra.APP_PACKAGE",
+                            value: androidPackage,
+                        },
+                    ]
+                );
+                return;
+            }
+
+            await Linking.openSettings();
+        } catch {
+            try {
+                await Linking.openSettings();
+            } catch (error: any) {
+                notificationSettingsFlowRef.current = {
+                    leftApp: false,
+                    waiting: false,
+                };
+                alert(error.message);
+            }
+        }
+    }
+
+    function showNotificationSettingsPrompt() {
+        setReminderOpen(false);
+
+        Alert.alert(
+            t("reminderEditor.title"),
+            reminderText.permissionDeniedMessage,
+            [
+                {
+                    text: t("common.cancel"),
+                    style: "cancel",
+                },
+                {
+                    text: t("common.ok"),
+                    onPress: () => {
+                        void openNotificationSettings();
+                    },
+                },
+            ]
+        );
+    }
+
     async function openReminderEditor() {
         if (!hasDailyTarget) {
             Alert.alert(
@@ -482,28 +586,41 @@ export default function PracticeContent({
             return;
         }
 
-        const permissionGranted =
-            await practiceReminderRefreshService
-                .requestPracticeReminderPermission(reminderText);
+        try {
+            const permission =
+                await practiceReminderRefreshService
+                    .requestPracticeReminderPermission(reminderText);
 
-        if (!permissionGranted) {
+            if (permission === "granted") {
+                setReminderOpen(true);
+                return;
+            }
+
             setReminderOpen(false);
             loadPracticeData();
-            return;
-        }
 
-        setReminderOpen(true);
+            if (permission === "blocked") {
+                showNotificationSettingsPrompt();
+            }
+        } catch (error: any) {
+            alert(error.message);
+        }
     }
 
     async function saveReminder(hour: number, minute: number) {
         try {
-            const permissionGranted =
+            const permission =
                 await practiceReminderRefreshService
                     .requestPracticeReminderPermission(reminderText);
 
-            if (!permissionGranted) {
+            if (permission !== "granted") {
                 setReminderOpen(false);
                 loadPracticeData();
+
+                if (permission === "blocked") {
+                    showNotificationSettingsPrompt();
+                }
+
                 return;
             }
 
