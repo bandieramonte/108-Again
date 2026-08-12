@@ -6,6 +6,7 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    useWindowDimensions,
     View,
 } from "react-native";
 import { useI18n } from "../i18n";
@@ -41,6 +42,8 @@ export default function PracticeReminderEditor({
 }: Props) {
     const { colors } = useAppTheme();
     const { locale, t } = useI18n();
+    const { fontScale } = useWindowDimensions();
+    const usesLargeText = fontScale > 1;
     const scrollRef = useRef<ScrollView | null>(null);
     const [timeLocale, setTimeLocale] = useState(locale);
     const [uses24HourClock, setUses24HourClock] =
@@ -201,10 +204,19 @@ export default function PracticeReminderEditor({
                         })}
                     </ScrollView>
 
-                    <View style={styles.actions}>
+                    <View
+                        style={[
+                            styles.actions,
+                            usesLargeText && styles.actionsLargeText,
+                        ]}
+                    >
                         {enabled && (
                             <Pressable
-                                style={styles.secondaryButton}
+                                style={[
+                                    styles.secondaryButton,
+                                    usesLargeText &&
+                                        styles.turnOffButtonLargeText,
+                                ]}
                                 onPress={onDisable}
                             >
                                 <Text
@@ -218,33 +230,47 @@ export default function PracticeReminderEditor({
                             </Pressable>
                         )}
 
-                        <View style={styles.actionSpacer} />
-
-                        <Pressable
-                            style={styles.secondaryButton}
-                            onPress={onClose}
-                        >
-                            <Text
-                                style={[
-                                    styles.secondaryText,
-                                    { color: colors.textSecondary },
-                                ]}
-                            >
-                                {t("common.cancel")}
-                            </Text>
-                        </Pressable>
-
-                        <Pressable
+                        <View
                             style={[
-                                styles.primaryButton,
-                                { backgroundColor: colors.primary },
+                                styles.actionSpacer,
+                                usesLargeText &&
+                                    styles.actionSpacerLargeText,
                             ]}
-                            onPress={save}
+                        />
+
+                        <View
+                            style={[
+                                styles.confirmationActions,
+                                usesLargeText &&
+                                    styles.confirmationActionsLargeText,
+                            ]}
                         >
-                            <Text style={styles.primaryText}>
-                                {t("common.save")}
-                            </Text>
-                        </Pressable>
+                            <Pressable
+                                style={styles.secondaryButton}
+                                onPress={onClose}
+                            >
+                                <Text
+                                    style={[
+                                        styles.secondaryText,
+                                        { color: colors.textSecondary },
+                                    ]}
+                                >
+                                    {t("common.cancel")}
+                                </Text>
+                            </Pressable>
+
+                            <Pressable
+                                style={[
+                                    styles.primaryButton,
+                                    { backgroundColor: colors.primary },
+                                ]}
+                                onPress={save}
+                            >
+                                <Text style={styles.primaryText}>
+                                    {t("common.save")}
+                                </Text>
+                            </Pressable>
+                        </View>
                     </View>
                 </Pressable>
             </Pressable>
@@ -336,8 +362,34 @@ const styles = StyleSheet.create({
         gap: 10,
     },
 
+    actionsLargeText: {
+        flexDirection: "column",
+        alignItems: "stretch",
+        gap: 6,
+    },
+
     actionSpacer: {
         flex: 1,
+    },
+
+    actionSpacerLargeText: {
+        display: "none",
+    },
+
+    confirmationActions: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+    },
+
+    confirmationActionsLargeText: {
+        alignSelf: "stretch",
+        flexWrap: "wrap",
+        justifyContent: "flex-end",
+    },
+
+    turnOffButtonLargeText: {
+        alignSelf: "flex-start",
     },
 
     secondaryButton: {
