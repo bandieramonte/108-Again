@@ -33,9 +33,9 @@ yarn-error.*
 # IDE local settings
 .idea/
 
-# local env files
-.env
-.env*.local
+# local environment files (may contain credentials)
+.env*
+!.env.example
 
 # Supabase CLI local state
 /supabase/.temp/
