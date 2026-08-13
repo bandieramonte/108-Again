@@ -127,8 +127,19 @@ function normalizeParams(params) {
   return params;
 }
 
+const openTestDatabases = new Set();
+
+function closeAllTestDatabases() {
+  for (const raw of openTestDatabases) {
+    if (raw.open) raw.close();
+  }
+
+  openTestDatabases.clear();
+}
+
 function createBetterSqliteDatabase() {
   const raw = new BetterSqlite3(":memory:");
+  openTestDatabases.add(raw);
 
   return {
     execSync(sql) {
@@ -2364,6 +2375,8 @@ for (const [index, [name, test]] of tests.entries()) {
     await cleanupCreatedTestAccounts();
   } catch (error) {
     cleanupError = error;
+  } finally {
+    closeAllTestDatabases();
   }
 
   if (testError && cleanupError) {

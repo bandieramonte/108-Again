@@ -310,8 +310,19 @@ function normalizeParams(params) {
   return params;
 }
 
+const openTestDatabases = new Set();
+
+function closeAllTestDatabases() {
+  for (const raw of openTestDatabases) {
+    if (raw.open) raw.close();
+  }
+
+  openTestDatabases.clear();
+}
+
 function createBetterSqliteDatabase() {
   const raw = new BetterSqlite3(":memory:");
+  openTestDatabases.add(raw);
 
   return {
     execSync(sql) {
@@ -474,7 +485,12 @@ function createSyncEngineForDevice(device, remote, now = () => Date.now()) {
 let testIndex = 0;
 
 async function test(name, fn) {
-  await fn();
+  try {
+    await fn();
+  } finally {
+    closeAllTestDatabases();
+  }
+
   testIndex += 1;
   console.log(`ok ${testIndex} - ${name}`);
 }
