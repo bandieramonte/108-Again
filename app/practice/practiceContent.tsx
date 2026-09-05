@@ -18,7 +18,12 @@ import PracticeProgressEditor from "../../components/PracticeProgressEditor";
 import PracticeReminderEditor from "../../components/PracticeReminderEditor";
 import QuickAddEditor from "../../components/QuickAddEditor";
 import TargetDateEditor from "../../components/TargetDateEditor";
-import { practiceImages } from "../../constants/practiceImages";
+import {
+    CUSTOM_PRACTICE_IMAGE_HEIGHT,
+    CUSTOM_PRACTICE_IMAGE_KEY,
+    CUSTOM_PRACTICE_IMAGE_WIDTH,
+    getPracticeImageSource,
+} from "../../constants/practiceImages";
 import { useReachedCelebration } from "../../hooks/useReachedCelebration";
 import { useCurrentLocalDate } from "../../hooks/useCurrentLocalDate";
 import { useI18n } from "../../i18n";
@@ -100,6 +105,8 @@ export default function PracticeContent({
         sessionService.getPracticeTotal(practiceId).total
     );
     const [imageKey, setImageKey] = useState<string | null>(initialPractice?.imageKey ?? null);
+    const [customImageUri, setCustomImageUri] =
+        useState<string | null>(initialPractice?.customImageUri ?? null);
     const [dailyTargetCount, setDailyTargetCount] = useState(
         initialPractice?.dailyTargetCount == null
             ? ""
@@ -115,12 +122,14 @@ export default function PracticeContent({
     >(() => sessionService.getCalendarDailyData(practiceId));
 
     const { width } = useWindowDimensions();
-    const imageSource =
-        imageKey && practiceImages[imageKey]
-            ? practiceImages[imageKey]
-            : practiceImages["generic"];
+    const imageSource = getPracticeImageSource(imageKey, customImageUri);
 
     const imageRatio = useMemo(() => {
+        if (imageKey === CUSTOM_PRACTICE_IMAGE_KEY) {
+            return CUSTOM_PRACTICE_IMAGE_WIDTH /
+                CUSTOM_PRACTICE_IMAGE_HEIGHT;
+        }
+
         if (!imageSource) return 1;
 
         const source = Image.resolveAssetSource(imageSource);
@@ -130,7 +139,7 @@ export default function PracticeContent({
         }
 
         return 1;
-    }, [imageSource]);
+    }, [imageKey, imageSource]);
     const availableContentWidth =
         Math.max(width - APP_SIDE_PADDING * 2, 0);
     const imageDisplayWidth = Math.min(availableContentWidth, 500);
@@ -241,6 +250,7 @@ export default function PracticeContent({
         if (practice) {
             setPracticeName(practice.name);
             setImageKey(practice.imageKey ?? null);
+            setCustomImageUri(practice.customImageUri ?? null);
             setDailyTargetCount(
                 practice.dailyTargetCount == null
                     ? ""

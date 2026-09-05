@@ -7,6 +7,7 @@ export type PracticeRow = {
     targetCount: number;
     orderIndex: number;
     imageKey?: string | null;
+    customImageUri?: string | null;
     dailyTargetCount?: number | null;
     defaultSessionCount?: number | null;
     totalOffset?: number;
@@ -33,6 +34,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
       targetCount,
       orderIndex,
       imageKey,
+      customImageUri,
       dailyTargetCount,
       defaultSessionCount,
       totalOffset,
@@ -60,6 +62,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
       targetCount,
       orderIndex,
       imageKey,
+      customImageUri,
       dailyTargetCount,
       defaultSessionCount,
       totalOffset,
@@ -90,6 +93,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
         reminderHour: number = 20,
         reminderMinute: number = 0,
         calendarStartDate: number | null = null,
+        customImageUri: string | null = null,
     ): void {
         const effectiveCalendarStartDate =
             calendarStartDate ??
@@ -103,6 +107,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
       targetCount,
       orderIndex,
       imageKey,
+      customImageUri,
       dailyTargetCount,
       defaultSessionCount,
       totalOffset,
@@ -114,12 +119,13 @@ export function createPracticeRepo(database: SqliteDatabase) {
       updatedAt,
       syncStatus,
       lastSyncedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             id,
             name,
             target,
             orderIndex,
             imageKey ?? null,
+            customImageUri,
             dailyTargetCount,
             defaultSessionCount,
             totalOffset,
@@ -369,6 +375,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
       targetCount,
       orderIndex,
       imageKey,
+      customImageUri,
       dailyTargetCount,
       defaultSessionCount,
       totalOffset,
@@ -433,6 +440,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
         target_count: number;
         order_index: number;
         image_key: string | null;
+        custom_image_uri?: string | null;
         default_add_count: number;
         daily_target_count: number | null;
         default_session_count: number | null;
@@ -457,6 +465,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
         targetCount,
         orderIndex,
         imageKey,
+        customImageUri,
         dailyTargetCount,
         defaultSessionCount,
         totalOffset,
@@ -469,12 +478,13 @@ export function createPracticeRepo(database: SqliteDatabase) {
         syncStatus,
         lastSyncedAt
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
       ON CONFLICT(id) DO UPDATE SET
         name = excluded.name,
         targetCount = excluded.targetCount,
         orderIndex = excluded.orderIndex,
         imageKey = excluded.imageKey,
+        customImageUri = excluded.customImageUri,
         dailyTargetCount = excluded.dailyTargetCount,
         defaultSessionCount = excluded.defaultSessionCount,
         totalOffset = excluded.totalOffset,
@@ -492,6 +502,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
             row.target_count,
             row.order_index,
             row.image_key,
+            row.custom_image_uri ?? null,
             row.daily_target_count,
             row.default_session_count ?? row.default_add_count ?? 108,
             row.total_offset ?? 0,

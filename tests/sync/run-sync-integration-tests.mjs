@@ -1674,6 +1674,38 @@ async function runDeleteAccountCoreTest() {
   const { client, remote, user } = await createFreshAccountFor(
     DELETE_ACCOUNT_TEST_EMAIL
   );
+  const testImagePath = `${user.id}/delete-account-test.jpg`;
+  const imageBucket = client.storage.from("practice-images");
+  const uploadedImage = await imageBucket.upload(
+    testImagePath,
+    new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+    { contentType: "image/jpeg", upsert: true }
+  );
+
+  assert.equal(
+    uploadedImage.error,
+    null,
+    "Authenticated users can upload their own practice images"
+  );
+
+  const downloadedImage = await imageBucket.download(testImagePath);
+
+  assert.equal(
+    downloadedImage.error,
+    null,
+    "Authenticated users can download their own practice images"
+  );
+
+  const anonymousDownload = await makeSupabaseClient()
+    .storage
+    .from("practice-images")
+    .download(testImagePath);
+
+  assert.ok(
+    anonymousDownload.error,
+    "Practice images remain private to signed-in users"
+  );
+
   const device = makeLocalDevice(
     "Delete Account Device",
     remote
@@ -1756,6 +1788,16 @@ async function runDeleteAccountCoreTest() {
   assert.ok(
     deletedSignIn.error,
     "Deleted account can no longer sign in"
+  );
+
+  const deletedImage = await makeSupabaseAdminClient()
+    .storage
+    .from("practice-images")
+    .download(testImagePath);
+
+  assert.ok(
+    deletedImage.error,
+    "Delete account removes uploaded practice images"
   );
 }
 
@@ -2321,7 +2363,7 @@ const tests = [
     runResetPasswordCoreTest,
   ],
   [
-    "delete account core deletes real Supabase account and clears local owner",
+    "delete account removes private practice images and clears local owner",
     runDeleteAccountCoreTest,
   ],
   [

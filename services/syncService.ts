@@ -10,6 +10,13 @@ import {
     verifyRemoteSyncAccess,
 } from "./appUpdateService";
 import * as practiceReminderRefreshService from "./practiceReminderRefreshService";
+import {
+    deleteLocalCustomPracticeImage,
+    downloadCustomPracticeImage,
+    removeAllRemoteCustomPracticeImages,
+    removeRemoteCustomPracticeImage,
+    uploadCustomPracticeImage,
+} from "./customPracticeImageService";
 import { createSupabaseSyncRemote } from "./supabaseSyncRemote";
 import { createSyncCoordinator } from "./syncCoordinator";
 import {
@@ -149,6 +156,13 @@ function createAppSyncEngine() {
         practiceRepo,
         remote: createSupabaseSyncRemote(getSupabase, withTimeout),
         sessionRepo,
+        customImageSync: {
+            upload: uploadCustomPracticeImage,
+            download: downloadCustomPracticeImage,
+            remove: removeRemoteCustomPracticeImage,
+            removeAllForUser: removeAllRemoteCustomPracticeImages,
+            deleteLocal: deleteLocalCustomPracticeImage,
+        },
     });
 }
 

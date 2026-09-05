@@ -42,6 +42,7 @@ export function initializeDatabaseSchema(db: SqliteDatabase) {
       targetCount INTEGER,
       orderIndex INTEGER,
       imageKey TEXT,
+      customImageUri TEXT,
       dailyTargetCount INTEGER,
       defaultSessionCount INTEGER,
       totalOffset INTEGER,
@@ -88,6 +89,7 @@ export function initializeDatabaseSchema(db: SqliteDatabase) {
   `);
 
   addColumnIfMissing(db, "practices", "imageKey", "imageKey TEXT");
+  addColumnIfMissing(db, "practices", "customImageUri", "customImageUri TEXT");
   addColumnIfMissing(db, "practices", "dailyTargetCount", "dailyTargetCount INTEGER");
   addColumnIfMissing(db, "practices", "defaultSessionCount", "defaultSessionCount INTEGER");
   addColumnIfMissing(db, "practices", "totalOffset", "totalOffset INTEGER");

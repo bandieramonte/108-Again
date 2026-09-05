@@ -1,4 +1,5 @@
 import { DEFAULT_PRACTICES, SEEDED_IDS } from "../constants/defaultPractices";
+import { CUSTOM_PRACTICE_IMAGE_KEY } from "../constants/customPracticeImages";
 import {
     formatCalendarDate,
     isCalendarDateString,
@@ -21,6 +22,7 @@ export type RemotePracticeRow = {
     target_count: number;
     order_index: number;
     image_key: string | null;
+    custom_image_uri?: string | null;
     default_add_count: number;
     daily_target_count: number | null;
     default_session_count: number | null;
@@ -50,6 +52,7 @@ export type LocalPracticeRow = {
     targetCount: number;
     orderIndex: number;
     imageKey?: string | null;
+    customImageUri?: string | null;
     dailyTargetCount?: number | null;
     defaultSessionCount?: number | null;
     totalOffset?: number;
@@ -162,6 +165,17 @@ export type SyncEngineDeps = {
     deletedRecordRepo: DeletedRecordRepository;
     appMetaRepo: AppMetaRepository;
     remote: SyncRemote;
+    customImageSync?: {
+        upload(userId: string, practiceId: string, localUri: string): Promise<void>;
+        download(
+            userId: string,
+            practiceId: string,
+            currentUri?: string | null
+        ): Promise<string>;
+        remove(userId: string, practiceId: string): Promise<void>;
+        removeAllForUser(userId: string): Promise<void>;
+        deleteLocal(uri: string | null | undefined): void;
+    };
     now?: () => number;
     logger?: SyncLogger;
 };
@@ -205,6 +219,32 @@ function isDirty(syncStatus: string | null | undefined) {
 export function createSyncEngine(deps: SyncEngineDeps) {
     const now = deps.now ?? Date.now;
     const logger = deps.logger ?? console;
+
+    async function hydrateRemotePractice(
+        row: RemotePracticeRow,
+        reuseCurrentImage = true
+    ) {
+        if (
+            row.deleted_at ||
+            row.image_key !== CUSTOM_PRACTICE_IMAGE_KEY ||
+            !deps.customImageSync
+        ) {
+            return row;
+        }
+
+        const local = deps.practiceRepo.getPracticeById(row.id);
+        const currentUri =
+            reuseCurrentImage && local?.userId === row.user_id
+                ? local.customImageUri
+                : null;
+        const customImageUri = await deps.customImageSync.download(
+            row.user_id,
+            row.id,
+            currentUri
+        );
+
+        return { ...row, custom_image_uri: customImageUri };
+    }
 
     function isUnchangedSeededPractice(row: LocalPracticeRow) {
         if (!SEEDED_IDS.has(row.id)) return false;
@@ -291,6 +331,7 @@ export function createSyncEngine(deps: SyncEngineDeps) {
         if (!userId) return null;
 
         const deletedAt = now();
+        await deps.customImageSync?.removeAllForUser(userId);
         await deps.remote.softDeleteUserData(userId, deletedAt);
 
         return deletedAt;
@@ -324,7 +365,7 @@ export function createSyncEngine(deps: SyncEngineDeps) {
         deps.appMetaRepo.deleteMeta(PENDING_BACKUP_RESTORE_USER_ID_META);
     }
 
-    function applyRemotePractices(userId: string, rows: RemotePracticeRow[]) {
+    async function applyRemotePractices(userId: string, rows: RemotePracticeRow[]) {
         for (const row of rows) {
             const local = deps.practiceRepo.getPracticeById(row.id);
 
@@ -349,6 +390,7 @@ export function createSyncEngine(deps: SyncEngineDeps) {
                     continue;
                 }
 
+                deps.customImageSync?.deleteLocal(local?.customImageUri);
                 deps.sessionRepo.deleteSessionsByPractice(row.id);
                 deps.practiceRepo.deletePractice(row.id);
                 continue;
@@ -365,12 +407,16 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             }
 
             if (!local) {
-                deps.practiceRepo.upsertPracticeFromRemote(row);
+                deps.practiceRepo.upsertPracticeFromRemote(
+                    await hydrateRemotePractice(row)
+                );
                 continue;
             }
 
             if (remoteUpdatedAt > localUpdatedAt) {
-                deps.practiceRepo.upsertPracticeFromRemote(row);
+                deps.practiceRepo.upsertPracticeFromRemote(
+                    await hydrateRemotePractice(row)
+                );
             }
         }
     }
@@ -468,28 +514,60 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             rows.map((row) => row.id)
         );
 
-        const rowsToPush = rows.filter((row) => {
+        const rowsToPush: LocalPracticeRow[] = [];
+
+        for (const row of rows) {
             const remote = remoteById.get(row.id);
-            if (!remote) return true;
+            if (!remote) {
+                rowsToPush.push(row);
+                continue;
+            }
 
             if (
                 remote.deleted_at &&
                 remoteTimestamp(remote) >= (row.updatedAt ?? 0) &&
                 isUnchangedSeededPracticeWithoutSessions(row)
             ) {
+                deps.customImageSync?.deleteLocal(row.customImageUri);
                 deps.practiceRepo.upsertPracticeFromRemote(remote);
-                return false;
+                continue;
             }
 
             if (remoteTimestamp(remote) > (row.updatedAt ?? 0)) {
-                deps.practiceRepo.upsertPracticeFromRemote(remote);
-                return false;
+                if (remote.deleted_at) {
+                    deps.customImageSync?.deleteLocal(row.customImageUri);
+                }
+                deps.practiceRepo.upsertPracticeFromRemote(
+                    await hydrateRemotePractice(remote)
+                );
+                continue;
             }
 
-            return true;
-        });
+            rowsToPush.push(row);
+        }
 
         if (rowsToPush.length === 0) return;
+
+        for (const row of rowsToPush) {
+            if (row.imageKey !== CUSTOM_PRACTICE_IMAGE_KEY) continue;
+            if (!row.customImageUri) {
+                throw new Error("Custom practice image is missing from this device.");
+            }
+
+            const remote = remoteById.get(row.id);
+            const remoteAlreadyHasImage =
+                remote &&
+                !remote.deleted_at &&
+                remote.image_key === CUSTOM_PRACTICE_IMAGE_KEY;
+
+            if (remoteAlreadyHasImage) continue;
+
+            await deps.customImageSync?.upload(
+                userId,
+                row.id,
+                row.customImageUri
+            );
+        }
 
         const payload = rowsToPush.map((row) => {
             const defaultSessionCount = row.defaultSessionCount ?? 108;
@@ -622,6 +700,13 @@ export function createSyncEngine(deps: SyncEngineDeps) {
 
                 if (!shouldPush) continue;
 
+                if (payload.image_key === CUSTOM_PRACTICE_IMAGE_KEY) {
+                    await deps.customImageSync?.remove(
+                        userId,
+                        row.recordId
+                    );
+                }
+
                 await deps.remote.upsertPractices([payload]);
                 deps.deletedRecordRepo.markDeletedRecordSynced(row.id);
                 deps.sessionRepo.deleteSessionsByPractice(row.recordId);
@@ -747,21 +832,36 @@ export function createSyncEngine(deps: SyncEngineDeps) {
         return true;
     }
 
-    function replaceLocalDataWithRemoteSnapshot(
+    async function replaceLocalDataWithRemoteSnapshot(
         practices: RemotePracticeRow[],
         sessions: RemoteSessionRow[]
     ) {
+        const previousCustomImageUris = deps.practiceRepo
+            .getAllPractices()
+            .map(practice => practice.customImageUri)
+            .filter((uri): uri is string => typeof uri === "string");
+        const hydratedPractices: RemotePracticeRow[] = [];
+
+        for (const practice of practices) {
+            if (practice.deleted_at) continue;
+            hydratedPractices.push(
+                await hydrateRemotePractice(practice, false)
+            );
+        }
+
         deps.deletedRecordRepo.deleteAllDeletedRecords();
         deps.sessionRepo.deleteAllSessions();
         deps.practiceRepo.deleteAllPractices();
 
         const activePracticeIds = new Set<string>();
+        const retainedCustomImageUris = new Set<string>();
 
-        for (const practice of practices) {
-            if (practice.deleted_at) continue;
-
+        for (const practice of hydratedPractices) {
             deps.practiceRepo.upsertPracticeFromRemote(practice);
             activePracticeIds.add(practice.id);
+            if (practice.custom_image_uri) {
+                retainedCustomImageUris.add(practice.custom_image_uri);
+            }
         }
 
         for (const session of sessions) {
@@ -769,6 +869,12 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             if (!activePracticeIds.has(session.practice_id)) continue;
 
             deps.sessionRepo.upsertSessionFromRemote(session);
+        }
+
+        for (const uri of previousCustomImageUris) {
+            if (!retainedCustomImageUris.has(uri)) {
+                deps.customImageSync?.deleteLocal(uri);
+            }
         }
     }
 
@@ -778,7 +884,7 @@ export function createSyncEngine(deps: SyncEngineDeps) {
         const remoteSessions = await deps.remote.pullSessions(userId);
 
         logger.log("SYNC: replacing local data with remote snapshot");
-        replaceLocalDataWithRemoteSnapshot(
+        await replaceLocalDataWithRemoteSnapshot(
             remotePractices,
             remoteSessions
         );
@@ -798,7 +904,7 @@ export function createSyncEngine(deps: SyncEngineDeps) {
         const remotePractices = await deps.remote.pullPractices(userId);
 
         logger.log("SYNC: applying remote practices");
-        applyRemotePractices(userId, remotePractices);
+        await applyRemotePractices(userId, remotePractices);
         discardUnchangedLocalSeedsMissingFromRemote(
             userId,
             remotePractices

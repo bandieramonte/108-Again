@@ -4,6 +4,7 @@ import {
   getCalendarDayDifference,
 } from "../utils/calendarMonth";
 import { getAppOperationEngine } from "./appOperationRuntime";
+import { deleteLocalCustomPracticeImage } from "./customPracticeImageService";
 
 export function getWriteSyncMetadata() : SyncMetadata {
     return getAppOperationEngine()
@@ -15,14 +16,16 @@ export function createPractice(
     target: number,
     dailyTargetCount: number | null = null,
     defaultSessionCount: number = 108,
-    imageKey: string | null = null
+    imageKey: string | null = null,
+    customImageUri: string | null = null
 ) {
     return getAppOperationEngine().createPractice(
         name,
         target,
         dailyTargetCount,
         defaultSessionCount,
-        imageKey
+        imageKey,
+        customImageUri
     );
 }
 
@@ -60,7 +63,10 @@ export function updatePractice(
 }
 
 export async function deletePractice(id: string) {
+    const customImageUri = getAppOperationEngine()
+        .getPractice(id)?.customImageUri;
     await getAppOperationEngine().deletePractice(id);
+    deleteLocalCustomPracticeImage(customImageUri);
 }
 
 export function getPracticeEditData(id: string) {

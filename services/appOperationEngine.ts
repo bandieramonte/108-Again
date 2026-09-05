@@ -1,4 +1,5 @@
 import { DEFAULT_PRACTICES, SEEDED_IDS } from "../constants/defaultPractices";
+import { CUSTOM_PRACTICE_IMAGE_KEY } from "../constants/customPracticeImages";
 import { SyncMetadata } from "../types/sync";
 import {
     formatCalendarDate,
@@ -15,6 +16,7 @@ export type OperationPracticeRow = {
     targetCount: number;
     orderIndex: number;
     imageKey?: string | null;
+    customImageUri?: string | null;
     dailyTargetCount?: number | null;
     defaultSessionCount?: number | null;
     totalOffset?: number;
@@ -58,7 +60,8 @@ type OperationPracticeRepo = {
         reminderEnabled?: boolean | number,
         reminderHour?: number,
         reminderMinute?: number,
-        calendarStartDate?: number | null
+        calendarStartDate?: number | null,
+        customImageUri?: string | null
     ): void;
     updatePractice(
         id: string,
@@ -345,7 +348,8 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         target: number,
         dailyTargetCount: number | null = null,
         defaultSessionCount = 108,
-        imageKey: string | null = null
+        imageKey: string | null = null,
+        customImageUri: string | null = null
     ) {
         const practices = deps.practiceRepo.getAllPractices();
 
@@ -367,7 +371,12 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
             imageKey,
             dailyTargetCount,
             defaultSessionCount,
-            0
+            0,
+            false,
+            20,
+            0,
+            null,
+            customImageUri
         );
 
         deps.emitDataChanged?.();
@@ -539,7 +548,8 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                     practice.userId ?? userId;
                 const shouldCreatePracticeDeletion =
                     practiceExistsRemotely ||
-                    SEEDED_IDS.has(id);
+                    SEEDED_IDS.has(id) ||
+                    practice.imageKey === CUSTOM_PRACTICE_IMAGE_KEY;
 
                 if (deletionOwnerUserId && practiceExistsRemotely) {
                     for (const session of sessions) {
@@ -1093,7 +1103,8 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                         reminder?.hour ?? 20,
                         reminder?.minute ?? 0,
                         earliestSessionByPracticeId.get(practice.id) ??
-                            importedAt
+                            importedAt,
+                        practice.customImageUri ?? null
                     );
                 });
 

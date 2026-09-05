@@ -1,4 +1,12 @@
 import type { TranslationKey } from "../i18n/locales/en";
+import { CUSTOM_PRACTICE_IMAGE_KEY } from "./customPracticeImages";
+
+export {
+    CUSTOM_PRACTICE_IMAGE_HEIGHT,
+    CUSTOM_PRACTICE_IMAGE_KEY,
+    CUSTOM_PRACTICE_IMAGE_PIXELS,
+    CUSTOM_PRACTICE_IMAGE_WIDTH,
+} from "./customPracticeImages";
 
 export const practiceImages: Record<string, any> = {
     "short-refuge": require("../assets/practice-icons/short-refuge.png"),
@@ -15,6 +23,19 @@ export const practiceImages: Record<string, any> = {
     "loving-eyes": require("../assets/practice-icons/extra/chenrezig.png"),
     "white-liberatrice": require("../assets/practice-icons/extra/white-tara.png"),
 };
+
+export function getPracticeImageSource(
+    imageKey: string | null | undefined,
+    customImageUri?: string | null
+) {
+    if (imageKey === CUSTOM_PRACTICE_IMAGE_KEY && customImageUri) {
+        return { uri: customImageUri };
+    }
+
+    return imageKey && practiceImages[imageKey]
+        ? practiceImages[imageKey]
+        : practiceImages.generic;
+}
 
 const legacyPracticeImageKeyMap: Record<string, string> = {
     "loving-eyes": "chenrezig",

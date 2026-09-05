@@ -17,7 +17,7 @@ import PracticeCalendarModal from "../components/PracticeCalendarModal";
 import PracticeHistoryModal from "../components/PracticeHistoryModal";
 import QuickAddEditor from "../components/QuickAddEditor";
 import WelcomeModal from "../components/WelcomeModal";
-import { practiceImages } from "../constants/practiceImages";
+import { getPracticeImageSource } from "../constants/practiceImages";
 import { usePracticeActions } from "../hooks/usePracticeActions";
 import { useCurrentLocalDate } from "../hooks/useCurrentLocalDate";
 import { useReachedCelebration } from "../hooks/useReachedCelebration";
@@ -44,6 +44,7 @@ type Practice = {
   total: number;
   today: number;
   imageKey?: string | null;
+  customImageUri?: string | null;
   dailyTargetCount?: number | null;
   defaultSessionCount?: number | null;
 };
@@ -632,7 +633,10 @@ export default function Dashboard() {
 
             <View style={styles.practiceBodyRow}>
               <Image
-                source={dragOverlayPractice.imageKey && practiceImages[dragOverlayPractice.imageKey] ? practiceImages[dragOverlayPractice.imageKey] : practiceImages["generic"]}
+                source={getPracticeImageSource(
+                  dragOverlayPractice.imageKey,
+                  dragOverlayPractice.customImageUri
+                )}
                 style={styles.icon}
                 resizeMode="contain"
               />
@@ -997,7 +1001,10 @@ export default function Dashboard() {
 
                     <View style={styles.practiceBodyRow}>
                       <Image
-                        source={practice.imageKey && practiceImages[practice.imageKey] ? practiceImages[practice.imageKey] : practiceImages["generic"]}
+                        source={getPracticeImageSource(
+                          practice.imageKey,
+                          practice.customImageUri
+                        )}
                         style={styles.icon}
                         resizeMode="contain"
                       />

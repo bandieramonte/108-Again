@@ -226,6 +226,11 @@ const { initializeDatabaseSchema } =
   require("../.build/database/schema.js");
 const { DEFAULT_PRACTICES } =
   require("../.build/constants/defaultPractices.js");
+const {
+  CUSTOM_PRACTICE_IMAGE_HEIGHT,
+  CUSTOM_PRACTICE_IMAGE_KEY,
+  CUSTOM_PRACTICE_IMAGE_WIDTH,
+} = require("../.build/constants/customPracticeImages.js");
 const { createAppMetaRepo } =
   require("../.build/repositories/appMetaRepoFactory.js");
 const { createDeletedRecordRepo } =
@@ -466,7 +471,12 @@ function createMemorySyncRemote() {
   };
 }
 
-function createSyncEngineForDevice(device, remote, now = () => Date.now()) {
+function createSyncEngineForDevice(
+  device,
+  remote,
+  now = () => Date.now(),
+  customImageSync
+) {
   return createSyncEngine({
     appMetaRepo: device.appMetaRepo,
     deletedRecordRepo: device.deletedRecordRepo,
@@ -479,6 +489,7 @@ function createSyncEngineForDevice(device, remote, now = () => Date.now()) {
     practiceRepo: device.practiceRepo,
     remote,
     sessionRepo: device.sessionRepo,
+    customImageSync,
   });
 }
 
@@ -1886,6 +1897,140 @@ await test(
       destination.practiceRepo.getPracticeById(secondPracticeId).imageKey,
       "chenrezig"
     );
+  }
+);
+
+await test(
+  "uploaded practice images stay local in the database and portable in backups",
+  async () => {
+    const source = makeLocalDevice();
+    const practiceId = source.operations.createPractice(
+      "Uploaded Image",
+      10000,
+      null,
+      108,
+      CUSTOM_PRACTICE_IMAGE_KEY,
+      "file:///practice-images/uploaded.jpg"
+    );
+    const stored = source.practiceRepo.getPracticeById(practiceId);
+
+    assert.equal(stored.imageKey, CUSTOM_PRACTICE_IMAGE_KEY);
+    assert.equal(
+      stored.customImageUri,
+      "file:///practice-images/uploaded.jpg"
+    );
+
+    const deviceBackup = source.operations.getBackupData();
+    assert.throws(
+      () => validateBackup(deviceBackup),
+      /device-local image path/
+    );
+
+    const portableBackup = {
+      ...deviceBackup,
+      practices: deviceBackup.practices.map((practice) => {
+        const { customImageUri, ...portablePractice } = practice;
+
+        return practice.id === practiceId
+          ? {
+              ...portablePractice,
+              customImage: {
+                mimeType: "image/jpeg",
+                width: CUSTOM_PRACTICE_IMAGE_WIDTH,
+                height: CUSTOM_PRACTICE_IMAGE_HEIGHT,
+                data: "/9j/2Q==",
+              },
+            }
+          : portablePractice;
+      }),
+    };
+
+    assert.doesNotThrow(() => validateBackup(portableBackup));
+  }
+);
+
+await test(
+  "uploaded practice images use the binary sync channel",
+  async () => {
+    const userId = "custom-image-sync-user";
+    let currentTime = Date.parse("2026-09-05T12:00:00.000Z");
+    const now = () => {
+      currentTime += 1000;
+      return currentTime;
+    };
+    const remote = createMemorySyncRemote();
+    const source = makeLocalDevice(userId, now);
+    const practiceId = source.operations.createPractice(
+      "Synced Upload",
+      20000,
+      null,
+      108,
+      CUSTOM_PRACTICE_IMAGE_KEY,
+      "file:///practice-images/source.jpg"
+    );
+    const uploads = [];
+    const removals = [];
+    const sourceImageSync = {
+      async upload(ownerId, id, uri) {
+        uploads.push({ ownerId, id, uri });
+      },
+      async download() {
+        throw new Error("Source should not download its own image");
+      },
+      async remove(ownerId, id) {
+        removals.push({ ownerId, id });
+      },
+      async removeAllForUser() {},
+      deleteLocal() {},
+    };
+    const sourceSync = createSyncEngineForDevice(
+      source,
+      remote,
+      now,
+      sourceImageSync
+    );
+
+    await sourceSync.executeSync(userId, "merge_local");
+    assert.deepEqual(uploads, [
+      {
+        ownerId: userId,
+        id: practiceId,
+        uri: "file:///practice-images/source.jpg",
+      },
+    ]);
+
+    const destination = makeLocalDevice(userId, now);
+    const downloads = [];
+    const destinationImageSync = {
+      async upload() {},
+      async download(ownerId, id) {
+        downloads.push({ ownerId, id });
+        return "file:///practice-images/downloaded.jpg";
+      },
+      async remove() {},
+      async removeAllForUser() {},
+      deleteLocal() {},
+    };
+    const destinationSync = createSyncEngineForDevice(
+      destination,
+      remote,
+      now,
+      destinationImageSync
+    );
+
+    await destinationSync.executeSync(
+      userId,
+      "remote_overwrite_local"
+    );
+    assert.deepEqual(downloads, [{ ownerId: userId, id: practiceId }]);
+    assert.equal(
+      destination.practiceRepo.getPracticeById(practiceId).customImageUri,
+      "file:///practice-images/downloaded.jpg"
+    );
+
+    await source.operations.deletePractice(practiceId);
+    await sourceSync.executeSync(userId, "merge_local");
+    assert.deepEqual(removals, [{ ownerId: userId, id: practiceId }]);
   }
 );
 

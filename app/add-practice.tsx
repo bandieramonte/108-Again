@@ -1,8 +1,11 @@
+import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
     Image,
+    ActivityIndicator,
     KeyboardAvoidingView,
+    Modal,
     Platform,
     Pressable,
     ScrollView,
@@ -15,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CUSTOM_PRACTICE_IMAGE_FALLBACK } from "../components/PracticeImagePicker";
 import { DEFAULT_PRACTICES } from "../constants/defaultPractices";
 import {
+    CUSTOM_PRACTICE_IMAGE_KEY,
     mantraCounterImageOptions,
     normalizePracticeImageKey,
     practiceImages,
@@ -22,6 +26,10 @@ import {
 import { useI18n } from "../i18n";
 import { getPracticeDisplayName } from "../i18n/practiceNames";
 import * as practiceService from "../services/practiceService";
+import {
+    deleteLocalCustomPracticeImage,
+    pickAndNormalizeCustomPracticeImage,
+} from "../services/customPracticeImageService";
 import { useAppTheme, useGlobalStyles } from "../styles/theme";
 import {
     digitsOnly,
@@ -50,6 +58,25 @@ export default function AddPractice() {
     const [selectedSeedId, setSelectedSeedId] = useState<string | null>(null);
     const [selectedExtraImageKey, setSelectedExtraImageKey] =
         useState<string | null>(null);
+    const [customImageUri, setCustomImageUri] = useState<string | null>(null);
+    const [pendingCustomImageUri, setPendingCustomImageUri] =
+        useState<string | null>(null);
+    const [uploadModalOpen, setUploadModalOpen] = useState(false);
+    const [processingImage, setProcessingImage] = useState(false);
+    const customImageUriRef = useRef<string | null>(null);
+    const customImageCommittedRef = useRef(false);
+
+    useEffect(() => {
+        customImageUriRef.current = customImageUri;
+    }, [customImageUri]);
+
+    useEffect(() => {
+        return () => {
+            if (!customImageCommittedRef.current) {
+                deleteLocalCustomPracticeImage(customImageUriRef.current);
+            }
+        };
+    }, []);
 
     const activePractices = practiceService.getAllPractices();
     const activePracticeIds = new Set(
@@ -64,7 +91,9 @@ export default function AddPractice() {
     );
     const availableMantraCounterImageOptions =
         mantraCounterImageOptions.filter(
-            option => !activeMantraCounterImageKeys.has(option.key)
+            option =>
+                option.key === CUSTOM_PRACTICE_IMAGE_FALLBACK ||
+                !activeMantraCounterImageKeys.has(option.key)
         );
     const missingSeedPractices =
         DEFAULT_PRACTICES.filter(practice => !activePracticeIds.has(practice.id));
@@ -116,6 +145,102 @@ export default function AddPractice() {
         setName("");
         setTarget("");
         setDefaultSession(formatNumberInput("108", locale));
+    }
+
+    function openUploadModal() {
+        setPendingCustomImageUri(customImageUri);
+        setUploadModalOpen(true);
+    }
+
+    function closeUploadModal() {
+        if (
+            pendingCustomImageUri &&
+            pendingCustomImageUri !== customImageUri
+        ) {
+            deleteLocalCustomPracticeImage(pendingCustomImageUri);
+        }
+
+        setPendingCustomImageUri(null);
+        setUploadModalOpen(false);
+    }
+
+    async function browseForImage() {
+        setProcessingImage(true);
+
+        try {
+            const uri = await pickAndNormalizeCustomPracticeImage();
+
+            if (!uri) return;
+
+            if (
+                pendingCustomImageUri &&
+                pendingCustomImageUri !== customImageUri
+            ) {
+                deleteLocalCustomPracticeImage(pendingCustomImageUri);
+            }
+
+            setPendingCustomImageUri(uri);
+        } catch (error) {
+            alert(
+                error instanceof Error && error.message === "IMAGE_TOO_LARGE"
+                    ? t("practiceImage.tooLarge")
+                    : t("practiceImage.invalid")
+            );
+        } finally {
+            setProcessingImage(false);
+        }
+    }
+
+    function useUploadedImage() {
+        if (!pendingCustomImageUri) return;
+
+        const wasSeedMode = selectedSeedId !== null;
+        const wasAnotherImageOption =
+            selectedExtraImageKey !== CUSTOM_PRACTICE_IMAGE_KEY;
+
+        if (
+            customImageUri &&
+            customImageUri !== pendingCustomImageUri
+        ) {
+            deleteLocalCustomPracticeImage(customImageUri);
+        }
+
+        setCustomImageUri(pendingCustomImageUri);
+        setPendingCustomImageUri(null);
+        setSelectedSeedId(null);
+        setSelectedExtraImageKey(CUSTOM_PRACTICE_IMAGE_KEY);
+        setUploadModalOpen(false);
+
+        if (wasSeedMode || wasAnotherImageOption) {
+            setName("");
+        }
+
+        if (wasSeedMode) {
+            setTarget("");
+            setDefaultSession(formatNumberInput("108", locale));
+        }
+    }
+
+    function selectUploadedImage() {
+        if (!customImageUri) {
+            openUploadModal();
+            return;
+        }
+
+        const wasSeedMode = selectedSeedId !== null;
+        const wasAnotherImageOption =
+            selectedExtraImageKey !== CUSTOM_PRACTICE_IMAGE_KEY;
+        setSelectedSeedId(null);
+        setSelectedExtraImageKey(CUSTOM_PRACTICE_IMAGE_KEY);
+
+        if (wasSeedMode || wasAnotherImageOption) {
+            setName("");
+        }
+
+        if (wasSeedMode) {
+            setTarget("");
+            setDefaultSession(formatNumberInput("108", locale));
+        }
     }
 
     function validateTargetAndDefaultSession() {
@@ -174,14 +299,31 @@ export default function AddPractice() {
         }
 
         try {
+            const usesCustomImage =
+                selectedExtraImageKey === CUSTOM_PRACTICE_IMAGE_KEY;
+
+            if (usesCustomImage && !customImageUri) {
+                alert(t("practiceImage.invalid"));
+                return;
+            }
+
             practiceService.createPractice(
                 name,
                 parseFormattedNumberInput(target),
                 null,
                 parseFormattedNumberInput(defaultSession),
-                selectedMantraCounterOption?.key ??
-                    CUSTOM_PRACTICE_IMAGE_FALLBACK
+                usesCustomImage
+                    ? CUSTOM_PRACTICE_IMAGE_KEY
+                    : selectedMantraCounterOption?.key ??
+                        CUSTOM_PRACTICE_IMAGE_FALLBACK,
+                usesCustomImage ? customImageUri : null
             );
+
+            if (!usesCustomImage && customImageUri) {
+                deleteLocalCustomPracticeImage(customImageUri);
+            }
+
+            customImageCommittedRef.current = usesCustomImage;
 
             router.back();
 
@@ -396,6 +538,84 @@ export default function AddPractice() {
                                         </Pressable>
                                     );
                                 })}
+                                <Pressable
+                                    style={({ pressed }) => [
+                                        styles.seedOption,
+                                        {
+                                            backgroundColor: colors.inputBackground,
+                                            borderColor: colors.borderSubtle,
+                                        },
+                                        selectedExtraImageKey ===
+                                            CUSTOM_PRACTICE_IMAGE_KEY &&
+                                            styles.selectedOption,
+                                        selectedExtraImageKey ===
+                                            CUSTOM_PRACTICE_IMAGE_KEY && {
+                                            backgroundColor: colors.surfaceSelected,
+                                            borderColor: colors.primary,
+                                        },
+                                        pressed && globalStyles.formOptionPressed,
+                                    ]}
+                                    onPress={selectUploadedImage}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t("practiceImage.upload")}
+                                >
+                                    <View style={styles.uploadCardImageWrap}>
+                                        {customImageUri ? (
+                                            <Image
+                                                source={{ uri: customImageUri }}
+                                                style={styles.seedImage}
+                                                resizeMode="contain"
+                                            />
+                                        ) : (
+                                            <View
+                                                style={[
+                                                    styles.uploadCardPlaceholder,
+                                                    {
+                                                        backgroundColor:
+                                                            colors.surfaceElevated,
+                                                        borderColor:
+                                                            colors.iconMuted,
+                                                    },
+                                                ]}
+                                            >
+                                                <MaterialIcons
+                                                    name="add-photo-alternate"
+                                                    size={30}
+                                                    color={colors.primary}
+                                                />
+                                            </View>
+                                        )}
+                                    </View>
+                                    <Text
+                                        style={[
+                                            styles.seedName,
+                                            { color: colors.textPrimary },
+                                        ]}
+                                        numberOfLines={2}
+                                    >
+                                        {t("practiceImage.upload")}
+                                    </Text>
+                                    {customImageUri && (
+                                        <Pressable
+                                            onPress={(event) => {
+                                                event.stopPropagation();
+                                                openUploadModal();
+                                            }}
+                                            hitSlop={6}
+                                            accessibilityRole="button"
+                                            accessibilityLabel={t("practiceImage.change")}
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.changeImageText,
+                                                    { color: colors.primary },
+                                                ]}
+                                            >
+                                                {t("practiceImage.change")}
+                                            </Text>
+                                        </Pressable>
+                                    )}
+                                </Pressable>
                             </View>
                         </View>
                     )}
@@ -460,6 +680,133 @@ export default function AddPractice() {
                 </Pressable>
 
             </ScrollView>
+
+            <Modal
+                visible={uploadModalOpen}
+                transparent
+                animationType="fade"
+                onRequestClose={closeUploadModal}
+            >
+                <View
+                    style={[
+                        styles.modalOverlay,
+                        { backgroundColor: colors.overlay },
+                    ]}
+                >
+                    <View
+                        style={[
+                            styles.uploadModalCard,
+                            { backgroundColor: colors.surfaceElevated },
+                        ]}
+                    >
+                        <Text
+                            style={[
+                                styles.uploadModalTitle,
+                                { color: colors.textPrimary },
+                            ]}
+                        >
+                            {t("practiceImage.uploadTitle")}
+                        </Text>
+                        <Text
+                            style={[
+                                styles.uploadGuidance,
+                                { color: colors.textSecondary },
+                            ]}
+                        >
+                            {t("practiceImage.uploadGuidance", {
+                                pixels: (165000).toLocaleString(locale),
+                            })}
+                        </Text>
+
+                        <Pressable
+                            style={({ pressed }) => [
+                                styles.uploadPreview,
+                                {
+                                    backgroundColor: colors.inputBackground,
+                                    borderColor: colors.borderSubtle,
+                                    borderStyle: pendingCustomImageUri
+                                        ? "solid"
+                                        : "dashed",
+                                },
+                                pressed && globalStyles.formOptionPressed,
+                            ]}
+                            onPress={() => void browseForImage()}
+                            disabled={processingImage}
+                            accessibilityRole="button"
+                            accessibilityLabel={t("practiceImage.browseFiles")}
+                        >
+                            {pendingCustomImageUri ? (
+                                <Image
+                                    source={{ uri: pendingCustomImageUri }}
+                                    style={styles.uploadPreviewImage}
+                                    resizeMode="contain"
+                                />
+                            ) : (
+                                <MaterialIcons
+                                    name="add-photo-alternate"
+                                    size={48}
+                                    color={colors.primary}
+                                />
+                            )}
+                        </Pressable>
+
+                        <Pressable
+                            style={[
+                                styles.browseButton,
+                                { backgroundColor: colors.primary },
+                            ]}
+                            onPress={() => void browseForImage()}
+                            disabled={processingImage}
+                            accessibilityRole="button"
+                        >
+                            {processingImage ? (
+                                <ActivityIndicator color="#FFFFFF" />
+                            ) : (
+                                <Text style={styles.browseButtonText}>
+                                    {t("practiceImage.browseFiles")}
+                                </Text>
+                            )}
+                        </Pressable>
+
+                        {processingImage && (
+                            <Text
+                                style={[
+                                    styles.processingText,
+                                    { color: colors.textSecondary },
+                                ]}
+                            >
+                                {t("practiceImage.processing")}
+                            </Text>
+                        )}
+
+                        <View style={styles.modalButtons}>
+                            <Pressable
+                                onPress={closeUploadModal}
+                                disabled={processingImage}
+                            >
+                                <Text style={{ color: colors.textSecondary }}>
+                                    {t("common.cancel")}
+                                </Text>
+                            </Pressable>
+                            <Pressable
+                                onPress={useUploadedImage}
+                                disabled={!pendingCustomImageUri || processingImage}
+                            >
+                                <Text
+                                    style={{
+                                        color: pendingCustomImageUri
+                                            ? colors.primary
+                                            : colors.iconMuted,
+                                        fontWeight: "700",
+                                    }}
+                                >
+                                    {t("practiceImage.useImage")}
+                                </Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </KeyboardAvoidingView>
 
     );
@@ -504,6 +851,100 @@ const styles = StyleSheet.create({
         width: 48,
         height: 48,
         borderRadius: 10,
+    },
+
+    uploadCardImageWrap: {
+        position: "relative",
+    },
+
+    uploadCardPlaceholder: {
+        width: 48,
+        height: 48,
+        borderWidth: 1,
+        borderStyle: "dashed",
+        borderRadius: 10,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
+    changeImageText: {
+        fontSize: 11,
+        fontWeight: "700",
+        marginTop: -4,
+    },
+
+    modalOverlay: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 20,
+    },
+
+    uploadModalCard: {
+        width: "100%",
+        maxWidth: 380,
+        borderRadius: 16,
+        padding: 20,
+        alignItems: "center",
+    },
+
+    uploadModalTitle: {
+        alignSelf: "stretch",
+        fontSize: 20,
+        fontWeight: "800",
+        marginBottom: 8,
+    },
+
+    uploadGuidance: {
+        alignSelf: "stretch",
+        fontSize: 14,
+        lineHeight: 20,
+        marginBottom: 16,
+    },
+
+    uploadPreview: {
+        width: 154,
+        height: 172,
+        borderWidth: 1,
+        borderRadius: 14,
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+        marginBottom: 18,
+    },
+
+    uploadPreviewImage: {
+        width: "100%",
+        height: "100%",
+    },
+
+    browseButton: {
+        minWidth: 160,
+        minHeight: 44,
+        paddingHorizontal: 20,
+        borderRadius: 999,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
+    browseButtonText: {
+        color: "#FFFFFF",
+        fontSize: 15,
+        fontWeight: "700",
+    },
+
+    processingText: {
+        marginTop: 8,
+        fontSize: 13,
+    },
+
+    modalButtons: {
+        alignSelf: "stretch",
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginTop: 22,
+        paddingHorizontal: 4,
     },
 
     seedName: {

@@ -1,8 +1,14 @@
 import { MAX_PRACTICE_COUNT, MAX_REPETITIONS_PER_DAY, MAX_TARGET_COUNT } from "../utils/numberUtils";
 import { isCalendarDateString } from "../utils/calendarMonth";
+import {
+    CUSTOM_PRACTICE_IMAGE_KEY,
+    CUSTOM_PRACTICE_IMAGE_HEIGHT,
+    CUSTOM_PRACTICE_IMAGE_WIDTH,
+} from "../constants/customPracticeImages";
 import { getAppOperationEngine } from "./appOperationRuntime";
 
 const BACKUP_APP_ID = "app108again";
+const MAX_BACKUP_IMAGE_BASE64_LENGTH = 1_400_000;
 
 declare const require: {
     (path: string): any;
@@ -212,6 +218,29 @@ export function validateBackup(data: any) {
             )
         ) {
             throw new Error("Invalid calendar start date");
+        }
+
+        if (p.customImageUri != null) {
+            throw new Error("Backup contains a device-local image path");
+        }
+
+        if (p.imageKey === CUSTOM_PRACTICE_IMAGE_KEY) {
+            const image = p.customImage;
+
+            if (
+                !image ||
+                image.mimeType !== "image/jpeg" ||
+                image.width !== CUSTOM_PRACTICE_IMAGE_WIDTH ||
+                image.height !== CUSTOM_PRACTICE_IMAGE_HEIGHT ||
+                typeof image.data !== "string" ||
+                image.data.length === 0 ||
+                image.data.length > MAX_BACKUP_IMAGE_BASE64_LENGTH ||
+                !/^[A-Za-z0-9+/]+={0,2}$/.test(image.data)
+            ) {
+                throw new Error("Invalid custom practice image");
+            }
+        } else if (p.customImage != null) {
+            throw new Error("Unexpected custom practice image");
         }
     }
 

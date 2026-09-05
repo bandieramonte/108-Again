@@ -20,6 +20,7 @@ export type DashboardPracticeRow = {
   total: number;
   today: number;
   imageKey?: string | null;
+  customImageUri?: string | null;
   dailyTargetCount?: number | null;
   defaultSessionCount?: number | null;
 };
@@ -32,6 +33,7 @@ export function getDashboardPracticeRows(): DashboardPracticeRow[] {
     p.name,
     p.targetCount,
     MAX(p.imageKey) as imageKey,
+    MAX(p.customImageUri) as customImageUri,
     0 as total,
     COALESCE(SUM(
       CASE

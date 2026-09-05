@@ -8,6 +8,7 @@ type DashboardPracticeRow = {
     total: number;
     today: number;
     imageKey?: string | null;
+    customImageUri?: string | null;
     dailyTargetCount?: number | null;
     defaultSessionCount?: number | null;
 };

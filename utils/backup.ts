@@ -4,6 +4,12 @@ import * as authService from "@/services/authService";
 import { getBackupData, restoreBackupData, validateBackup } from "@/services/backupService";
 import * as syncService from "@/services/syncService";
 import { emitDataChanged } from "@/utils/events";
+import { CUSTOM_PRACTICE_IMAGE_KEY } from "@/constants/practiceImages";
+import {
+    deleteLocalCustomPracticeImage,
+    readCustomPracticeImageForBackup,
+    restoreCustomPracticeImageFromBackup,
+} from "@/services/customPracticeImageService";
 import { randomUUID } from "expo-crypto";
 import * as DocumentPicker from "expo-document-picker";
 import { File, Paths } from "expo-file-system";
@@ -14,8 +20,37 @@ import * as appMetaRepo from "../repositories/appMetaRepo";
 export async function exportBackup() {
 
     const data = await getBackupData();
+    const portablePractices = await Promise.all(
+        data.practices.map(async (practice: any) => {
+            const {
+                customImageUri,
+                customImage: _existingCustomImage,
+                ...portablePractice
+            } = practice;
 
-    const json = JSON.stringify(data, null, 2);
+            if (practice.imageKey !== CUSTOM_PRACTICE_IMAGE_KEY) {
+                return portablePractice;
+            }
+
+            if (!customImageUri) {
+                throw new Error(
+                    `Custom image is missing for ${practice.name}.`
+                );
+            }
+
+            return {
+                ...portablePractice,
+                customImage:
+                    await readCustomPracticeImageForBackup(customImageUri),
+            };
+        })
+    );
+
+    const json = JSON.stringify(
+        { ...data, practices: portablePractices },
+        null,
+        2
+    );
 
     const file = new File(Paths.document, "app108again-backup.json");
 
@@ -53,6 +88,9 @@ export async function importBackup(onComplete?: () => void) {
     }
 
     async function performImport() {
+        const restoredImageUris: string[] = [];
+        let restoreCompleted = false;
+
         try {
             validateBackup(data);
 
@@ -66,8 +104,46 @@ export async function importBackup(onComplete?: () => void) {
             // ✅ 2. Capture current state BEFORE overwrite
             const existingPractices = practiceRepo.getAllPractices();
 
+            const preparedPractices = data.practices.map((practice: any) => {
+                const {
+                    customImageUri: _deviceLocalUri,
+                    customImage,
+                    ...preparedPractice
+                } = practice;
+
+                if (practice.imageKey !== CUSTOM_PRACTICE_IMAGE_KEY) {
+                    return preparedPractice;
+                }
+
+                const customImageUri =
+                    restoreCustomPracticeImageFromBackup(
+                        practice.id,
+                        customImage
+                    );
+                restoredImageUris.push(customImageUri);
+
+                return { ...preparedPractice, customImageUri };
+            });
+            const preparedData = {
+                ...data,
+                practices: preparedPractices,
+            };
+
             // ✅ 3. Replace local DB with backup
-            await restoreBackupData(data);
+            await restoreBackupData(preparedData);
+            restoreCompleted = true;
+
+            const retainedImageUris = new Set(restoredImageUris);
+            for (const practice of existingPractices) {
+                if (
+                    practice.customImageUri &&
+                    !retainedImageUris.has(practice.customImageUri)
+                ) {
+                    deleteLocalCustomPracticeImage(
+                        practice.customImageUri
+                    );
+                }
+            }
 
             appMetaRepo.setMeta(
                 "pendingBackupRestore",
@@ -132,6 +208,11 @@ export async function importBackup(onComplete?: () => void) {
             alert("Backup restored successfully");
 
         } catch (error) {
+            if (!restoreCompleted) {
+                for (const uri of restoredImageUris) {
+                    deleteLocalCustomPracticeImage(uri);
+                }
+            }
             Alert.alert(
                 "Backup failed",
                 error instanceof Error

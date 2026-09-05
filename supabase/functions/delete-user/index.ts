@@ -39,6 +39,26 @@ serve(async (req) => {
   );
 
   try {
+    const imageBucket = supabaseAdmin.storage.from("practice-images");
+    const { data: practiceImages, error: listImageError } =
+      await imageBucket.list(userId, { limit: 100 });
+
+    if (listImageError) {
+      throw listImageError;
+    }
+
+    if (practiceImages?.length) {
+      const { error: removeImageError } = await imageBucket.remove(
+        practiceImages.map(
+          (image: { name: string }) => `${userId}/${image.name}`
+        )
+      );
+
+      if (removeImageError) {
+        throw removeImageError;
+      }
+    }
+
     // delete user data
     await supabaseAdmin.from("sessions").delete().eq("user_id", userId);
     await supabaseAdmin.from("practices").delete().eq("user_id", userId);
