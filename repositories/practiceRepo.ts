@@ -24,6 +24,7 @@ export const {
     reassignAllPracticesToUser,
     resetAllSyncState,
     resetPracticeTotals,
+    updateCustomPracticeImage,
     updatePractice,
     updatePracticeDailyTargetCount,
     updatePracticeDefaultSessionCount,

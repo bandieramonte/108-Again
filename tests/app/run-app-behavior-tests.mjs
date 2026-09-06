@@ -1920,7 +1920,26 @@ await test(
       "file:///practice-images/uploaded.jpg"
     );
 
+    assert.equal(
+      source.operations.replaceCustomPracticeImage(
+        practiceId,
+        "file:///practice-images/replacement.jpg"
+      ),
+      "file:///practice-images/uploaded.jpg"
+    );
+    assert.equal(
+      source.practiceRepo.getPracticeById(practiceId).customImageUri,
+      "file:///practice-images/replacement.jpg"
+    );
+
     const deviceBackup = source.operations.getBackupData();
+    assert.equal(
+      deviceBackup.practices.find(
+        practice => practice.id === practiceId
+      ).customImageUri,
+      "file:///practice-images/replacement.jpg",
+      "Backup export reads the replacement image path"
+    );
     assert.throws(
       () => validateBackup(deviceBackup),
       /device-local image path/
@@ -2001,15 +2020,20 @@ await test(
 
     const destination = makeLocalDevice(userId, now);
     const downloads = [];
+    const deletedLocalImages = [];
     const destinationImageSync = {
       async upload() {},
       async download(ownerId, id) {
         downloads.push({ ownerId, id });
-        return "file:///practice-images/downloaded.jpg";
+        return downloads.length === 1
+          ? "file:///practice-images/downloaded.jpg"
+          : "file:///practice-images/replacement-downloaded.jpg";
       },
       async remove() {},
       async removeAllForUser() {},
-      deleteLocal() {},
+      deleteLocal(uri) {
+        deletedLocalImages.push(uri);
+      },
     };
     const destinationSync = createSyncEngineForDevice(
       destination,
@@ -2028,6 +2052,33 @@ await test(
       "file:///practice-images/downloaded.jpg"
     );
 
+    source.operations.replaceCustomPracticeImage(
+      practiceId,
+      "file:///practice-images/replacement.jpg"
+    );
+    await sourceSync.executeSync(userId, "merge_local");
+
+    assert.deepEqual(uploads[1], {
+      ownerId: userId,
+      id: practiceId,
+      uri: "file:///practice-images/replacement.jpg",
+    });
+
+    await destinationSync.executeSync(userId, "merge_local");
+    assert.deepEqual(downloads, [
+      { ownerId: userId, id: practiceId },
+      { ownerId: userId, id: practiceId },
+    ]);
+    assert.equal(
+      destination.practiceRepo.getPracticeById(practiceId).customImageUri,
+      "file:///practice-images/replacement-downloaded.jpg"
+    );
+    assert.deepEqual(
+      deletedLocalImages,
+      ["file:///practice-images/downloaded.jpg"],
+      "Receiving a replacement removes the superseded local image"
+    );
+
     await source.operations.deletePractice(practiceId);
     await sourceSync.executeSync(userId, "merge_local");
     assert.deepEqual(removals, [{ ownerId: userId, id: practiceId }]);
@@ -2035,7 +2086,7 @@ await test(
 );
 
 await test(
-  "practice images stay fixed after creation",
+  "built-in practice images stay fixed after creation",
   async () => {
     const device = makeLocalDevice();
     const practiceId = device.operations.createPractice(
@@ -2063,6 +2114,13 @@ await test(
     assert.equal(
       device.practiceRepo.getPracticeById(practiceId).imageKey,
       "green-tara"
+    );
+    assert.throws(
+      () => device.operations.replaceCustomPracticeImage(
+        practiceId,
+        "file:///practice-images/not-allowed.jpg"
+      ),
+      /Only practices created with an uploaded image/
     );
 
     await device.operations.restoreDefaults();

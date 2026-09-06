@@ -162,6 +162,7 @@ export async function uploadCustomPracticeImage(
     const { error } = await getSupabase().storage
         .from(CUSTOM_IMAGE_BUCKET)
         .upload(storagePath(userId, practiceId), await file.bytes(), {
+            cacheControl: "0",
             contentType: "image/jpeg",
             upsert: true,
         });
@@ -172,28 +173,27 @@ export async function uploadCustomPracticeImage(
 export async function downloadCustomPracticeImage(
     userId: string,
     practiceId: string,
-    currentUri?: string | null
+    remoteUpdatedAt: string
 ) {
-    if (currentUri) {
-        const current = new File(currentUri);
-
-        if (current.exists) return current.uri;
-    }
-
     const { data, error } = await getSupabase().storage
         .from(CUSTOM_IMAGE_BUCKET)
         .createSignedUrl(storagePath(userId, practiceId), 60);
 
     if (error) throw error;
 
+    const separator = data.signedUrl.includes("?") ? "&" : "?";
+    const versionedSignedUrl =
+        `${data.signedUrl}${separator}v=` +
+        encodeURIComponent(remoteUpdatedAt);
+
     const destination = new File(
         getImageDirectory(),
-        `${practiceId}.jpg`
+        `${practiceId}-${randomUUID()}.jpg`
     );
 
     try {
         const downloaded = await File.downloadFileAsync(
-            data.signedUrl,
+            versionedSignedUrl,
             destination,
             { idempotent: true }
         );

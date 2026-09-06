@@ -214,6 +214,28 @@ export function createPracticeRepo(database: SqliteDatabase) {
         );
     }
 
+    function updateCustomPracticeImage(
+        id: string,
+        customImageUri: string,
+        syncMetadata: SyncMetadata
+    ): void {
+        database.runSync(
+            `UPDATE practices
+     SET customImageUri = ?,
+         userId = ?,
+         updatedAt = COALESCE(?, updatedAt),
+         syncStatus = COALESCE(?, syncStatus),
+         lastSyncedAt = ?
+     WHERE id = ?`,
+            customImageUri,
+            syncMetadata.userId,
+            syncMetadata.updatedAt,
+            syncMetadata.syncStatus,
+            syncMetadata.lastSyncedAt,
+            id
+        );
+    }
+
     function updatePracticeDailyTargetCount(
         id: string,
         dailyTargetCount: number | null,
@@ -617,6 +639,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
         reassignAllPracticesToUser,
         resetAllSyncState,
         resetPracticeTotals,
+        updateCustomPracticeImage,
         updatePractice,
         updatePracticeDailyTargetCount,
         updatePracticeDefaultSessionCount,

@@ -70,6 +70,11 @@ type OperationPracticeRepo = {
         syncMetadata: SyncMetadata,
         imageKey?: string | null
     ): void;
+    updateCustomPracticeImage(
+        id: string,
+        customImageUri: string,
+        syncMetadata: SyncMetadata
+    ): void;
     updatePracticeDailyTargetCount(
         id: string,
         dailyTargetCount: number | null,
@@ -527,6 +532,46 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         void deps.requestSync?.(syncMetadata.userId);
     }
 
+    function replaceCustomPracticeImage(
+        id: string,
+        customImageUri: string
+    ) {
+        if (!customImageUri) {
+            throw new Error("A replacement image is required.");
+        }
+
+        const practice = deps.practiceRepo.getPracticeById(id);
+
+        if (!practice) {
+            throw new Error(`Practice not found: ${id}`);
+        }
+
+        if (practice.imageKey !== CUSTOM_PRACTICE_IMAGE_KEY) {
+            throw new Error(
+                "Only practices created with an uploaded image can replace it."
+            );
+        }
+
+        const previousImageUri = practice.customImageUri ?? null;
+
+        if (previousImageUri === customImageUri) {
+            return previousImageUri;
+        }
+
+        const syncMetadata = getWriteSyncMetadata();
+
+        deps.practiceRepo.updateCustomPracticeImage(
+            id,
+            customImageUri,
+            syncMetadata
+        );
+
+        deps.emitDataChanged?.();
+        void deps.requestSync?.(syncMetadata.userId);
+
+        return previousImageUri;
+    }
+
     async function deletePractice(id: string) {
         const userId = deps.getCurrentUserId();
         const deletedAt = now();
@@ -631,6 +676,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
             dailyTargetCount: practice.dailyTargetCount ?? null,
             defaultSessionCount: practice.defaultSessionCount ?? 108,
             imageKey: practice.imageKey ?? null,
+            customImageUri: practice.customImageUri ?? null,
             isSeedPractice: SEEDED_IDS.has(id),
         };
     }
@@ -1167,6 +1213,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         restoreBackupData,
         restoreDefaults,
         reorderPractices,
+        replaceCustomPracticeImage,
         updatePractice,
         updatePracticeDailyTargetCount,
         updatePracticeDefaultSessionCount,

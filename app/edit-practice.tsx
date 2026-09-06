@@ -2,6 +2,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import CustomPracticeImageEditor from "../components/CustomPracticeImageEditor";
+import { CUSTOM_PRACTICE_IMAGE_KEY } from "../constants/customPracticeImages";
 import { useI18n } from "../i18n";
 import * as practiceService from "../services/practiceService";
 import { useAppTheme, useGlobalStyles } from "../styles/theme";
@@ -32,6 +34,9 @@ export default function EditPractice() {
     const [total, setTotal] = useState("");
     const [dailyTarget, setDailyTarget] = useState("");
     const [defaultSession, setDefaultSession] = useState("");
+    const [imageKey, setImageKey] = useState<string | null>(null);
+    const [customImageUri, setCustomImageUri] =
+        useState<string | null>(null);
 
     useEffect(() => {
         const data = practiceService.getPracticeEditData(id as string);
@@ -46,7 +51,14 @@ export default function EditPractice() {
         setDefaultSession(
             formatNumberInput(String(data.defaultSessionCount ?? 108), locale)
         );
+        setImageKey(data.imageKey);
+        setCustomImageUri(data.customImageUri);
     }, [id, locale]);
+
+    function replaceCustomImage(uri: string) {
+        practiceService.replaceCustomPracticeImage(id as string, uri);
+        setCustomImageUri(uri);
+    }
 
     function save() {
 
@@ -147,6 +159,13 @@ export default function EditPractice() {
                 </Text>
 
                 <View style={globalStyles.formSectionCard}>
+                    {imageKey === CUSTOM_PRACTICE_IMAGE_KEY && (
+                        <CustomPracticeImageEditor
+                            currentUri={customImageUri}
+                            onReplace={replaceCustomImage}
+                        />
+                    )}
+
                     <Text style={globalStyles.formInputLabel}>
                         {t("form.name")}
                     </Text>

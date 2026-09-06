@@ -9,6 +9,8 @@ const BetterSqlite3 = require("better-sqlite3");
 const { createClient } = require("@supabase/supabase-js");
 const { DEFAULT_PRACTICES, SEEDED_IDS } =
   require("../.build/constants/defaultPractices.js");
+const { CUSTOM_PRACTICE_IMAGE_KEY } =
+  require("../.build/constants/customPracticeImages.js");
 const { seedPracticesCore } =
   require("../.build/database/seedEngine.js");
 const { initializeDatabaseSchema } =
@@ -157,7 +159,7 @@ function createBetterSqliteDatabase() {
   };
 }
 
-function makeLocalDevice(name, remote) {
+function makeLocalDevice(name, remote, customImageSync) {
   const database = createBetterSqliteDatabase();
   initializeDatabaseSchema(database);
 
@@ -211,6 +213,7 @@ function makeLocalDevice(name, remote) {
 
   const createDeviceSyncEngine = () => createSyncEngine({
       appMetaRepo,
+      customImageSync,
       deletedRecordRepo,
       logger: silentLogger,
       practiceRepo,
@@ -338,6 +341,82 @@ function makeSupabaseClient() {
       },
     }
   );
+}
+
+function createTestCustomImageSync(client, deviceName, localFiles) {
+  let downloadIndex = 0;
+
+  return {
+    async upload(userId, practiceId, localUri) {
+      const bytes = localFiles.get(localUri);
+
+      if (!bytes) {
+        throw new Error(`Missing test image: ${localUri}`);
+      }
+
+      const { error } = await client.storage
+        .from("practice-images")
+        .upload(
+          `${userId}/${practiceId}.jpg`,
+          bytes,
+          {
+            cacheControl: "0",
+            contentType: "image/jpeg",
+            upsert: true,
+          }
+        );
+
+      if (error) throw error;
+    },
+    async download(userId, practiceId, remoteUpdatedAt) {
+      const { data, error } = await client.storage
+        .from("practice-images")
+        .createSignedUrl(`${userId}/${practiceId}.jpg`, 60);
+
+      if (error) throw error;
+
+      const response = await fetch(
+        `${data.signedUrl}&v=${encodeURIComponent(remoteUpdatedAt)}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Image download failed: ${response.status}`);
+      }
+
+      downloadIndex += 1;
+      const localUri =
+        `memory://${deviceName}/${practiceId}-${downloadIndex}.jpg`;
+      localFiles.set(
+        localUri,
+        new Uint8Array(await response.arrayBuffer())
+      );
+
+      return localUri;
+    },
+    async remove(userId, practiceId) {
+      const { error } = await client.storage
+        .from("practice-images")
+        .remove([`${userId}/${practiceId}.jpg`]);
+
+      if (error) throw error;
+    },
+    async removeAllForUser(userId) {
+      const bucket = client.storage.from("practice-images");
+      const { data, error } = await bucket.list(userId, { limit: 100 });
+
+      if (error) throw error;
+      if (!data?.length) return;
+
+      const { error: removeError } = await bucket.remove(
+        data.map(item => `${userId}/${item.name}`)
+      );
+
+      if (removeError) throw removeError;
+    },
+    deleteLocal(uri) {
+      if (uri) localFiles.delete(uri);
+    },
+  };
 }
 
 function makeSupabaseAdminClient() {
@@ -1236,6 +1315,111 @@ async function runDeviceAToDeviceBSupabaseSyncTest() {
     totalForPractice(deviceB, syncedPractice.id),
     1500,
     "Device B practice total is 1500"
+  );
+}
+
+async function runUploadedImageReplacementSyncTest() {
+  loadEnv();
+
+  const deviceAClient = makeSupabaseClient();
+  const user = await createAccount(
+    deviceAClient,
+    TEST_EMAIL,
+    TEST_PASSWORD
+  );
+  const deviceAFiles = new Map([
+    [
+      "memory://device-a/original.jpg",
+      new Uint8Array([0xff, 0xd8, 0x01, 0xff, 0xd9]),
+    ],
+    [
+      "memory://device-a/replacement.jpg",
+      new Uint8Array([0xff, 0xd8, 0x02, 0xff, 0xd9]),
+    ],
+  ]);
+  const deviceA = makeLocalDevice(
+    "Device A",
+    createSupabaseSyncRemote(() => deviceAClient),
+    createTestCustomImageSync(
+      deviceAClient,
+      "device-a",
+      deviceAFiles
+    )
+  );
+
+  await completeNewAccountSession(deviceA, deviceAClient, user);
+
+  const practiceId = deviceA.operations.createPractice(
+    "Replaceable Image Practice",
+    10000,
+    null,
+    108,
+    CUSTOM_PRACTICE_IMAGE_KEY,
+    "memory://device-a/original.jpg"
+  );
+
+  await deviceA.sync("merge_local");
+
+  const deviceBClient = makeSupabaseClient();
+  const deviceBFiles = new Map();
+  const deviceB = makeLocalDevice(
+    "Device B",
+    createSupabaseSyncRemote(() => deviceBClient),
+    createTestCustomImageSync(
+      deviceBClient,
+      "device-b",
+      deviceBFiles
+    )
+  );
+
+  await signInDevice(
+    deviceB,
+    deviceBClient,
+    TEST_EMAIL,
+    TEST_PASSWORD
+  );
+
+  const initialDeviceBUri =
+    deviceB.practiceRepo.getPracticeById(practiceId).customImageUri;
+
+  assert.deepEqual(
+    [...deviceBFiles.get(initialDeviceBUri)],
+    [0xff, 0xd8, 0x01, 0xff, 0xd9],
+    "Device B downloads the original image"
+  );
+
+  deviceA.operations.replaceCustomPracticeImage(
+    practiceId,
+    "memory://device-a/replacement.jpg"
+  );
+  assert.equal(
+    deviceA.operations.getBackupData().practices.find(
+      practice => practice.id === practiceId
+    ).customImageUri,
+    "memory://device-a/replacement.jpg",
+    "Backups use the replacement image"
+  );
+
+  await deviceA.sync("merge_local");
+  await deviceB.sync("merge_local");
+
+  const replacementDeviceBUri =
+    deviceB.practiceRepo.getPracticeById(practiceId).customImageUri;
+
+  assert.notEqual(
+    replacementDeviceBUri,
+    initialDeviceBUri,
+    "The replacement gets a cache-safe local URI"
+  );
+  assert.equal(
+    deviceBFiles.has(initialDeviceBUri),
+    false,
+    "Device B removes its superseded local image"
+  );
+  assert.deepEqual(
+    [...deviceBFiles.get(replacementDeviceBUri)],
+    [0xff, 0xd8, 0x02, 0xff, 0xd9],
+    "Device B downloads the replacement image from Supabase Storage"
   );
 }
 
@@ -2341,6 +2525,10 @@ const tests = [
   [
     "Device A operations sync to Device B through Supabase",
     runDeviceAToDeviceBSupabaseSyncTest,
+  ],
+  [
+    "uploaded image replacement syncs through Supabase Storage",
+    runUploadedImageReplacementSyncTest,
   ],
   [
     "offline session after logout syncs on login",

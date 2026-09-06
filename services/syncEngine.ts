@@ -170,7 +170,7 @@ export type SyncEngineDeps = {
         download(
             userId: string,
             practiceId: string,
-            currentUri?: string | null
+            remoteUpdatedAt: string
         ): Promise<string>;
         remove(userId: string, practiceId: string): Promise<void>;
         removeAllForUser(userId: string): Promise<void>;
@@ -220,10 +220,7 @@ export function createSyncEngine(deps: SyncEngineDeps) {
     const now = deps.now ?? Date.now;
     const logger = deps.logger ?? console;
 
-    async function hydrateRemotePractice(
-        row: RemotePracticeRow,
-        reuseCurrentImage = true
-    ) {
+    async function hydrateRemotePractice(row: RemotePracticeRow) {
         if (
             row.deleted_at ||
             row.image_key !== CUSTOM_PRACTICE_IMAGE_KEY ||
@@ -232,15 +229,10 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             return row;
         }
 
-        const local = deps.practiceRepo.getPracticeById(row.id);
-        const currentUri =
-            reuseCurrentImage && local?.userId === row.user_id
-                ? local.customImageUri
-                : null;
         const customImageUri = await deps.customImageSync.download(
             row.user_id,
             row.id,
-            currentUri
+            row.updated_at
         );
 
         return { ...row, custom_image_uri: customImageUri };
@@ -414,9 +406,19 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             }
 
             if (remoteUpdatedAt > localUpdatedAt) {
+                const hydrated = await hydrateRemotePractice(row);
                 deps.practiceRepo.upsertPracticeFromRemote(
-                    await hydrateRemotePractice(row)
+                    hydrated
                 );
+
+                if (
+                    local.customImageUri &&
+                    local.customImageUri !== hydrated.custom_image_uri
+                ) {
+                    deps.customImageSync?.deleteLocal(
+                        local.customImageUri
+                    );
+                }
             }
         }
     }
@@ -537,9 +539,20 @@ export function createSyncEngine(deps: SyncEngineDeps) {
                 if (remote.deleted_at) {
                     deps.customImageSync?.deleteLocal(row.customImageUri);
                 }
+
+                const hydrated = await hydrateRemotePractice(remote);
                 deps.practiceRepo.upsertPracticeFromRemote(
-                    await hydrateRemotePractice(remote)
+                    hydrated
                 );
+
+                if (
+                    row.customImageUri &&
+                    row.customImageUri !== hydrated.custom_image_uri
+                ) {
+                    deps.customImageSync?.deleteLocal(
+                        row.customImageUri
+                    );
+                }
                 continue;
             }
 
@@ -553,14 +566,6 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             if (!row.customImageUri) {
                 throw new Error("Custom practice image is missing from this device.");
             }
-
-            const remote = remoteById.get(row.id);
-            const remoteAlreadyHasImage =
-                remote &&
-                !remote.deleted_at &&
-                remote.image_key === CUSTOM_PRACTICE_IMAGE_KEY;
-
-            if (remoteAlreadyHasImage) continue;
 
             await deps.customImageSync?.upload(
                 userId,
@@ -845,7 +850,7 @@ export function createSyncEngine(deps: SyncEngineDeps) {
         for (const practice of practices) {
             if (practice.deleted_at) continue;
             hydratedPractices.push(
-                await hydrateRemotePractice(practice, false)
+                await hydrateRemotePractice(practice)
             );
         }
 

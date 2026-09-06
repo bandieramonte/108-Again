@@ -62,6 +62,18 @@ export function updatePractice(
     );
 }
 
+export function replaceCustomPracticeImage(
+    id: string,
+    customImageUri: string
+) {
+    const previousImageUri = getAppOperationEngine()
+        .replaceCustomPracticeImage(id, customImageUri);
+
+    if (previousImageUri && previousImageUri !== customImageUri) {
+        deleteLocalCustomPracticeImage(previousImageUri);
+    }
+}
+
 export async function deletePractice(id: string) {
     const customImageUri = getAppOperationEngine()
         .getPractice(id)?.customImageUri;
