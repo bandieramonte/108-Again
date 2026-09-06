@@ -286,6 +286,8 @@ const {
   isPracticeCalendarDateEditable,
 } =
   require("../.build/utils/calendarMonth.js");
+const { shouldDismissSheetFromDrag } =
+  require("../.build/utils/sheetDismissGesture.js");
 const {
   formatCountProgress,
   formatNumberInput,
@@ -2763,6 +2765,16 @@ await test(
       ),
       "The pager omits months outside the valid range"
     );
+  }
+);
+
+await test(
+  "calendar sheet dismisses only for an intentional downward drag",
+  () => {
+    assert.equal(shouldDismissSheetFromDrag(95, 0.2, 600), true);
+    assert.equal(shouldDismissSheetFromDrag(25, 0.9, 600), true);
+    assert.equal(shouldDismissSheetFromDrag(25, 0.2, 600), false);
+    assert.equal(shouldDismissSheetFromDrag(-100, 2, 600), false);
   }
 );
 

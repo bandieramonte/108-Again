@@ -59,6 +59,7 @@
     "../../utils/headerBackVisibility.ts",
     "../../utils/practiceReminderState.ts",
     "../../utils/reminderTime.ts",
-    "../../utils/numberUtils.ts"
+    "../../utils/numberUtils.ts",
+    "../../utils/sheetDismissGesture.ts"
   ]
 }

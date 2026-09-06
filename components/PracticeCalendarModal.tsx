@@ -1,16 +1,18 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import {
     Modal,
+    PanResponder,
     Pressable,
     StyleSheet,
     Text,
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useStableScreenDimensions } from "../hooks/useStableScreenDimensions";
 import { useI18n } from "../i18n";
 import { useAppTheme } from "../styles/theme";
+import { shouldDismissSheetFromDrag } from "../utils/sheetDismissGesture";
 import PracticeCalendar from "./PracticeCalendar";
 
 type CalendarDayData = {
@@ -45,6 +47,24 @@ export default function PracticeCalendarModal({
     const sheetBottomPadding = Math.max(10, insets.bottom);
     const sheetHeight =
         screen.height * (screen.width > 700 ? 0.7 : 0.78);
+    const onCloseRef = useRef(onClose);
+    const sheetHeightRef = useRef(sheetHeight);
+    onCloseRef.current = onClose;
+    sheetHeightRef.current = sheetHeight;
+
+    const handlePanResponder = useMemo(() => PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onPanResponderRelease: (_, gesture) => {
+            if (shouldDismissSheetFromDrag(
+                gesture.dy,
+                gesture.vy,
+                sheetHeightRef.current
+            )) {
+                onCloseRef.current();
+            }
+        },
+        onPanResponderTerminationRequest: () => false,
+    }), []);
 
     return (
         <>
@@ -82,6 +102,13 @@ export default function PracticeCalendarModal({
                                 styles.sheetHandle,
                                 { backgroundColor: colors.borderStrong },
                             ]}
+                            hitSlop={{
+                                top: 12,
+                                right: 40,
+                                bottom: 12,
+                                left: 40,
+                            }}
+                            {...handlePanResponder.panHandlers}
                         />
 
                         <View
