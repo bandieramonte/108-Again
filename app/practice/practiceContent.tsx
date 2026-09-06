@@ -3,7 +3,7 @@ import Constants from "expo-constants";
 import * as Localization from "expo-localization";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, AppState, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Alert, Animated, AppState, Image, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CelebrationOverlay from "../../components/CelebrationOverlay";
 import DailyGoalProgress from "../../components/DailyGoalProgress";
@@ -16,6 +16,7 @@ import PracticeActionsMenu, {
 import PracticeCalendarModal from "../../components/PracticeCalendarModal";
 import PracticeProgressEditor from "../../components/PracticeProgressEditor";
 import PracticeReminderEditor from "../../components/PracticeReminderEditor";
+import PullToSyncStatus from "../../components/PullToSyncStatus";
 import QuickAddEditor from "../../components/QuickAddEditor";
 import TargetDateEditor from "../../components/TargetDateEditor";
 import {
@@ -26,10 +27,12 @@ import {
 } from "../../constants/practiceImages";
 import { useReachedCelebration } from "../../hooks/useReachedCelebration";
 import { useCurrentLocalDate } from "../../hooks/useCurrentLocalDate";
+import { usePullToSync } from "../../hooks/usePullToSync";
 import { useI18n } from "../../i18n";
 import { getPracticeDisplayName } from "../../i18n/practiceNames";
 import { createPracticeReminderText } from "../../i18n/reminderText";
 import * as appService from "../../services/appService";
+import * as lastPracticeScreenService from "../../services/lastPracticeScreenService";
 import * as practiceReminderRefreshService from "../../services/practiceReminderRefreshService";
 import type { PracticeReminderSettings } from "../../services/practiceReminderService";
 import * as practiceReminderService from "../../services/practiceReminderService";
@@ -73,7 +76,9 @@ export default function PracticeContent({
     const { colors: themeColors } = useAppTheme();
     const { locale, t } = useI18n();
     const scrollRef = useRef<ScrollView | null>(null);
+    const missingPracticeRedirectedRef = useRef(false);
     const [quickAddOpen, setQuickAddOpen] = useState(false);
+    const pullSync = usePullToSync(isActive);
     const [progressEditOpen, setProgressEditOpen] = useState(false);
     const [targetEditOpen, setTargetEditOpen] = useState(false);
     const [reminderOpen, setReminderOpen] = useState(false);
@@ -247,23 +252,39 @@ export default function PracticeContent({
     const loadPracticeData = useCallback(() => {
         const practice = practiceService.getPractice(practiceId);
 
-        if (practice) {
-            setPracticeName(practice.name);
-            setImageKey(practice.imageKey ?? null);
-            setCustomImageUri(practice.customImageUri ?? null);
-            setDailyTargetCount(
-                practice.dailyTargetCount == null
-                    ? ""
-                    : String(practice.dailyTargetCount)
-            );
-            setDefaultSessionCount(String(practice.defaultSessionCount ?? 108));
-            setTargetCount(practice.targetCount);
-            setReminderSettings(
-                getPracticeReminderSettingsFromPractice(practice)
-            );
-            loadSessions(practice.targetCount);
+        if (
+            lastPracticeScreenService.shouldLeaveMissingPracticeScreen(
+                !!practice,
+                isActive
+            )
+        ) {
+            if (!missingPracticeRedirectedRef.current) {
+                missingPracticeRedirectedRef.current = true;
+                void lastPracticeScreenService.clearLastPracticeScreen();
+                router.replace("/");
+            }
+
+            return;
         }
-    }, [loadSessions, practiceId]);
+
+        if (!practice) return;
+
+        missingPracticeRedirectedRef.current = false;
+        setPracticeName(practice.name);
+        setImageKey(practice.imageKey ?? null);
+        setCustomImageUri(practice.customImageUri ?? null);
+        setDailyTargetCount(
+            practice.dailyTargetCount == null
+                ? ""
+                : String(practice.dailyTargetCount)
+        );
+        setDefaultSessionCount(String(practice.defaultSessionCount ?? 108));
+        setTargetCount(practice.targetCount);
+        setReminderSettings(
+            getPracticeReminderSettingsFromPractice(practice)
+        );
+        loadSessions(practice.targetCount);
+    }, [isActive, loadSessions, practiceId, router]);
 
     useEffect(() => {
         const subscription = AppState.addEventListener(
@@ -701,9 +722,20 @@ export default function PracticeContent({
         <View style={{ flex: 1 }}>
             <ScrollView
                 ref={scrollRef}
+                alwaysBounceVertical
                 contentContainerStyle={{
                     paddingBottom: scrollBottomPadding
                 }}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={pullSync.refreshing}
+                        onRefresh={pullSync.onRefresh}
+                        enabled={isActive}
+                        colors={[themeColors.primary]}
+                        progressBackgroundColor={themeColors.surfaceElevated}
+                        tintColor={themeColors.primary}
+                    />
+                }
             >
                 <View
                     style={[
@@ -1414,6 +1446,8 @@ export default function PracticeContent({
 
                 </View>
             </ScrollView>
+
+            <PullToSyncStatus status={pullSync.status} />
 
             <Modal
                 visible={!!dateAdjustedInfo}

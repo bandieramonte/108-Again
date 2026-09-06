@@ -10,6 +10,13 @@ type LastPracticeStorage = {
 
 type PracticeExists = (practiceId: string) => boolean;
 
+export function shouldLeaveMissingPracticeScreen(
+    practiceExists: boolean,
+    isActive: boolean
+) {
+    return isActive && !practiceExists;
+}
+
 export function createLastPracticeScreenService(
     storage: LastPracticeStorage
 ) {

@@ -263,8 +263,13 @@ const { determineUpdateRequirement } =
   require("../.build/services/appUpdatePolicy.js");
 const { initializeOfflineFirstStartup } =
   require("../.build/services/offlineFirstStartup.js");
-const { createLastPracticeScreenService } =
+const {
+  createLastPracticeScreenService,
+  shouldLeaveMissingPracticeScreen,
+} =
   require("../.build/services/lastPracticeScreenService.js");
+const { pullToSync } =
+  require("../.build/services/pullToSyncService.js");
 const { createSyncCoordinator } =
   require("../.build/services/syncCoordinator.js");
 const { createSyncEngine } =
@@ -619,6 +624,81 @@ const basePolicy = {
   maintenanceMode: false,
   message: null,
 };
+
+await test(
+  "pull-to-sync reports each result and avoids unavailable sync attempts",
+  async () => {
+    const syncCalls = [];
+    const errors = [];
+    const deps = {
+      getIsOnline: () => true,
+      onError: (error) => errors.push(error),
+      syncNow: async (userId) => {
+        syncCalls.push(userId);
+        return "success";
+      },
+    };
+
+    assert.equal(await pullToSync("user-1", deps), "success");
+    assert.deepEqual(syncCalls, ["user-1"]);
+
+    assert.equal(
+      await pullToSync("user-1", {
+        ...deps,
+        getIsOnline: () => false,
+      }),
+      "offline"
+    );
+    assert.deepEqual(
+      syncCalls,
+      ["user-1"],
+      "Offline pulls must not start a remote sync"
+    );
+
+    assert.equal(await pullToSync(null, deps), "signed_out");
+    assert.deepEqual(
+      syncCalls,
+      ["user-1"],
+      "Signed-out pulls must not start a remote sync"
+    );
+
+    for (const result of [
+      "policy_unavailable",
+      "retry_scheduled",
+      "update_required",
+    ]) {
+      assert.equal(
+        await pullToSync("user-1", {
+          ...deps,
+          syncNow: async () => result,
+        }),
+        "postponed"
+      );
+    }
+
+    for (const result of ["auth_invalid", "skipped"]) {
+      assert.equal(
+        await pullToSync("user-1", {
+          ...deps,
+          syncNow: async () => result,
+        }),
+        "failed"
+      );
+    }
+
+    const failure = new Error("sync failed");
+    assert.equal(
+      await pullToSync("user-1", {
+        ...deps,
+        syncNow: async () => {
+          throw failure;
+        },
+      }),
+      "failed"
+    );
+    assert.deepEqual(errors, [failure]);
+  }
+);
 
 await test(
   "reset password recovery links route to the reset screen and establish the recovery session",
@@ -2609,6 +2689,27 @@ await test(
       await routeMemory.getLastPracticeScreen(),
       null,
       "Stale deleted practice ids are cleared from route memory"
+    );
+  }
+);
+
+await test(
+  "active practice detail exits after sync deletes its practice",
+  () => {
+    assert.equal(
+      shouldLeaveMissingPracticeScreen(false, true),
+      true,
+      "An active detail page exits after its practice disappears"
+    );
+    assert.equal(
+      shouldLeaveMissingPracticeScreen(false, false),
+      false,
+      "An inactive pager copy must not redirect the visible practice"
+    );
+    assert.equal(
+      shouldLeaveMissingPracticeScreen(true, true),
+      false,
+      "An existing active practice remains open"
     );
   }
 );

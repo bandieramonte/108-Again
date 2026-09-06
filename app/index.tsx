@@ -3,7 +3,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View, type LayoutChangeEvent } from "react-native";
+import { ActivityIndicator, Animated, Dimensions, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View, type LayoutChangeEvent } from "react-native";
 import Reanimated, { LinearTransition } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CelebrationOverlay from "../components/CelebrationOverlay";
@@ -15,10 +15,12 @@ import PracticeActionsMenu, {
 } from "../components/PracticeActionsMenu";
 import PracticeCalendarModal from "../components/PracticeCalendarModal";
 import PracticeHistoryModal from "../components/PracticeHistoryModal";
+import PullToSyncStatus from "../components/PullToSyncStatus";
 import QuickAddEditor from "../components/QuickAddEditor";
 import WelcomeModal from "../components/WelcomeModal";
 import { getPracticeImageSource } from "../constants/practiceImages";
 import { usePracticeActions } from "../hooks/usePracticeActions";
+import { usePullToSync } from "../hooks/usePullToSync";
 import { useCurrentLocalDate } from "../hooks/useCurrentLocalDate";
 import { useReachedCelebration } from "../hooks/useReachedCelebration";
 import { useI18n } from "../i18n";
@@ -190,6 +192,7 @@ export default function Dashboard() {
   const [practices, setPractices] = useState<Practice[]>([]);
   const [streak, setStreak] = useState(0);
   const [dashboardLoaded, setDashboardLoaded] = useState(false);
+  const pullSync = usePullToSync();
 
   const [editDefaultOpen, setEditDefaultOpen] = useState(false);
   const [selectedPracticeId, setSelectedPracticeId] = useState<string | null>(null);
@@ -758,6 +761,16 @@ export default function Dashboard() {
           { backgroundColor: themeColors.background },
         ]}
         contentContainerStyle={{ paddingBottom: dashboardBottomPadding }}
+        alwaysBounceVertical
+        refreshControl={
+          <RefreshControl
+            refreshing={pullSync.refreshing}
+            onRefresh={pullSync.onRefresh}
+            colors={[themeColors.primary]}
+            progressBackgroundColor={themeColors.surfaceElevated}
+            tintColor={themeColors.primary}
+          />
+        }
         scrollEnabled={draggingPracticeId === null}
         scrollEventThrottle={16}
         onScroll={(event) => {
@@ -1280,6 +1293,7 @@ export default function Dashboard() {
         />
       </ScrollView>
 
+      <PullToSyncStatus status={pullSync.status} />
       {renderPracticeDragOverlay()}
     </View>
   );
