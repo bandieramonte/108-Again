@@ -1,7 +1,9 @@
 import {
     forwardRef,
+    useEffect,
     useImperativeHandle,
-    useRef
+    useRef,
+    useState
 } from "react";
 import { Animated, StyleSheet } from "react-native";
 import { colors } from "../styles/theme";
@@ -10,57 +12,104 @@ export type FloatingAddAnimationRef = {
     trigger: (text: string) => void;
 };
 
+type FloatingEffect = {
+    id: number;
+    text: string;
+    anim: Animated.Value;
+    horizontalOffset: number;
+};
+
+const ANIMATION_DURATION_MS = 900;
+
 const FloatingAddAnimation = forwardRef<
     FloatingAddAnimationRef
 >((_, ref) => {
 
-    const anim = useRef(new Animated.Value(0)).current;
-    const textRef = useRef("");
+    const nextIdRef = useRef(0);
+    const mountedRef = useRef(true);
+    const [effects, setEffects] = useState<FloatingEffect[]>([]);
+
+    useEffect(() => {
+        mountedRef.current = true;
+
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
 
     useImperativeHandle(ref, () => ({
         trigger(text: string) {
-            textRef.current = text;
+            const id = nextIdRef.current++;
+            const anim = new Animated.Value(0);
 
-            anim.setValue(0);
+            setEffects(current => [
+                ...current,
+                {
+                    id,
+                    text,
+                    anim,
+                    horizontalOffset: ((id % 5) - 2) * 4
+                }
+            ]);
 
-            Animated.timing(anim, {
-                toValue: 1,
-                duration: 2000,
-                useNativeDriver: true
-            }).start();
+            requestAnimationFrame(() => {
+                if (!mountedRef.current) return;
+
+                Animated.timing(anim, {
+                    toValue: 1,
+                    duration: ANIMATION_DURATION_MS,
+                    useNativeDriver: true
+                }).start(() => {
+                    if (!mountedRef.current) return;
+                    setEffects(current =>
+                        current.filter(effect => effect.id !== id)
+                    );
+                });
+            });
         }
     }));
 
-    const translateY = anim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0, -25]
-    });
-
-    const translateX = anim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0, 10]
-    });
-
-    const opacity = anim.interpolate({
-        inputRange: [0, 0.8, 1],
-        outputRange: [0, 1, 0]
-    });
-
     return (
-        <Animated.Text
-            style={[
-                styles.text,
-                {
-                    opacity,
-                    transform: [
-                        { translateY },
-                        { translateX }
+        <>
+            {effects.map(effect => {
+                const translateY = effect.anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, -25]
+                });
+
+                const translateX = effect.anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [
+                        effect.horizontalOffset,
+                        effect.horizontalOffset + 10
                     ]
-                }
-            ]}
-        >
-            {textRef.current}
-        </Animated.Text>
+                });
+
+                const opacity = effect.anim.interpolate({
+                    inputRange: [0, 0.7, 1],
+                    outputRange: [1, 1, 0]
+                });
+
+                return (
+                    <Animated.Text
+                        key={effect.id}
+                        pointerEvents="none"
+                        style={[
+                            styles.text,
+                            {
+                                opacity,
+                                transform: [
+                                    { translateY },
+                                    { translateX }
+                                ]
+                            }
+                        ]}
+                    >
+                        {effect.text}
+                    </Animated.Text>
+                );
+            })}
+        </>
     );
 });
 

@@ -14,3 +14,5 @@
 ## Coding
 
 - Write the minimum code necessary to implement any functionality. Simplicity is king. Of course, do not because of simplicity sacrifice code quality or maintainability, scalability or readability. This rule is meant to write the minimum code while still ensuring high code quality and correctness. It prevents redundant code, over engineering or over complicating things. 
+
+- When something is unclear regaring my instructions, always ask before proceeding redundantly, or with doubts.
