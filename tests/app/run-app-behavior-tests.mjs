@@ -241,6 +241,8 @@ const { createSessionRepo } =
   require("../.build/repositories/sessionRepoFactory.js");
 const { createAppOperationEngine } =
   require("../.build/services/appOperationEngine.js");
+const { createCustomPracticeImageSyncCore } =
+  require("../.build/services/customPracticeImageSyncCore.js");
 const { validateBackup } =
   require("../.build/services/backupService.js");
 const { redirectSystemPath } =
@@ -518,6 +520,13 @@ async function waitFor(predicate, message) {
 }
 
 function createSyncCoordinatorHarness() {
+  const database = createBetterSqliteDatabase();
+  initializeDatabaseSchema(database);
+  const appMetaRepo = createAppMetaRepo(database);
+  const deletedRecordRepo = createDeletedRecordRepo(database);
+  const practiceRepo = createPracticeRepo(database);
+  const sessionRepo = createSessionRepo(database);
+  const remote = createMemorySyncRemote();
   const state = {
     appAccessBlocked: false,
     authInvalidEvents: 0,
@@ -539,13 +548,25 @@ function createSyncCoordinatorHarness() {
     },
     createSyncEngine: () => {
       state.createdEngines += 1;
+      const engine = createSyncEngine({
+        appMetaRepo,
+        deletedRecordRepo,
+        logger: {
+          error: () => {},
+          log: () => {},
+          warn: () => {},
+        },
+        practiceRepo,
+        remote,
+        sessionRepo,
+      });
 
       return {
         executeSync: async (userId, mode) => {
           state.executedSyncs.push({ mode, userId });
+          await engine.executeSync(userId, mode);
         },
-        resolveSyncMode: (_userId, requestedMode) =>
-          requestedMode ?? "merge_local",
+        resolveSyncMode: engine.resolveSyncMode,
       };
     },
     emitAuthInvalid: () => {
@@ -2765,6 +2786,110 @@ await test(
       ),
       "The pager omits months outside the valid range"
     );
+  }
+);
+
+await test(
+  "custom image sync uses the production storage workflow",
+  async () => {
+    const calls = [];
+    const deletedLocalUris = [];
+    const sync = createCustomPracticeImageSyncCore({
+      getBucket: () => ({
+        async upload(path, bytes, options) {
+          calls.push({ operation: "upload", path, bytes, options });
+          return { error: null };
+        },
+        async createSignedUrl(path, expiresIn) {
+          calls.push({ operation: "sign", path, expiresIn });
+          return {
+            data: { signedUrl: "https://example.test/image?token=test" },
+            error: null,
+          };
+        },
+        async list(path, options) {
+          calls.push({ operation: "list", path, options });
+          return {
+            data: [{ name: "practice-1.jpg" }],
+            error: null,
+          };
+        },
+        async remove(paths) {
+          calls.push({ operation: "remove", paths });
+          return { error: null };
+        },
+      }),
+      readLocalBytes: async (uri) => {
+        calls.push({ operation: "read", uri });
+        return new Uint8Array([1, 2, 3]);
+      },
+      downloadToLocal: async (url, practiceId) => {
+        calls.push({ operation: "download", url, practiceId });
+        return "file:///practice-images/downloaded.jpg";
+      },
+      deleteLocal: (uri) => {
+        deletedLocalUris.push(uri);
+      },
+    });
+
+    await sync.upload("user-1", "practice-1", "file:///source.jpg");
+    assert.deepEqual(calls.slice(0, 2), [
+      { operation: "read", uri: "file:///source.jpg" },
+      {
+        operation: "upload",
+        path: "user-1/practice-1.jpg",
+        bytes: new Uint8Array([1, 2, 3]),
+        options: {
+          cacheControl: "0",
+          contentType: "image/jpeg",
+          upsert: true,
+        },
+      },
+    ]);
+
+    assert.equal(
+      await sync.download(
+        "user-1",
+        "practice-1",
+        "2026-09-05T12:00:00.000Z"
+      ),
+      "file:///practice-images/downloaded.jpg"
+    );
+    assert.deepEqual(calls.slice(2, 4), [
+      {
+        operation: "sign",
+        path: "user-1/practice-1.jpg",
+        expiresIn: 60,
+      },
+      {
+        operation: "download",
+        url:
+          "https://example.test/image?token=test&v=" +
+          "2026-09-05T12%3A00%3A00.000Z",
+        practiceId: "practice-1",
+      },
+    ]);
+
+    await sync.remove("user-1", "practice-1");
+    await sync.removeAllForUser("user-1");
+    sync.deleteLocal("file:///source.jpg");
+
+    assert.deepEqual(calls.slice(4), [
+      {
+        operation: "remove",
+        paths: ["user-1/practice-1.jpg"],
+      },
+      {
+        operation: "list",
+        path: "user-1",
+        options: { limit: 100 },
+      },
+      {
+        operation: "remove",
+        paths: ["user-1/practice-1.jpg"],
+      },
+    ]);
+    assert.deepEqual(deletedLocalUris, ["file:///source.jpg"]);
   }
 );
 

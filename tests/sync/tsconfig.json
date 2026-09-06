@@ -31,8 +31,11 @@
     "../../services/authAccountGuard.ts",
     "../../services/authSessionEngine.ts",
     "../../services/appOperationEngine.ts",
+    "../../services/customPracticeImageSyncCore.ts",
     "../../services/supabaseSyncRemote.ts",
     "../../services/syncCoordinator.ts",
-    "../../services/syncEngine.ts"
+    "../../services/syncEngine.ts",
+    "../../utils/calendarMonth.ts",
+    "../../utils/practiceReminderState.ts"
   ]
 }

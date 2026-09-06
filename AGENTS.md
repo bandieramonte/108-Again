@@ -10,6 +10,7 @@
 
 - Continue creating and running appropriate automated tests for implementations and bug fixes.
 - Do not manually exercise app functionality or inspect the UI to confirm that a design looks or behaves as expected; the user will perform manual functional and visual testing.
+- Tests must exercise production core functions directly. Mock only unavailable platform or external-system boundaries, and never duplicate production business logic inside a test.
 
 ## Coding
 

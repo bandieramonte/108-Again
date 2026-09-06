@@ -35,6 +35,8 @@ const { createAuthSessionEngine } =
   require("../.build/services/authSessionEngine.js");
 const { createAppOperationEngine } =
   require("../.build/services/appOperationEngine.js");
+const { createCustomPracticeImageSyncCore } =
+  require("../.build/services/customPracticeImageSyncCore.js");
 const { createSupabaseSyncRemote } =
   require("../.build/services/supabaseSyncRemote.js");
 const { createSyncCoordinator } =
@@ -44,6 +46,10 @@ const {
   REMOTE_AUTHORITATIVE_SYNC_USER_ID_META,
 } =
   require("../.build/services/syncEngine.js");
+const { formatCalendarDate } =
+  require("../.build/utils/calendarMonth.js");
+const { isPracticeReminderEnabledValue } =
+  require("../.build/utils/practiceReminderState.js");
 
 const TEST_EMAIL = "automatedTest@example.com";
 const SECOND_TEST_EMAIL = "automatedTest2@example.com";
@@ -97,30 +103,17 @@ function requiredEnv(name) {
   return value;
 }
 
-function dayString(date) {
-  return (
-    date.getUTCFullYear() +
-    "-" +
-    String(date.getUTCMonth() + 1).padStart(2, "0") +
-    "-" +
-    String(date.getUTCDate()).padStart(2, "0")
-  );
-}
-
-function utcDateDaysAgo(daysAgo) {
+function dateDaysAgo(daysAgo) {
   const now = new Date();
-  return new Date(Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate() - daysAgo
-  ));
+  now.setDate(now.getDate() - daysAgo);
+  return now;
 }
 
 function testDays() {
   return {
-    today: dayString(utcDateDaysAgo(0)),
-    yesterday: dayString(utcDateDaysAgo(1)),
-    beforeYesterday: dayString(utcDateDaysAgo(2)),
+    today: formatCalendarDate(dateDaysAgo(0)),
+    yesterday: formatCalendarDate(dateDaysAgo(1)),
+    beforeYesterday: formatCalendarDate(dateDaysAgo(2)),
   };
 }
 
@@ -346,38 +339,19 @@ function makeSupabaseClient() {
 function createTestCustomImageSync(client, deviceName, localFiles) {
   let downloadIndex = 0;
 
-  return {
-    async upload(userId, practiceId, localUri) {
+  return createCustomPracticeImageSyncCore({
+    getBucket: () => client.storage.from("practice-images"),
+    async readLocalBytes(localUri) {
       const bytes = localFiles.get(localUri);
 
       if (!bytes) {
         throw new Error(`Missing test image: ${localUri}`);
       }
 
-      const { error } = await client.storage
-        .from("practice-images")
-        .upload(
-          `${userId}/${practiceId}.jpg`,
-          bytes,
-          {
-            cacheControl: "0",
-            contentType: "image/jpeg",
-            upsert: true,
-          }
-        );
-
-      if (error) throw error;
+      return bytes;
     },
-    async download(userId, practiceId, remoteUpdatedAt) {
-      const { data, error } = await client.storage
-        .from("practice-images")
-        .createSignedUrl(`${userId}/${practiceId}.jpg`, 60);
-
-      if (error) throw error;
-
-      const response = await fetch(
-        `${data.signedUrl}&v=${encodeURIComponent(remoteUpdatedAt)}`
-      );
+    async downloadToLocal(url, practiceId) {
+      const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error(`Image download failed: ${response.status}`);
@@ -393,30 +367,10 @@ function createTestCustomImageSync(client, deviceName, localFiles) {
 
       return localUri;
     },
-    async remove(userId, practiceId) {
-      const { error } = await client.storage
-        .from("practice-images")
-        .remove([`${userId}/${practiceId}.jpg`]);
-
-      if (error) throw error;
-    },
-    async removeAllForUser(userId) {
-      const bucket = client.storage.from("practice-images");
-      const { data, error } = await bucket.list(userId, { limit: 100 });
-
-      if (error) throw error;
-      if (!data?.length) return;
-
-      const { error: removeError } = await bucket.remove(
-        data.map(item => `${userId}/${item.name}`)
-      );
-
-      if (removeError) throw removeError;
-    },
     deleteLocal(uri) {
       if (uri) localFiles.delete(uri);
     },
-  };
+  });
 }
 
 function makeSupabaseAdminClient() {
@@ -760,7 +714,8 @@ function sessionTotalsByDay(device, practiceId) {
   for (const session of device.sessionRepo.getAllSessionsForSync()) {
     if (session.practiceId !== practiceId) continue;
 
-    const day = dayString(new Date(session.createdAt));
+    const day = session.localDate ??
+      formatCalendarDate(new Date(session.createdAt));
     totals.set(day, (totals.get(day) ?? 0) + session.count);
   }
 
@@ -815,10 +770,6 @@ function localPracticeTotal(device, practiceId) {
   return device.sessionRepo.getPracticeTotal(practiceId).total;
 }
 
-function isPracticeReminderEnabled(practice) {
-  return practice.reminderEnabled === true || practice.reminderEnabled === 1;
-}
-
 function activeLocalPractices(device) {
   return device.practiceRepo.getAllPractices()
     .sort((a, b) => a.orderIndex - b.orderIndex);
@@ -833,7 +784,8 @@ function captureExpectedLocalState(device) {
         name: practice.name,
         dailyTargetCount: practice.dailyTargetCount ?? null,
         defaultSessionCount: practice.defaultSessionCount ?? 108,
-        reminderEnabled: isPracticeReminderEnabled(practice),
+        reminderEnabled:
+          isPracticeReminderEnabledValue(practice.reminderEnabled),
         reminderHour: practice.reminderHour ?? 20,
         reminderMinute: practice.reminderMinute ?? 0,
         total: localPracticeTotal(device, practice.id),
@@ -1056,7 +1008,7 @@ function assertDeviceMatchesExpected(device, expected, label) {
       `${label}: local default session count for ${expectedPractice.name}`
     );
     assert.equal(
-      isPracticeReminderEnabled(localPractice),
+      isPracticeReminderEnabledValue(localPractice.reminderEnabled),
       expectedPractice.reminderEnabled,
       `${label}: local reminder enabled for ${expectedPractice.name}`
     );
@@ -1299,7 +1251,10 @@ async function runDeviceAToDeviceBSupabaseSyncTest() {
 
   const syncedPractice = findPracticeByName(deviceB, TEST_PRACTICE_NAME);
   assert.ok(syncedPractice, "Device B has testPractice1 after manual sync");
-  assert.equal(isPracticeReminderEnabled(syncedPractice), true);
+  assert.equal(
+    isPracticeReminderEnabledValue(syncedPractice.reminderEnabled),
+    true
+  );
   assert.equal(syncedPractice.reminderHour, 8);
   assert.equal(syncedPractice.reminderMinute, 30);
 
@@ -2222,7 +2177,7 @@ async function runBackupDefaultsAndRestoreBackupSyncTest() {
     const sessionCount = 1 + Math.floor(prng() * 10);
 
     for (let dayIndex = 0; dayIndex < sessionCount; dayIndex++) {
-      const date = dayString(utcDateDaysAgo(dayIndex));
+      const date = formatCalendarDate(dateDaysAgo(dayIndex));
       const count = 100 + Math.floor(prng() * 900);
 
       deviceA.operations.adjustDayTotal(

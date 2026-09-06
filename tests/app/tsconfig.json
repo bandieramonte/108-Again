@@ -42,6 +42,7 @@
     "../../services/authAccountActions.ts",
     "../../services/authAccountGuard.ts",
     "../../services/backupService.ts",
+    "../../services/customPracticeImageSyncCore.ts",
     "../../services/authSessionPolicy.ts",
     "../../services/authSessionEngine.ts",
     "../../services/appUpdatePolicy.ts",

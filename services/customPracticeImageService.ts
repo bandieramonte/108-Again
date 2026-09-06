@@ -11,8 +11,8 @@ import {
     CUSTOM_PRACTICE_IMAGE_HEIGHT,
     CUSTOM_PRACTICE_IMAGE_WIDTH,
 } from "../constants/customPracticeImages";
+import { createCustomPracticeImageSyncCore } from "./customPracticeImageSyncCore";
 
-const CUSTOM_IMAGE_BUCKET = "practice-images";
 const MAX_SOURCE_IMAGE_BYTES = 15 * 1024 * 1024;
 const JPEG_QUALITY = 0.84;
 
@@ -41,10 +41,6 @@ function getImageSize(uri: string) {
             reject
         );
     });
-}
-
-function storagePath(userId: string, practiceId: string) {
-    return `${userId}/${practiceId}.jpg`;
 }
 
 export async function pickAndNormalizeCustomPracticeImage() {
@@ -148,26 +144,50 @@ export function restoreCustomPracticeImageFromBackup(
     return destination.uri;
 }
 
+const customPracticeImageSync = createCustomPracticeImageSyncCore({
+    deleteLocal: deleteLocalCustomPracticeImage,
+    getBucket: () => getSupabase().storage.from("practice-images"),
+    readLocalBytes: async (uri) => {
+        const file = new File(uri);
+
+        if (!file.exists) {
+            throw new Error(
+                "Custom practice image is missing from this device."
+            );
+        }
+
+        return file.bytes();
+    },
+    downloadToLocal: async (url, practiceId) => {
+        const destination = new File(
+            getImageDirectory(),
+            `${practiceId}-${randomUUID()}.jpg`
+        );
+
+        try {
+            const downloaded = await File.downloadFileAsync(
+                url,
+                destination,
+                { idempotent: true }
+            );
+
+            return downloaded.uri;
+        } catch (error) {
+            if (destination.exists) {
+                destination.delete();
+            }
+
+            throw error;
+        }
+    },
+});
+
 export async function uploadCustomPracticeImage(
     userId: string,
     practiceId: string,
     localUri: string
 ) {
-    const file = new File(localUri);
-
-    if (!file.exists) {
-        throw new Error("Custom practice image is missing from this device.");
-    }
-
-    const { error } = await getSupabase().storage
-        .from(CUSTOM_IMAGE_BUCKET)
-        .upload(storagePath(userId, practiceId), await file.bytes(), {
-            cacheControl: "0",
-            contentType: "image/jpeg",
-            upsert: true,
-        });
-
-    if (error) throw error;
+    return customPracticeImageSync.upload(userId, practiceId, localUri);
 }
 
 export async function downloadCustomPracticeImage(
@@ -175,60 +195,20 @@ export async function downloadCustomPracticeImage(
     practiceId: string,
     remoteUpdatedAt: string
 ) {
-    const { data, error } = await getSupabase().storage
-        .from(CUSTOM_IMAGE_BUCKET)
-        .createSignedUrl(storagePath(userId, practiceId), 60);
-
-    if (error) throw error;
-
-    const separator = data.signedUrl.includes("?") ? "&" : "?";
-    const versionedSignedUrl =
-        `${data.signedUrl}${separator}v=` +
-        encodeURIComponent(remoteUpdatedAt);
-
-    const destination = new File(
-        getImageDirectory(),
-        `${practiceId}-${randomUUID()}.jpg`
+    return customPracticeImageSync.download(
+        userId,
+        practiceId,
+        remoteUpdatedAt
     );
-
-    try {
-        const downloaded = await File.downloadFileAsync(
-            versionedSignedUrl,
-            destination,
-            { idempotent: true }
-        );
-
-        return downloaded.uri;
-    } catch (error) {
-        if (destination.exists) {
-            destination.delete();
-        }
-
-        throw error;
-    }
 }
 
 export async function removeRemoteCustomPracticeImage(
     userId: string,
     practiceId: string
 ) {
-    const { error } = await getSupabase().storage
-        .from(CUSTOM_IMAGE_BUCKET)
-        .remove([storagePath(userId, practiceId)]);
-
-    if (error) throw error;
+    return customPracticeImageSync.remove(userId, practiceId);
 }
 
 export async function removeAllRemoteCustomPracticeImages(userId: string) {
-    const bucket = getSupabase().storage.from(CUSTOM_IMAGE_BUCKET);
-    const { data, error } = await bucket.list(userId, { limit: 100 });
-
-    if (error) throw error;
-    if (!data?.length) return;
-
-    const { error: removeError } = await bucket.remove(
-        data.map(item => `${userId}/${item.name}`)
-    );
-
-    if (removeError) throw removeError;
+    return customPracticeImageSync.removeAllForUser(userId);
 }
