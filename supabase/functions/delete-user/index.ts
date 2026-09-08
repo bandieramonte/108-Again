@@ -1,85 +1,53 @@
-import { serve } from "https://deno.land/std/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js";
+import { withSupabase } from "@supabase/server";
 
 // @ts-ignore
 import "@supabase/functions-js/edge-runtime.d.ts";
 
-serve(async (req) => {
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader) {
-    return new Response("Missing auth", { status: 401 });
-  }
+export default {
+  fetch: withSupabase(
+    { auth: "user", errors: { detailed: false } },
+    async (_req, { supabaseAdmin, userClaims }) => {
+      const userId = userClaims?.id;
 
-  const token = authHeader.replace("Bearer ", "");
+      if (!userId) {
+        return Response.json({ error: "Invalid JWT" }, { status: 401 });
+      }
 
-  // Client for verifying user
-  const supabaseUser = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_ANON_KEY")!
-  );
+      try {
+        const imageBucket = supabaseAdmin.storage.from("practice-images");
+        const { data: practiceImages, error: listImageError } =
+          await imageBucket.list(userId, { limit: 100 });
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabaseUser.auth.getUser(token);
+        if (listImageError) {
+          throw listImageError;
+        }
 
-  if (userError || !user) {
-    return new Response(
-      JSON.stringify({ error: "Invalid JWT" }),
-      { status: 401 }
-    );
-  }
+        if (practiceImages?.length) {
+          const { error: removeImageError } = await imageBucket.remove(
+            practiceImages.map(
+              (image: { name: string }) => `${userId}/${image.name}`
+            )
+          );
 
-  const userId = user.id;
+          if (removeImageError) {
+            throw removeImageError;
+          }
+        }
 
-  // Admin client
-  const supabaseAdmin = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
+        await supabaseAdmin.from("sessions").delete().eq("user_id", userId);
+        await supabaseAdmin.from("practices").delete().eq("user_id", userId);
+        await supabaseAdmin.from("profiles").delete().eq("user_id", userId);
 
-  try {
-    const imageBucket = supabaseAdmin.storage.from("practice-images");
-    const { data: practiceImages, error: listImageError } =
-      await imageBucket.list(userId, { limit: 100 });
+        const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
-    if (listImageError) {
-      throw listImageError;
-    }
+        if (error) {
+          throw error;
+        }
 
-    if (practiceImages?.length) {
-      const { error: removeImageError } = await imageBucket.remove(
-        practiceImages.map(
-          (image: { name: string }) => `${userId}/${image.name}`
-        )
-      );
-
-      if (removeImageError) {
-        throw removeImageError;
+        return Response.json({ success: true });
+      } catch (err: any) {
+        return Response.json({ error: err.message }, { status: 500 });
       }
     }
-
-    // delete user data
-    await supabaseAdmin.from("sessions").delete().eq("user_id", userId);
-    await supabaseAdmin.from("practices").delete().eq("user_id", userId);
-    await supabaseAdmin.from("profiles").delete().eq("user_id", userId);
-
-    // delete auth user (this revokes sessions)
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
-
-    if (error) {
-      throw error;
-    }
-
-    return new Response(
-      JSON.stringify({ success: true }),
-      { status: 200 }
-    );
-
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({ error: err.message }),
-      { status: 500 }
-    );
-  }
-});
+  ),
+};

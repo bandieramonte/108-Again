@@ -2,23 +2,38 @@
 
 Run locally with:
 
-```sh
-npm run test:sync
+```powershell
+npm run test:sync:local
 ```
 
-This test talks to the real Supabase project configured in `.env` locally, or
-through GitHub Actions secrets in CI:
+The command prompts for the dedicated `sync_tests` secret key with hidden
+input, passes it only to the child test process, and clears it afterward.
+Retrieve the key yourself from the Supabase Dashboard after reviewing the
+current worktree. The key is never written into the project.
+
+This test talks to the real Supabase project configured through the public
+values in `.env` locally, or through GitHub Actions secrets in CI:
 
 - `EXPO_PUBLIC_SUPABASE_URL`
-- `EXPO_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_TEST_SECRET_KEY` (process environment only)
 
-`SUPABASE_SERVICE_ROLE_KEY` is used only by this Node integration harness to
+`SUPABASE_TEST_SECRET_KEY` is used only by this Node integration harness to
 create and clean up confirmed automated test accounts. This lets the suite run
 when Supabase email confirmation is enabled, while the simulated app devices
-still sign in through the normal anon client and execute the shared app core
-auth/session/sync logic. Do not prefix this key with `EXPO_PUBLIC_`, and do not
-ship it in the app.
+still sign in through the normal public client and execute the shared app core
+auth/session/sync logic.
+
+Never store `SUPABASE_TEST_SECRET_KEY`, `SUPABASE_SECRET_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY`, or another privileged Supabase credential in
+`.env` or any file in the project. The harness rejects these keys if it finds
+one in `.env` and rejects legacy service-role keys at runtime. Do not prefix a
+privileged key with `EXPO_PUBLIC_` or ship it in the app.
+
+The remote GitHub Actions suite is manual and uses the protected
+`supabase-integration-tests` environment. Configure that environment with the
+three secrets above and require reviewer approval before allowing the job to
+read them. Pull-request code never receives a privileged Supabase key.
 
 Current covered flows:
 

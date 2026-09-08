@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
+import { createAdminClient } from "@supabase/server/core";
 
 const require = createRequire(import.meta.url);
 const BetterSqlite3 = require("better-sqlite3");
@@ -75,6 +76,16 @@ const LEGACY_AUTOMATED_TEST_EMAILS = new Set([
   "automatedresettest@test.com",
 ]);
 const createdTestEmails = new Set();
+const LOCAL_ENV_KEYS = new Set([
+  "EXPO_PUBLIC_SUPABASE_URL",
+  "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+]);
+const PRIVILEGED_ENV_KEYS = new Set([
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "SUPABASE_SECRET_KEY",
+  "SUPABASE_TEST_ADMIN_KEY",
+  "SUPABASE_TEST_SECRET_KEY",
+]);
 
 function loadEnv() {
   const envPath = resolve(process.cwd(), ".env");
@@ -91,6 +102,16 @@ function loadEnv() {
     if (separator < 0) continue;
 
     const key = trimmed.slice(0, separator);
+
+    if (PRIVILEGED_ENV_KEYS.has(key)) {
+      throw new Error(
+        `${key} must not be stored in .env. Provide SUPABASE_TEST_SECRET_KEY ` +
+          "to the test process at runtime."
+      );
+    }
+
+    if (!LOCAL_ENV_KEYS.has(key)) continue;
+
     const value = trimmed.slice(separator + 1);
     process.env[key] = process.env[key] ?? value;
   }
@@ -325,7 +346,7 @@ const silentLogger = {
 function makeSupabaseClient() {
   return createClient(
     requiredEnv("EXPO_PUBLIC_SUPABASE_URL"),
-    requiredEnv("EXPO_PUBLIC_SUPABASE_ANON_KEY"),
+    requiredEnv("EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
     {
       auth: {
         autoRefreshToken: false,
@@ -374,17 +395,19 @@ function createTestCustomImageSync(client, deviceName, localFiles) {
 }
 
 function makeSupabaseAdminClient() {
-  return createClient(
-    requiredEnv("EXPO_PUBLIC_SUPABASE_URL"),
-    requiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-        detectSessionInUrl: false,
-      },
-    }
-  );
+  const secretKey = requiredEnv("SUPABASE_TEST_SECRET_KEY");
+
+  if (!secretKey.startsWith("sb_secret_")) {
+    throw new Error("SUPABASE_TEST_SECRET_KEY must be an sb_secret_ key.");
+  }
+
+  return createAdminClient({
+    auth: { keyName: "sync_tests" },
+    env: {
+      url: requiredEnv("EXPO_PUBLIC_SUPABASE_URL"),
+      secretKeys: { sync_tests: secretKey },
+    },
+  });
 }
 
 function assertAutomatedTestEmail(email) {

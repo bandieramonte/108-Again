@@ -13,8 +13,8 @@ const supabaseUrl = requiredEnv(
     process.env.EXPO_PUBLIC_SUPABASE_URL,
 );
 const supabaseKey = requiredEnv(
-    "EXPO_PUBLIC_SUPABASE_ANON_KEY",
-    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+    process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
 );
 
 function createSupabaseClient(): SupabaseClient {
