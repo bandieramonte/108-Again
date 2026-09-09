@@ -839,11 +839,6 @@ function assertRemoteMatchesExpected(snapshot, expected, label) {
       `${label}: remote name for ${expectedPractice.name}`
     );
     assert.equal(
-      remotePractice.default_add_count,
-      expectedPractice.defaultSessionCount,
-      `${label}: legacy default count mirrors session count for ${expectedPractice.name}`
-    );
-    assert.equal(
       remotePractice.daily_target_count,
       expectedPractice.dailyTargetCount,
       `${label}: remote daily target count for ${expectedPractice.name}`
@@ -874,129 +869,6 @@ function assertRemoteMatchesExpected(snapshot, expected, label) {
       `${label}: remote total for ${expectedPractice.name}`
     );
   }
-}
-
-async function getRemotePracticeCounts(client, practiceId) {
-  const { data, error } = await client
-    .from("practices")
-    .select(
-      "default_add_count, daily_target_count, default_session_count"
-    )
-    .eq("id", practiceId)
-    .single();
-
-  if (error) throw error;
-  return data;
-}
-
-async function runLegacyCountColumnCompatibilityTest() {
-  const { client, user } = await createFreshAccount();
-  const legacyPracticeId = randomUUID();
-  const defaultPracticeId = randomUUID();
-  const baseLegacyRow = {
-    id: legacyPracticeId,
-    user_id: user.id,
-    name: "Legacy Count Compatibility",
-    target_count: 10000,
-    order_index: 1,
-    image_key: null,
-    default_add_count: 333,
-    total_offset: 0,
-    updated_at: new Date().toISOString(),
-    deleted_at: null,
-  };
-
-  const { error: legacyInsertError } = await client
-    .from("practices")
-    .upsert(baseLegacyRow, { onConflict: "id,user_id" });
-
-  if (legacyInsertError) throw legacyInsertError;
-
-  let counts = await getRemotePracticeCounts(client, legacyPracticeId);
-
-  assert.deepEqual(counts, {
-    default_add_count: 333,
-    daily_target_count: null,
-    default_session_count: 333,
-  });
-
-  const { error: legacyUpdateError } = await client
-    .from("practices")
-    .upsert(
-      {
-        ...baseLegacyRow,
-        default_add_count: 444,
-        updated_at: new Date(Date.now() + 1).toISOString(),
-      },
-      { onConflict: "id,user_id" }
-    );
-
-  if (legacyUpdateError) throw legacyUpdateError;
-
-  counts = await getRemotePracticeCounts(client, legacyPracticeId);
-
-  assert.equal(counts.default_add_count, 444);
-  assert.equal(counts.default_session_count, 444);
-  assert.equal(counts.daily_target_count, null);
-
-  const { error: newUpdateError } = await client
-    .from("practices")
-    .update({
-      daily_target_count: 2000,
-      default_session_count: 555,
-    })
-    .eq("id", legacyPracticeId);
-
-  if (newUpdateError) throw newUpdateError;
-
-  counts = await getRemotePracticeCounts(client, legacyPracticeId);
-
-  assert.equal(counts.default_add_count, 555);
-  assert.equal(counts.default_session_count, 555);
-  assert.equal(counts.daily_target_count, 2000);
-
-  const { error: legacyAfterNewError } = await client
-    .from("practices")
-    .upsert(
-      {
-        ...baseLegacyRow,
-        default_add_count: 666,
-        updated_at: new Date(Date.now() + 2).toISOString(),
-      },
-      { onConflict: "id,user_id" }
-    );
-
-  if (legacyAfterNewError) throw legacyAfterNewError;
-
-  counts = await getRemotePracticeCounts(client, legacyPracticeId);
-
-  assert.equal(counts.default_add_count, 666);
-  assert.equal(counts.default_session_count, 666);
-  assert.equal(counts.daily_target_count, 2000);
-
-  const { error: defaultInsertError } = await client
-    .from("practices")
-    .insert({
-      id: defaultPracticeId,
-      user_id: user.id,
-      name: "Database Count Defaults",
-      target_count: 10000,
-      order_index: 2,
-      image_key: null,
-      total_offset: 0,
-      updated_at: new Date().toISOString(),
-      deleted_at: null,
-    });
-
-  if (defaultInsertError) throw defaultInsertError;
-
-  const defaults = await getRemotePracticeCounts(client, defaultPracticeId);
-
-  assert.deepEqual(defaults, {
-    default_add_count: 108,
-    daily_target_count: null,
-    default_session_count: 108,
-  });
 }
 
 function assertDeviceMatchesExpected(device, expected, label) {
@@ -2496,10 +2368,6 @@ async function runLoggedOutPartialDefaultBackupReconnectTest() {
 }
 
 const tests = [
-  [
-    "legacy and new practice count columns remain compatible",
-    runLegacyCountColumnCompatibilityTest,
-  ],
   [
     "Device A operations sync to Device B through Supabase",
     runDeviceAToDeviceBSupabaseSyncTest,

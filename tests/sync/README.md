@@ -37,9 +37,8 @@ read them. Pull-request code never receives a privileged Supabase key.
 
 Current covered flows:
 
-- Legacy clients can insert and update `default_add_count`, new clients can
-  update `default_session_count`, and both columns remain synchronized while
-  `daily_target_count` stays independent and optional.
+- Practice synchronization reads and writes `default_session_count` without
+  depending on the removed legacy `default_add_count` column.
 - Device A creates `testPractice1`, sets a scheduled reminder, adds sessions
   for today, yesterday, and before yesterday, syncs through Supabase, and
   Device B fetches the same data.

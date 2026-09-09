@@ -23,7 +23,6 @@ export type RemotePracticeRow = {
     order_index: number;
     image_key: string | null;
     custom_image_uri?: string | null;
-    default_add_count: number;
     daily_target_count: number | null;
     default_session_count: number | null;
     total_offset: number;
@@ -584,7 +583,6 @@ export function createSyncEngine(deps: SyncEngineDeps) {
                 target_count: row.targetCount,
                 order_index: row.orderIndex,
                 image_key: row.imageKey ?? null,
-                default_add_count: defaultSessionCount,
                 daily_target_count: row.dailyTargetCount ?? null,
                 default_session_count: defaultSessionCount,
                 total_offset: row.totalOffset ?? 0,
@@ -785,7 +783,6 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             target_count: parsed.targetCount,
             order_index: parsed.orderIndex,
             image_key: parsed.imageKey ?? null,
-            default_add_count: defaultSessionCount,
             daily_target_count: parsed.dailyTargetCount ?? null,
             default_session_count: defaultSessionCount,
             total_offset: parsed.totalOffset ?? 0,

@@ -2534,6 +2534,76 @@ await test(
 );
 
 await test(
+  "practice sync no longer reads or writes the legacy default count",
+  async () => {
+    const selectedPracticeColumns = [];
+    const client = {
+      from(table) {
+        return {
+          select(columns) {
+            if (table === "practices") {
+              selectedPracticeColumns.push(columns);
+            }
+            return this;
+          },
+          eq() {
+            return this;
+          },
+          order() {
+            return Promise.resolve({ data: [], error: null });
+          },
+          in() {
+            return Promise.resolve({ data: [], error: null });
+          },
+        };
+      },
+    };
+    const productionRemote = createSupabaseSyncRemote(() => client);
+
+    await productionRemote.pullPractices("current-count-read-user");
+    await productionRemote.getPracticesById(
+      "current-count-read-user",
+      ["practice-id"]
+    );
+
+    assert.equal(selectedPracticeColumns.length, 2);
+    for (const columns of selectedPracticeColumns) {
+      assert.match(columns, /\bdefault_session_count\b/);
+      assert.doesNotMatch(columns, /\bdefault_add_count\b/);
+    }
+
+    const userId = "current-count-write-user";
+    const remote = createMemorySyncRemote();
+    const device = makeLocalDevice(
+      userId,
+      () => Date.parse("2026-08-01T12:00:00.000Z")
+    );
+    const practiceId = device.operations.createPractice(
+      "Current Count Practice",
+      10000,
+      null,
+      333
+    );
+
+    await createSyncEngineForDevice(
+      device,
+      remote,
+      () => Date.parse("2026-08-01T12:00:01.000Z")
+    ).executeSync(userId, "merge_local");
+
+    const remotePractice = remote.getPractice(practiceId);
+    assert.equal(remotePractice.default_session_count, 333);
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(
+        remotePractice,
+        "default_add_count"
+      ),
+      false
+    );
+  }
+);
+
+await test(
   "production local-date migration leaves legacy session days unset",
   () => {
     const migrationSql = readFileSync(

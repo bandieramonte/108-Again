@@ -463,7 +463,6 @@ export function createPracticeRepo(database: SqliteDatabase) {
         order_index: number;
         image_key: string | null;
         custom_image_uri?: string | null;
-        default_add_count: number;
         daily_target_count: number | null;
         default_session_count: number | null;
         total_offset: number;
@@ -526,7 +525,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
             row.image_key,
             row.custom_image_uri ?? null,
             row.daily_target_count,
-            row.default_session_count ?? row.default_add_count ?? 108,
+            row.default_session_count ?? 108,
             row.total_offset ?? 0,
             row.reminder_enabled ? 1 : 0,
             row.reminder_hour ?? 20,
