@@ -29,7 +29,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 type Props = {
     isAuthenticated: boolean;
     firstName: string | null;
-    onSignOut: () => void;
+    onSignOut: () => Promise<void>;
+    signingOut: boolean;
     disableAccountLink?: boolean;
 };
 
@@ -54,6 +55,7 @@ export default function HeaderMenu({
     firstName,
     isAuthenticated,
     onSignOut,
+    signingOut,
 }: Props) {
     const router = useRouter();
     const insets = useSafeAreaInsets();
@@ -192,9 +194,11 @@ export default function HeaderMenu({
         setPrivacyVisible(true);
     }
 
-    function handleSignOutPress() {
+    async function handleSignOutPress() {
+        if (signingOut) return;
+
+        await onSignOut();
         closeSettings();
-        onSignOut();
     }
 
     function renderSection(title: string) {
@@ -358,7 +362,10 @@ export default function HeaderMenu({
                                     })}
                                     {renderRow({
                                         icon: "logout",
-                                        label: t("menu.logOut"),
+                                        label: signingOut
+                                            ? t("menu.loggingOut")
+                                            : t("menu.logOut"),
+                                        disabled: signingOut,
                                         onPress: handleSignOutPress,
                                     })}
                                 </>

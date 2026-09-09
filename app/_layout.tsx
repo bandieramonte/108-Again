@@ -43,6 +43,7 @@ function LayoutContent() {
     const { colors } = useAppTheme();
     const { t } = useI18n();
     const [authState, setAuthState] = useState(authService.getAuthState());
+    const [signingOut, setSigningOut] = useState(false);
     const [appInitialized, setAppInitialized] = useState(false);
     const [startupRouteHandled, setStartupRouteHandled] = useState(false);
     const [updateRequirement, setUpdateRequirement] =
@@ -245,6 +246,9 @@ function LayoutContent() {
     }, []);
 
     async function handleSignOut() {
+        if (signingOut) return;
+
+        setSigningOut(true);
         try {
             await authService.signOut();
             router.replace("/");
@@ -253,6 +257,8 @@ function LayoutContent() {
                 t("menu.logOut"),
                 error?.message ?? t("common.unknownError")
             );
+        } finally {
+            setSigningOut(false);
         }
     }
 
@@ -353,6 +359,7 @@ function LayoutContent() {
                         isAuthenticated={authState.isAuthenticated}
                         firstName={authState.firstName}
                         onSignOut={handleSignOut}
+                        signingOut={signingOut}
                     />
                 ),
             }}

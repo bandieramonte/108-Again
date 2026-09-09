@@ -173,6 +173,7 @@ export const hu: Record<TranslationKey, string> = {
     "menu.importBackup": "Biztonsági mentés importálása",
     "menu.logIn": "Bejelentkezés",
     "menu.logOut": "Kijelentkezés",
+    "menu.loggingOut": "Kijelentkezés...",
     "menu.privacyData": "Adatvédelem és adatok",
     "menu.restoreDefaults": "Alapértékek visszaállítása",
     "menu.restoreDefaultsMessage": "Ez eltávolítja az összes gyakorlatodat, ülésedet és helyi adatodat.",

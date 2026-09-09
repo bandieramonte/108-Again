@@ -171,6 +171,7 @@ export const en = {
     "menu.importBackup": "Import Backup",
     "menu.logIn": "Log In",
     "menu.logOut": "Log Out",
+    "menu.loggingOut": "Logging out...",
     "menu.privacyData": "Privacy & Data",
     "menu.restoreDefaults": "Restore Defaults",
     "menu.restoreDefaultsMessage": "This will remove all your practices, sessions, and local data.",

@@ -173,6 +173,7 @@ export const cs: Record<TranslationKey, string> = {
     "menu.importBackup": "Importovat zálohu",
     "menu.logIn": "Přihlásit se",
     "menu.logOut": "Odhlásit se",
+    "menu.loggingOut": "Odhlašování...",
     "menu.privacyData": "Soukromí a data",
     "menu.restoreDefaults": "Obnovit výchozí",
     "menu.restoreDefaultsMessage": "Tím se odstraní všechny tvoje praxe, sezení a lokální data.",

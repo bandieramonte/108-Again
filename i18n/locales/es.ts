@@ -173,6 +173,7 @@ export const es: Record<TranslationKey, string> = {
     "menu.importBackup": "Importar copia",
     "menu.logIn": "Iniciar sesión",
     "menu.logOut": "Cerrar sesión",
+    "menu.loggingOut": "Cerrando sesión...",
     "menu.privacyData": "Privacidad y datos",
     "menu.restoreDefaults": "Restaurar valores",
     "menu.restoreDefaultsMessage": "Esto eliminará todas tus prácticas, sesiones y datos locales.",

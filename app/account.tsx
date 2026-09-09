@@ -39,6 +39,7 @@ export default function AccountScreen() {
         useState(initialAuthState.isAuthenticated);
     const [syncState, setSyncState] = useState(syncService.getSyncState());
     const [syncing, setSyncing] = useState(false);
+    const [signingOut, setSigningOut] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [privacyVisible, setPrivacyVisible] = useState(false);
     const [syncNotice, setSyncNotice] = useState<SyncNotice | null>(null);
@@ -100,6 +101,9 @@ export default function AccountScreen() {
     }, [syncNotice]);
 
     async function handleSignOut() {
+        if (signingOut) return;
+
+        setSigningOut(true);
         try {
             await authService.signOut();
         } catch (error: any) {
@@ -107,6 +111,8 @@ export default function AccountScreen() {
                 t("account.logOutFailed"),
                 getLocalizedAuthErrorMessage(error, t)
             );
+        } finally {
+            setSigningOut(false);
         }
     }
 
@@ -251,6 +257,7 @@ export default function AccountScreen() {
                             isAuthenticated={authState.isAuthenticated}
                             firstName={authState.firstName}
                             onSignOut={handleSignOut}
+                            signingOut={signingOut}
                         />
                     ),
                 }}
@@ -374,19 +381,43 @@ export default function AccountScreen() {
                             style={({ pressed }) => [
                                 styles.button,
                                 styles.secondaryButton,
-                                { backgroundColor: colors.surface },
-                                pressed && styles.buttonPressed,
+                                {
+                                    backgroundColor: signingOut
+                                        ? colors.inputReadOnlyBackground
+                                        : colors.surface,
+                                },
+                                pressed && !signingOut && styles.buttonPressed,
+                                signingOut && styles.buttonDisabled,
                             ]}
                             onPress={handleSignOut}
+                            disabled={signingOut}
+                            accessibilityState={{
+                                busy: signingOut,
+                                disabled: signingOut,
+                            }}
                         >
-                            <Text
-                                style={[
-                                    styles.buttonText,
-                                    { color: colors.textPrimary },
-                                ]}
-                            >
-                                {t("menu.logOut")}
-                            </Text>
+                            <View style={styles.buttonContent}>
+                                {signingOut && (
+                                    <ActivityIndicator
+                                        size="small"
+                                        color={colors.inputReadOnlyText}
+                                    />
+                                )}
+                                <Text
+                                    style={[
+                                        styles.buttonText,
+                                        {
+                                            color: signingOut
+                                                ? colors.inputReadOnlyText
+                                                : colors.textPrimary,
+                                        },
+                                    ]}
+                                >
+                                    {signingOut
+                                        ? t("menu.loggingOut")
+                                        : t("menu.logOut")}
+                                </Text>
+                            </View>
                         </Pressable>
 
                         <TouchableOpacity
@@ -567,6 +598,12 @@ const styles = StyleSheet.create({
     buttonText: {
         fontSize: 16,
         fontWeight: "600",
+    },
+
+    buttonContent: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
     },
 
     syncContainer: {

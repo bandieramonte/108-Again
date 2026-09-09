@@ -173,6 +173,7 @@ export const ru: Record<TranslationKey, string> = {
     "menu.importBackup": "Импорт резервной копии",
     "menu.logIn": "Войти",
     "menu.logOut": "Выйти",
+    "menu.loggingOut": "Выход...",
     "menu.privacyData": "Приватность и данные",
     "menu.restoreDefaults": "Восстановить по умолчанию",
     "menu.restoreDefaultsMessage": "Это удалит все ваши практики, сеансы и локальные данные.",

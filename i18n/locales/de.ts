@@ -173,6 +173,7 @@ export const de: Record<TranslationKey, string> = {
     "menu.importBackup": "Backup importieren",
     "menu.logIn": "Anmelden",
     "menu.logOut": "Abmelden",
+    "menu.loggingOut": "Abmeldung läuft...",
     "menu.privacyData": "Datenschutz & Daten",
     "menu.restoreDefaults": "Standardwerte wiederherstellen",
     "menu.restoreDefaultsMessage": "Dadurch werden alle deine Praktiken, Sitzungen und lokalen Daten entfernt.",
