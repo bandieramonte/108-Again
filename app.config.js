@@ -54,6 +54,15 @@ export default {
             "expo-router",
             "expo-dev-client",
             [
+                "expo-build-properties",
+                {
+                    android: {
+                        enableMinifyInReleaseBuilds: true,
+                        enableShrinkResourcesInReleaseBuilds: true,
+                    },
+                },
+            ],
+            [
                 "expo-notifications",
                 {
                     color: "#1A5FCC",
