@@ -27,7 +27,10 @@ import type { SyncMode } from "./syncEngine";
 
 export type { SyncMode } from "./syncEngine";
 export { getSyncLabel } from "./syncCoordinator";
-export type { SyncNowResult } from "./syncCoordinator";
+export type {
+    ProminentSyncStatus,
+    SyncNowResult,
+} from "./syncCoordinator";
 
 const NETWORK_TIMEOUT_MESSAGE = "Network timeout during sync";
 
@@ -216,6 +219,14 @@ export function getSyncState() {
     return getSyncCoordinator().getSyncState();
 }
 
+export function getProminentSyncStatus() {
+    return getSyncCoordinator().getProminentSyncStatus();
+}
+
+export function clearProminentSyncStatus() {
+    getSyncCoordinator().clearProminentSyncStatus();
+}
+
 export function clearUserSyncState(userId?: string) {
     getSyncCoordinator().clearUserSyncState(userId);
 }
@@ -234,6 +245,7 @@ export async function requestSync(
     options?: {
         immediate?: boolean;
         mode?: SyncMode;
+        showProminentStatus?: boolean;
     }
 ) {
     return getSyncCoordinator().requestSync(userId, options);

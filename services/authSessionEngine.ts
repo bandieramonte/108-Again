@@ -38,7 +38,11 @@ type AuthSessionEngineDeps = {
     >;
     requestSync(
         userId: string,
-        options?: { immediate?: boolean; mode?: SyncMode }
+        options?: {
+            immediate?: boolean;
+            mode?: SyncMode;
+            showProminentStatus?: boolean;
+        }
     ): void;
     requireRemoteAuthoritativeSync(userId: string): void;
 };
@@ -78,7 +82,8 @@ export function createAuthSessionEngine(deps: AuthSessionEngineDeps) {
 
     function loadLocalProfileIntoState(
         user: AuthSessionUser,
-        syncMode: SyncMode
+        syncMode: SyncMode,
+        showProminentSyncStatus = false
     ) {
         if (syncMode === "remote_overwrite_local") {
             deps.requireRemoteAuthoritativeSync(user.id);
@@ -97,6 +102,9 @@ export function createAuthSessionEngine(deps: AuthSessionEngineDeps) {
         deps.requestSync(user.id, {
             immediate: true,
             mode: syncMode,
+            ...(showProminentSyncStatus
+                ? { showProminentStatus: true }
+                : {}),
         });
 
         return { email, localProfile };
@@ -133,10 +141,15 @@ export function createAuthSessionEngine(deps: AuthSessionEngineDeps) {
 
     async function loadProfileIntoState(
         user: AuthSessionUser,
-        syncMode: SyncMode
+        syncMode: SyncMode,
+        showProminentSyncStatus = false
     ) {
         const { email, localProfile } =
-            loadLocalProfileIntoState(user, syncMode);
+            loadLocalProfileIntoState(
+                user,
+                syncMode,
+                showProminentSyncStatus
+            );
 
         await refreshRemoteProfile(user, email, localProfile);
     }
@@ -195,12 +208,18 @@ export function createAuthSessionEngine(deps: AuthSessionEngineDeps) {
             throw error;
         }
 
-        const syncMode = deps.appMetaRepo.getLocalDataOwnerUserId()
-            ? "merge_local"
-            : "remote_overwrite_local";
+        const firstSignInOnDevice =
+            !deps.appMetaRepo.getLocalDataOwnerUserId();
+        const syncMode = firstSignInOnDevice
+            ? "remote_overwrite_local"
+            : "merge_local";
 
         deps.appMetaRepo.setLocalDataOwnerUserId(user.id);
-        await loadProfileIntoState(user, syncMode);
+        await loadProfileIntoState(
+            user,
+            syncMode,
+            firstSignInOnDevice
+        );
     }
 
     async function completeSignUp(

@@ -1447,7 +1447,11 @@ export default function PracticeContent({
                 </View>
             </ScrollView>
 
-            <PullToSyncStatus status={pullSync.status} />
+            <PullToSyncStatus
+                status={
+                    pullSync.status ?? pullSync.prominentSyncStatus
+                }
+            />
 
             <Modal
                 visible={!!dateAdjustedInfo}

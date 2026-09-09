@@ -50,6 +50,7 @@ export const hu: Record<TranslationKey, string> = {
     "account.logOutFailed": "Kijelentkezés sikertelen",
     "account.offlineMessage": "Offline vagy. A szinkronizálás folytatódik, amikor újra online leszel.",
     "account.offlineTitle": "Offline",
+    "account.retrievingAccountData": "Fiókadatok lekérése",
     "account.signedIn": "Bejelentkezve",
     "account.signedOut": "Kijelentkezve",
     "account.status": "Állapot",

@@ -543,11 +543,13 @@ function createSyncCoordinatorHarness() {
     remoteAccessStatus: "allowed",
     remoteAuthoritativeUsers: [],
     scheduledTimers: new Map(),
+    syncEvents: [],
     userDeleted: false,
   };
   let nextTimerId = 1;
+  let coordinator;
 
-  const coordinator = createSyncCoordinator({
+  coordinator = createSyncCoordinator({
     cancelTimer: (timerId) => {
       state.scheduledTimers.delete(timerId);
     },
@@ -578,7 +580,12 @@ function createSyncCoordinatorHarness() {
       state.authInvalidEvents += 1;
     },
     emitDataChanged: () => {},
-    emitSyncChanged: () => {},
+    emitSyncChanged: () => {
+      state.syncEvents.push({
+        prominentStatus: coordinator.getProminentSyncStatus(),
+        syncState: coordinator.getSyncState(),
+      });
+    },
     getCurrentSessionUserId: async () => state.currentSessionUserId,
     getIsOnline: () => state.isOnline,
     isAppAccessBlocked: () => state.appAccessBlocked,
@@ -940,6 +947,63 @@ await test(
       "Expected the failed background profile refresh to be contained"
     );
     assert.equal(engine.getAuthState().firstName, "Cached name");
+  }
+);
+
+await test(
+  "first sign-in on a device starts an immediate prominent sync",
+  async () => {
+    let localOwnerUserId = null;
+    const syncRequests = [];
+    const engine = createAuthSessionEngine({
+      appMetaRepo: {
+        getLocalDataOwnerUserId: () => localOwnerUserId,
+        setLocalDataOwnerUserId: (userId) => {
+          localOwnerUserId = userId;
+        },
+      },
+      claimAnonymousLocalDataIfNeeded: async () => {},
+      emitAuthChanged: () => {},
+      fetchRemoteProfile: async () => null,
+      logger: {
+        warn: () => {},
+      },
+      now: () => 123,
+      profileRepo: {
+        getUserProfileById: () => null,
+        upsertUserProfile: () => {},
+      },
+      requestSync: (userId, options) => {
+        syncRequests.push({ options, userId });
+      },
+      requireRemoteAuthoritativeSync: () => {},
+    });
+
+    const user = {
+      id: "login-user",
+      email: "login@example.com",
+    };
+
+    await engine.completeSignIn(user, async () => {});
+    await engine.completeSignIn(user, async () => {});
+
+    assert.deepEqual(syncRequests, [
+      {
+        userId: "login-user",
+        options: {
+          immediate: true,
+          mode: "remote_overwrite_local",
+          showProminentStatus: true,
+        },
+      },
+      {
+        userId: "login-user",
+        options: {
+          immediate: true,
+          mode: "merge_local",
+        },
+      },
+    ]);
   }
 );
 
@@ -1596,6 +1660,54 @@ await test(
     );
     assert.equal(deleted.state.authInvalidEvents, 1);
     assert.equal(deleted.state.executedSyncs.length, 0);
+  }
+);
+
+await test(
+  "only first-device retrieval syncs expose prominent status",
+  async () => {
+    const firstDeviceLogin = createSyncCoordinatorHarness();
+    firstDeviceLogin.state.currentSessionUserId = "login-user";
+
+    await firstDeviceLogin.coordinator.requestSync("login-user", {
+      immediate: true,
+      mode: "remote_overwrite_local",
+      showProminentStatus: true,
+    });
+    await waitFor(
+      () => firstDeviceLogin.coordinator.getSyncState() === "success",
+      "First-device login sync did not complete"
+    );
+    assert.equal(
+      firstDeviceLogin.state.syncEvents.some(
+        event => event.prominentStatus === "retrieving_account_data"
+      ),
+      true
+    );
+    assert.equal(
+      firstDeviceLogin.coordinator.getProminentSyncStatus(),
+      "success"
+    );
+
+    firstDeviceLogin.coordinator.clearProminentSyncStatus();
+    assert.equal(
+      firstDeviceLogin.coordinator.getProminentSyncStatus(),
+      null
+    );
+
+    const edit = createSyncCoordinatorHarness();
+    edit.state.currentSessionUserId = "login-user";
+
+    await edit.coordinator.requestSync("login-user");
+    assert.equal(edit.state.scheduledTimers.size, 1);
+    assert.equal(edit.coordinator.getProminentSyncStatus(), null);
+
+    edit.runNextTimer();
+    await waitFor(
+      () => edit.coordinator.getSyncState() === "success",
+      "Delayed edit sync did not complete"
+    );
+    assert.equal(edit.coordinator.getProminentSyncStatus(), null);
   }
 );
 

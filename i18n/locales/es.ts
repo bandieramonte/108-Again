@@ -50,6 +50,7 @@ export const es: Record<TranslationKey, string> = {
     "account.logOutFailed": "No se pudo cerrar sesión",
     "account.offlineMessage": "Estás sin conexión. La sincronización continuará cuando vuelvas a estar conectado.",
     "account.offlineTitle": "Sin conexión",
+    "account.retrievingAccountData": "Recuperando datos de la cuenta",
     "account.signedIn": "Sesión iniciada",
     "account.signedOut": "Sesión cerrada",
     "account.status": "Estado",

@@ -50,6 +50,7 @@ export const ru: Record<TranslationKey, string> = {
     "account.logOutFailed": "Не удалось выйти",
     "account.offlineMessage": "Вы офлайн. Синхронизация продолжится, когда соединение вернется.",
     "account.offlineTitle": "Нет соединения",
+    "account.retrievingAccountData": "Получение данных аккаунта",
     "account.signedIn": "Вход выполнен",
     "account.signedOut": "Вы не вошли",
     "account.status": "Статус",

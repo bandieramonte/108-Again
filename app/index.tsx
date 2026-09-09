@@ -1293,7 +1293,9 @@ export default function Dashboard() {
         />
       </ScrollView>
 
-      <PullToSyncStatus status={pullSync.status} />
+      <PullToSyncStatus
+        status={pullSync.status ?? pullSync.prominentSyncStatus}
+      />
       {renderPracticeDragOverlay()}
     </View>
   );

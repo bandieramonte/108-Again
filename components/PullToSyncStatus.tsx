@@ -1,8 +1,11 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import type { PullToSyncStatus as Status } from "../hooks/usePullToSync";
+import type { PullToSyncStatus as PullStatus } from "../hooks/usePullToSync";
 import { useI18n } from "../i18n";
+import type { ProminentSyncStatus } from "../services/syncService";
 import { useAppTheme } from "../styles/theme";
+
+type Status = PullStatus | ProminentSyncStatus;
 
 export default function PullToSyncStatus({
     status,
@@ -21,6 +24,12 @@ export default function PullToSyncStatus({
                     color: colors.primary,
                     icon: null,
                     label: t("account.syncing"),
+                };
+            case "retrieving_account_data":
+                return {
+                    color: colors.primary,
+                    icon: null,
+                    label: t("account.retrievingAccountData"),
                 };
             case "success":
                 return {
@@ -71,7 +80,8 @@ export default function PullToSyncStatus({
                     },
                 ]}
             >
-                {status === "syncing" ? (
+                {status === "syncing" ||
+                status === "retrieving_account_data" ? (
                     <ActivityIndicator size="small" color={content.color} />
                 ) : (
                     <MaterialIcons

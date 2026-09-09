@@ -11,6 +11,13 @@ export type SyncNowResult =
     | "skipped"
     | "update_required";
 
+export type ProminentSyncStatus =
+    | "failed"
+    | "offline"
+    | "postponed"
+    | "retrieving_account_data"
+    | "success";
+
 type CoordinatorSyncEngine = {
     executeSync(userId: string, mode: SyncMode): Promise<void>;
     resolveSyncMode(
@@ -41,12 +48,32 @@ type SyncCoordinatorDeps = {
     verifyRemoteSyncAccess(): Promise<RemoteSyncAccess>;
 };
 
+function getProminentSyncResult(
+    result: SyncNowResult
+): Exclude<ProminentSyncStatus, "retrieving_account_data"> {
+    switch (result) {
+        case "success":
+            return "success";
+        case "offline":
+            return "offline";
+        case "policy_unavailable":
+        case "retry_scheduled":
+        case "update_required":
+            return "postponed";
+        case "auth_invalid":
+        case "skipped":
+            return "failed";
+    }
+}
+
 export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
     let syncState: SyncState = "idle";
     let syncInFlight: Promise<void> | null = null;
     let scheduledSyncTimeout: TimerHandle | null = null;
     let pendingSyncUserId: string | null = null;
     let pendingSyncMode: SyncMode | null = null;
+    let pendingSyncShowsProminentStatus = false;
+    let prominentSyncStatus: ProminentSyncStatus | null = null;
     let lastUserId: string | null = null;
     let retryCount = 0;
 
@@ -57,6 +84,21 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
 
     function getSyncState(): SyncState {
         return syncState;
+    }
+
+    function getProminentSyncStatus(): ProminentSyncStatus | null {
+        return prominentSyncStatus;
+    }
+
+    function setProminentSyncStatus(next: ProminentSyncStatus | null) {
+        if (prominentSyncStatus === next) return;
+
+        prominentSyncStatus = next;
+        deps.emitSyncChanged();
+    }
+
+    function clearProminentSyncStatus() {
+        setProminentSyncStatus(null);
     }
 
     function clearUserSyncState(userId?: string) {
@@ -75,6 +117,8 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
 
         pendingSyncUserId = null;
         pendingSyncMode = null;
+        pendingSyncShowsProminentStatus = false;
+        clearProminentSyncStatus();
         lastUserId = null;
         retryCount = 0;
 
@@ -107,6 +151,8 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
         syncInFlight = null;
         pendingSyncUserId = null;
         pendingSyncMode = null;
+        pendingSyncShowsProminentStatus = false;
+        clearProminentSyncStatus();
         retryCount = 0;
     }
 
@@ -259,6 +305,7 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
         options?: {
             immediate?: boolean;
             mode?: SyncMode;
+            showProminentStatus?: boolean;
         }
     ) {
         if (deps.isAppAccessBlocked()) return;
@@ -269,6 +316,9 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
             pendingSyncMode,
             options?.mode
         );
+        pendingSyncShowsProminentStatus =
+            pendingSyncShowsProminentStatus ||
+            options?.showProminentStatus === true;
 
         if (scheduledSyncTimeout) {
             deps.cancelTimer(scheduledSyncTimeout);
@@ -293,14 +343,30 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
 
         const userId = pendingSyncUserId;
         const mode = pendingSyncMode ?? "merge_local";
+        const showProminentStatus = pendingSyncShowsProminentStatus;
         pendingSyncUserId = null;
         pendingSyncMode = null;
+        pendingSyncShowsProminentStatus = false;
+
+        if (showProminentStatus) {
+            setProminentSyncStatus("retrieving_account_data");
+        }
 
         syncInFlight = (async () => {
             try {
-                await syncNow(userId, { mode });
+                const result = await syncNow(userId, { mode });
+
+                if (showProminentStatus) {
+                    setProminentSyncStatus(
+                        getProminentSyncResult(result)
+                    );
+                }
             } catch (error) {
                 deps.logger.warn("Queued sync error:", error);
+
+                if (showProminentStatus) {
+                    setProminentSyncStatus("failed");
+                }
             } finally {
                 syncInFlight = null;
 
@@ -326,6 +392,8 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps) {
 
     return {
         clearUserSyncState,
+        clearProminentSyncStatus,
+        getProminentSyncStatus,
         getSyncState,
         handleConnectivityChanged,
         requestSync,

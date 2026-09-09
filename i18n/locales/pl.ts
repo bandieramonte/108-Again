@@ -50,6 +50,7 @@ export const pl: Record<TranslationKey, string> = {
     "account.logOutFailed": "Wylogowanie nie powiodło się",
     "account.offlineMessage": "Jesteś offline. Synchronizacja zostanie wznowiona po powrocie online.",
     "account.offlineTitle": "Offline",
+    "account.retrievingAccountData": "Pobieranie danych konta",
     "account.signedIn": "Zalogowano",
     "account.signedOut": "Wylogowano",
     "account.status": "Status",

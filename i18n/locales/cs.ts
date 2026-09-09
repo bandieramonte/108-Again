@@ -50,6 +50,7 @@ export const cs: Record<TranslationKey, string> = {
     "account.logOutFailed": "Odhlášení selhalo",
     "account.offlineMessage": "Jsi offline. Synchronizace bude pokračovat, až budeš znovu online.",
     "account.offlineTitle": "Offline",
+    "account.retrievingAccountData": "Načítání dat účtu",
     "account.signedIn": "Přihlášeno",
     "account.signedOut": "Odhlášeno",
     "account.status": "Stav",

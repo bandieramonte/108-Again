@@ -50,6 +50,7 @@ export const de: Record<TranslationKey, string> = {
     "account.logOutFailed": "Abmeldung fehlgeschlagen",
     "account.offlineMessage": "Du bist offline. Die Synchronisierung wird fortgesetzt, sobald du wieder online bist.",
     "account.offlineTitle": "Offline",
+    "account.retrievingAccountData": "Kontodaten werden abgerufen",
     "account.signedIn": "Angemeldet",
     "account.signedOut": "Abgemeldet",
     "account.status": "Status",

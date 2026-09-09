@@ -48,6 +48,7 @@ export const en = {
     "account.logOutFailed": "Log out failed",
     "account.offlineMessage": "You are offline. Sync will resume when you're back online.",
     "account.offlineTitle": "Offline",
+    "account.retrievingAccountData": "Retrieving account data",
     "account.signedIn": "Signed in",
     "account.signedOut": "Signed out",
     "account.status": "Status",
