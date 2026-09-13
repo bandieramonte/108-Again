@@ -546,12 +546,6 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
             throw new Error(`Practice not found: ${id}`);
         }
 
-        if (practice.imageKey !== CUSTOM_PRACTICE_IMAGE_KEY) {
-            throw new Error(
-                "Only practices created with an uploaded image can replace it."
-            );
-        }
-
         const previousImageUri = practice.customImageUri ?? null;
 
         if (previousImageUri === customImageUri) {

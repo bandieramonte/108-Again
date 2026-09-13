@@ -57,6 +57,7 @@ export default function EditPractice() {
 
     function replaceCustomImage(uri: string) {
         practiceService.replaceCustomPracticeImage(id as string, uri);
+        setImageKey(CUSTOM_PRACTICE_IMAGE_KEY);
         setCustomImageUri(uri);
     }
 
@@ -159,12 +160,11 @@ export default function EditPractice() {
                 </Text>
 
                 <View style={globalStyles.formSectionCard}>
-                    {imageKey === CUSTOM_PRACTICE_IMAGE_KEY && (
-                        <CustomPracticeImageEditor
-                            currentUri={customImageUri}
-                            onReplace={replaceCustomImage}
-                        />
-                    )}
+                    <CustomPracticeImageEditor
+                        imageKey={imageKey}
+                        currentUri={customImageUri}
+                        onReplace={replaceCustomImage}
+                    />
 
                     <Text style={globalStyles.formInputLabel}>
                         {t("form.name")}

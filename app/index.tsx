@@ -3,7 +3,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Dimensions, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View, type LayoutChangeEvent } from "react-native";
+import { ActivityIndicator, Animated, Dimensions, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, type LayoutChangeEvent } from "react-native";
 import Reanimated, { LinearTransition } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CelebrationOverlay from "../components/CelebrationOverlay";
@@ -69,7 +69,6 @@ function DashboardTotalProgressBar({
   progress,
 }: DashboardTotalProgressBarProps) {
   const { colors: themeColors, isDark } = useAppTheme();
-  const { fontScale } = useWindowDimensions();
   const [trackWidth, setTrackWidth] = useState(0);
   const safeProgress =
     Number.isFinite(progress)
@@ -77,10 +76,6 @@ function DashboardTotalProgressBar({
       : 0;
   const percent = Math.round(safeProgress * 100);
   const fillWidth = `${safeProgress * 100}%` as `${number}%`;
-  const textVerticalOffset = Math.max(
-    0,
-    2 - Math.max(fontScale - 1, 0) * 8
-  );
 
   function handleTrackLayout(event: LayoutChangeEvent) {
     setTrackWidth(event.nativeEvent.layout.width);
@@ -120,7 +115,6 @@ function DashboardTotalProgressBar({
             {
               color: themeColors.textPrimary,
               fontWeight: isDark ? "400" : "700",
-              transform: [{ translateY: textVerticalOffset }],
             },
           ]}
           numberOfLines={1}
@@ -151,7 +145,6 @@ function DashboardTotalProgressBar({
                 styles.totalProgressTextFilled,
                 {
                   fontWeight: isDark ? "400" : "700",
-                  transform: [{ translateY: textVerticalOffset }],
                 },
               ]}
               numberOfLines={1}
@@ -696,7 +689,10 @@ export default function Dashboard() {
           <View style={styles.quickAddContainer}>
             <View style={[styles.quickAddButton, quickAddThemeStyle]}>
               <View style={styles.quickAddMainButton}>
-                <Text style={[styles.quickAddAmountText, textPrimaryStyle]}>
+                <Text
+                  style={[styles.quickAddAmountText, textPrimaryStyle]}
+                  numberOfLines={1}
+                >
                   +{formatNumber(defaultSessionCount, locale)}
                 </Text>
 
@@ -1106,7 +1102,10 @@ export default function Dashboard() {
                         ),
                       })}: ${practiceDisplayName}`}
                     >
-                      <Text style={[styles.quickAddAmountText, textPrimaryStyle]}>
+                      <Text
+                        style={[styles.quickAddAmountText, textPrimaryStyle]}
+                        numberOfLines={1}
+                      >
                         +{formatNumber(
                           practice.defaultSessionCount ?? 108,
                           locale
@@ -1515,7 +1514,7 @@ const styles = StyleSheet.create({
   },
 
   totalProgressText: {
-    flex: 1,
+    width: "100%",
     paddingHorizontal: 8,
     color: "#111827",
     fontSize: 13,
@@ -1600,6 +1599,8 @@ const styles = StyleSheet.create({
   },
 
   quickAddAmountText: {
+    flexShrink: 0,
+    paddingRight: 2,
     fontSize: 16,
     fontWeight: "800",
     color: "#111",

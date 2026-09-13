@@ -1,4 +1,5 @@
 import type { SqliteDatabase } from "../database/sqliteTypes";
+import { CUSTOM_PRACTICE_IMAGE_KEY } from "../constants/customPracticeImages";
 import type { SyncMetadata, SyncStatus } from "../types/sync";
 
 export type PracticeRow = {
@@ -221,12 +222,14 @@ export function createPracticeRepo(database: SqliteDatabase) {
     ): void {
         database.runSync(
             `UPDATE practices
-     SET customImageUri = ?,
+     SET imageKey = ?,
+         customImageUri = ?,
          userId = ?,
          updatedAt = COALESCE(?, updatedAt),
          syncStatus = COALESCE(?, syncStatus),
          lastSyncedAt = ?
      WHERE id = ?`,
+            CUSTOM_PRACTICE_IMAGE_KEY,
             customImageUri,
             syncMetadata.userId,
             syncMetadata.updatedAt,

@@ -1,5 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useEffect, useRef, useState } from "react";
+import { getPracticeImageSource } from "../constants/practiceImages";
 import {
     ActivityIndicator,
     Image,
@@ -17,11 +18,13 @@ import {
 import { useAppTheme, useGlobalStyles } from "../styles/theme";
 
 type Props = {
+    imageKey: string | null;
     currentUri: string | null;
     onReplace: (uri: string) => void;
 };
 
 export default function CustomPracticeImageEditor({
+    imageKey,
     currentUri,
     onReplace,
 }: Props) {
@@ -130,9 +133,9 @@ export default function CustomPracticeImageEditor({
                 accessibilityRole="button"
                 accessibilityLabel={t("practiceImage.change")}
             >
-                {currentUri ? (
+                {imageKey ? (
                     <Image
-                        source={{ uri: currentUri }}
+                        source={getPracticeImageSource(imageKey, currentUri)}
                         style={styles.currentImage}
                         resizeMode="contain"
                     />
