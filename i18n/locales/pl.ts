@@ -274,6 +274,7 @@ export const pl: Record<TranslationKey, string> = {
     "practiceImage.other": "Inne",
     "practiceImage.upload": "Prześlij obraz",
     "practiceImage.change": "Zmień obraz",
+    "practiceImage.restoreOriginal": "Przywróć oryginalny obraz",
     "practiceImage.uploadTitle": "Prześlij obraz praktyki",
     "practiceImage.uploadGuidance": "Obraz zostanie przycięty od środka do proporcji 9:10. Dla najlepszej jakości użyj obrazu co najmniej 385 × 430 pikseli (około {{pixels}} pikseli).",
     "practiceImage.browseFiles": "Przeglądaj pliki",

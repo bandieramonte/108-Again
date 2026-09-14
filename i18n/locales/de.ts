@@ -274,6 +274,7 @@ export const de: Record<TranslationKey, string> = {
     "practiceImage.other": "Andere",
     "practiceImage.upload": "Bild hochladen",
     "practiceImage.change": "Bild ändern",
+    "practiceImage.restoreOriginal": "Originalbild wiederherstellen",
     "practiceImage.uploadTitle": "Praxisbild hochladen",
     "practiceImage.uploadGuidance": "Das Bild wird mittig auf ein Seitenverhältnis von 9:10 zugeschnitten. Verwende für beste Qualität mindestens 385 × 430 Pixel (etwa {{pixels}} Pixel).",
     "practiceImage.browseFiles": "Dateien durchsuchen",

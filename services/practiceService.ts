@@ -74,6 +74,13 @@ export function replaceCustomPracticeImage(
     }
 }
 
+export function restoreOriginalPracticeImage(id: string) {
+    const { imageKey, previousImageUri } = getAppOperationEngine()
+        .restoreOriginalPracticeImage(id);
+    deleteLocalCustomPracticeImage(previousImageUri);
+    return imageKey;
+}
+
 export async function deletePractice(id: string) {
     const customImageUri = getAppOperationEngine()
         .getPractice(id)?.customImageUri;

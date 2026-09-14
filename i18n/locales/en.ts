@@ -272,6 +272,7 @@ export const en = {
     "practiceImage.other": "Other",
     "practiceImage.upload": "Upload image",
     "practiceImage.change": "Change image",
+    "practiceImage.restoreOriginal": "Restore original image",
     "practiceImage.uploadTitle": "Upload a practice image",
     "practiceImage.uploadGuidance": "Your image will be center-cropped to a 9:10 ratio. For best quality, use an image at least 385 × 430 pixels (about {{pixels}} pixels).",
     "practiceImage.browseFiles": "Browse files",

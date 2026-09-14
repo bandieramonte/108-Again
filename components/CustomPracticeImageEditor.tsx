@@ -21,12 +21,14 @@ type Props = {
     imageKey: string | null;
     currentUri: string | null;
     onReplace: (uri: string) => void;
+    onRestoreOriginal?: () => void;
 };
 
 export default function CustomPracticeImageEditor({
     imageKey,
     currentUri,
     onReplace,
+    onRestoreOriginal,
 }: Props) {
     const { colors } = useAppTheme();
     const globalStyles = useGlobalStyles();
@@ -118,11 +120,28 @@ export default function CustomPracticeImageEditor({
         }
     }
 
+    function restoreOriginalImage() {
+        if (!onRestoreOriginal) return;
+        try {
+            onRestoreOriginal();
+            if (pendingUri && pendingUri !== currentUri) {
+                deleteLocalCustomPracticeImage(pendingUri);
+            }
+            currentUriRef.current = null;
+            pendingUriRef.current = null;
+            setPendingUri(null);
+            setVisible(false);
+        } catch (error) {
+            alert(error instanceof Error ? error.message : t("practiceImage.invalid"));
+        }
+    }
+
     return (
         <>
             <Pressable
                 style={({ pressed }) => [
                     styles.editorCard,
+                    onRestoreOriginal && { marginBottom: 0 },
                     {
                         backgroundColor: colors.inputBackground,
                         borderColor: colors.borderSubtle,
@@ -166,6 +185,35 @@ export default function CustomPracticeImageEditor({
                     color={colors.iconMuted}
                 />
             </Pressable>
+
+            {onRestoreOriginal && (
+                <Pressable
+                    style={[
+                        styles.restoreButton,
+                        {
+                            backgroundColor: colors.inputBackground,
+                            borderColor: colors.borderSubtle,
+                        },
+                    ]}
+                    onPress={restoreOriginalImage}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("practiceImage.restoreOriginal")}
+                >
+                    <MaterialIcons
+                        name="restore"
+                        size={20}
+                        color={colors.primary}
+                    />
+                    <Text
+                        style={[
+                            styles.restoreButtonText,
+                            { color: colors.primary },
+                        ]}
+                    >
+                        {t("practiceImage.restoreOriginal")}
+                    </Text>
+                </Pressable>
+            )}
 
             <Modal
                 visible={visible}
@@ -380,6 +428,22 @@ const styles = StyleSheet.create({
     },
     browseButtonText: {
         color: "#FFFFFF",
+        fontSize: 15,
+        fontWeight: "700",
+    },
+    restoreButton: {
+        alignSelf: "stretch",
+        minHeight: 44,
+        marginTop: 8,
+        marginBottom: 14,
+        borderWidth: 1,
+        borderRadius: 12,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+    },
+    restoreButtonText: {
         fontSize: 15,
         fontWeight: "700",
     },

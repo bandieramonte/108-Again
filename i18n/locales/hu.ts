@@ -274,6 +274,7 @@ export const hu: Record<TranslationKey, string> = {
     "practiceImage.other": "Egyéb",
     "practiceImage.upload": "Kép feltöltése",
     "practiceImage.change": "Kép módosítása",
+    "practiceImage.restoreOriginal": "Eredeti kép visszaállítása",
     "practiceImage.uploadTitle": "Gyakorlatkép feltöltése",
     "practiceImage.uploadGuidance": "A képet középről 9:10 képarányra vágjuk. A legjobb minőséghez legalább 385 × 430 képpontos képet használj (körülbelül {{pixels}} képpont).",
     "practiceImage.browseFiles": "Fájlok tallózása",

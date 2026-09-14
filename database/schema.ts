@@ -1,4 +1,5 @@
 import { SqliteDatabase } from "./sqliteTypes";
+import { CUSTOM_PRACTICE_IMAGE_KEY } from "../constants/customPracticeImages";
 
 const DAILY_TARGET_OPTIONAL_MIGRATION_KEY =
   "dailyTargetOptionalMigrationApplied";
@@ -42,6 +43,7 @@ export function initializeDatabaseSchema(db: SqliteDatabase) {
       targetCount INTEGER,
       orderIndex INTEGER,
       imageKey TEXT,
+      originalImageKey TEXT,
       customImageUri TEXT,
       dailyTargetCount INTEGER,
       defaultSessionCount INTEGER,
@@ -89,6 +91,7 @@ export function initializeDatabaseSchema(db: SqliteDatabase) {
   `);
 
   addColumnIfMissing(db, "practices", "imageKey", "imageKey TEXT");
+  addColumnIfMissing(db, "practices", "originalImageKey", "originalImageKey TEXT");
   addColumnIfMissing(db, "practices", "customImageUri", "customImageUri TEXT");
   addColumnIfMissing(db, "practices", "dailyTargetCount", "dailyTargetCount INTEGER");
   addColumnIfMissing(db, "practices", "defaultSessionCount", "defaultSessionCount INTEGER");
@@ -101,6 +104,14 @@ export function initializeDatabaseSchema(db: SqliteDatabase) {
   addColumnIfMissing(db, "practices", "updatedAt", "updatedAt INTEGER");
   addColumnIfMissing(db, "practices", "syncStatus", "syncStatus TEXT DEFAULT 'synced'");
   addColumnIfMissing(db, "practices", "lastSyncedAt", "lastSyncedAt INTEGER");
+
+  db.runSync(`
+    UPDATE practices
+    SET originalImageKey = imageKey
+    WHERE originalImageKey IS NULL
+      AND imageKey IS NOT NULL
+      AND imageKey != ?;
+  `, CUSTOM_PRACTICE_IMAGE_KEY);
 
   if (hasColumn(db, "practices", "defaultAddCount")) {
     db.execSync(`

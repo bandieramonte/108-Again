@@ -224,6 +224,15 @@ export function validateBackup(data: any) {
             throw new Error("Backup contains a device-local image path");
         }
 
+        if (
+            p.originalImageKey != null &&
+            (typeof p.originalImageKey !== "string" ||
+                !/^[a-z0-9-]{1,64}$/.test(p.originalImageKey) ||
+                p.originalImageKey === CUSTOM_PRACTICE_IMAGE_KEY)
+        ) {
+            throw new Error("Invalid original practice image");
+        }
+
         if (p.imageKey === CUSTOM_PRACTICE_IMAGE_KEY) {
             const image = p.customImage;
 

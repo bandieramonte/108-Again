@@ -4,6 +4,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput,
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CustomPracticeImageEditor from "../components/CustomPracticeImageEditor";
 import { CUSTOM_PRACTICE_IMAGE_KEY } from "../constants/customPracticeImages";
+import { DEFAULT_PRACTICES } from "../constants/defaultPractices";
 import { useI18n } from "../i18n";
 import * as practiceService from "../services/practiceService";
 import { useAppTheme, useGlobalStyles } from "../styles/theme";
@@ -28,6 +29,9 @@ export default function EditPractice() {
     const { colors } = useAppTheme();
     const { locale, t } = useI18n();
     const formBottomPadding = Math.max(36, insets.bottom + 24);
+    const defaultImageKey = DEFAULT_PRACTICES.find(
+        practice => practice.id === id
+    )?.imageKey;
 
     const [name, setName] = useState("");
     const [target, setTarget] = useState("");
@@ -35,6 +39,7 @@ export default function EditPractice() {
     const [dailyTarget, setDailyTarget] = useState("");
     const [defaultSession, setDefaultSession] = useState("");
     const [imageKey, setImageKey] = useState<string | null>(null);
+    const [originalImageKey, setOriginalImageKey] = useState<string | null>(null);
     const [customImageUri, setCustomImageUri] =
         useState<string | null>(null);
 
@@ -52,13 +57,25 @@ export default function EditPractice() {
             formatNumberInput(String(data.defaultSessionCount ?? 108), locale)
         );
         setImageKey(data.imageKey);
+        setOriginalImageKey(data.originalImageKey);
         setCustomImageUri(data.customImageUri);
     }, [id, locale]);
 
     function replaceCustomImage(uri: string) {
         practiceService.replaceCustomPracticeImage(id as string, uri);
+        setOriginalImageKey(
+            practiceService.getPracticeEditData(id as string).originalImageKey
+        );
         setImageKey(CUSTOM_PRACTICE_IMAGE_KEY);
         setCustomImageUri(uri);
+    }
+
+    function restoreOriginalImage() {
+        const restoredImageKey = practiceService.restoreOriginalPracticeImage(
+            id as string
+        );
+        setImageKey(restoredImageKey);
+        setCustomImageUri(null);
     }
 
     function save() {
@@ -164,6 +181,12 @@ export default function EditPractice() {
                         imageKey={imageKey}
                         currentUri={customImageUri}
                         onReplace={replaceCustomImage}
+                        onRestoreOriginal={
+                            (defaultImageKey ?? originalImageKey) &&
+                            imageKey !== (defaultImageKey ?? originalImageKey)
+                                ? restoreOriginalImage
+                                : undefined
+                        }
                     />
 
                     <Text style={globalStyles.formInputLabel}>

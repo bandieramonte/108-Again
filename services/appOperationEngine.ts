@@ -1,5 +1,5 @@
 import { DEFAULT_PRACTICES, SEEDED_IDS } from "../constants/defaultPractices";
-import { CUSTOM_PRACTICE_IMAGE_KEY } from "../constants/customPracticeImages";
+import { CUSTOM_PRACTICE_IMAGE_KEY, pendingPracticeImageRemovalKey } from "../constants/customPracticeImages";
 import { SyncMetadata } from "../types/sync";
 import {
     formatCalendarDate,
@@ -16,6 +16,7 @@ export type OperationPracticeRow = {
     targetCount: number;
     orderIndex: number;
     imageKey?: string | null;
+    originalImageKey?: string | null;
     customImageUri?: string | null;
     dailyTargetCount?: number | null;
     defaultSessionCount?: number | null;
@@ -61,7 +62,8 @@ type OperationPracticeRepo = {
         reminderHour?: number,
         reminderMinute?: number,
         calendarStartDate?: number | null,
-        customImageUri?: string | null
+        customImageUri?: string | null,
+        originalImageKey?: string | null
     ): void;
     updatePractice(
         id: string,
@@ -70,11 +72,13 @@ type OperationPracticeRepo = {
         syncMetadata: SyncMetadata,
         imageKey?: string | null
     ): void;
-    updateCustomPracticeImage(
+    updatePracticeImage(
         id: string,
-        customImageUri: string,
+        imageKey: string,
+        customImageUri: string | null,
         syncMetadata: SyncMetadata
     ): void;
+    setMissingOriginalImageKey(id: string, originalImageKey: string): void;
     updatePracticeDailyTargetCount(
         id: string,
         dailyTargetCount: number | null,
@@ -173,6 +177,7 @@ type OperationDeletedRecordRepo = {
 
 type OperationAppMetaRepo = {
     deleteMeta(key: string): void;
+    getMeta(key: string): string | null;
     setMeta(key: string, value: string): void;
 };
 
@@ -554,16 +559,61 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
 
         const syncMetadata = getWriteSyncMetadata();
 
-        deps.practiceRepo.updateCustomPracticeImage(
-            id,
-            customImageUri,
-            syncMetadata
-        );
+        deps.transaction(() => {
+            deps.practiceRepo.updatePracticeImage(
+                id,
+                CUSTOM_PRACTICE_IMAGE_KEY,
+                customImageUri,
+                syncMetadata
+            );
+            deps.appMetaRepo.deleteMeta(pendingPracticeImageRemovalKey(id));
+        });
 
         deps.emitDataChanged?.();
         void deps.requestSync?.(syncMetadata.userId);
 
         return previousImageUri;
+    }
+
+    function restoreOriginalPracticeImage(id: string) {
+        const defaultPractice = DEFAULT_PRACTICES.find(row => row.id === id);
+        const practice = deps.practiceRepo.getPracticeById(id);
+        if (!practice) {
+            throw new Error(`Practice not found: ${id}`);
+        }
+
+        const imageKey = defaultPractice?.imageKey ?? practice.originalImageKey;
+        if (!imageKey || imageKey === CUSTOM_PRACTICE_IMAGE_KEY) {
+            throw new Error("This practice has no original image to restore.");
+        }
+        const previousImageUri = practice.customImageUri ?? null;
+        if (practice.imageKey === imageKey && !previousImageUri) {
+            return { imageKey, previousImageUri };
+        }
+
+        const syncMetadata = getWriteSyncMetadata();
+        const imageOwnerUserId = syncMetadata.userId ?? practice.userId ?? null;
+        deps.transaction(() => {
+            deps.practiceRepo.updatePracticeImage(
+                id,
+                imageKey,
+                null,
+                syncMetadata
+            );
+            if (
+                imageOwnerUserId &&
+                (practice.imageKey === CUSTOM_PRACTICE_IMAGE_KEY || previousImageUri)
+            ) {
+                deps.appMetaRepo.setMeta(
+                    pendingPracticeImageRemovalKey(id),
+                    imageOwnerUserId
+                );
+            }
+        });
+
+        deps.emitDataChanged?.();
+        void deps.requestSync?.(syncMetadata.userId);
+        return { imageKey, previousImageUri };
     }
 
     async function deletePractice(id: string) {
@@ -583,12 +633,20 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                 const practiceExistsRemotely =
                     !!practice.userId &&
                     !!practice.lastSyncedAt;
+                const pendingImageRemovalKey =
+                    pendingPracticeImageRemovalKey(id);
+                const pendingImageRemovalOwner =
+                    deps.appMetaRepo.getMeta(pendingImageRemovalKey);
                 const deletionOwnerUserId =
-                    practice.userId ?? userId;
+                    practice.userId ?? userId ?? pendingImageRemovalOwner;
+                const hasPendingImageRemoval =
+                    !!deletionOwnerUserId &&
+                    pendingImageRemovalOwner === deletionOwnerUserId;
                 const shouldCreatePracticeDeletion =
                     practiceExistsRemotely ||
                     SEEDED_IDS.has(id) ||
-                    practice.imageKey === CUSTOM_PRACTICE_IMAGE_KEY;
+                    practice.imageKey === CUSTOM_PRACTICE_IMAGE_KEY ||
+                    hasPendingImageRemoval;
 
                 if (deletionOwnerUserId && practiceExistsRemotely) {
                     for (const session of sessions) {
@@ -626,7 +684,10 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                             name: practice.name,
                             targetCount: practice.targetCount,
                             orderIndex: practice.orderIndex,
-                            imageKey: practice.imageKey ?? null,
+                            imageKey: hasPendingImageRemoval
+                                ? CUSTOM_PRACTICE_IMAGE_KEY
+                                : practice.imageKey ?? null,
+                            originalImageKey: practice.originalImageKey ?? null,
                             dailyTargetCount:
                                 practice.dailyTargetCount ?? null,
                             defaultSessionCount:
@@ -646,6 +707,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
 
                 deps.sessionRepo.deleteSessionsByPractice(id);
                 deps.practiceRepo.deletePractice(id);
+                deps.appMetaRepo.deleteMeta(pendingImageRemovalKey);
             });
         });
 
@@ -670,6 +732,9 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
             dailyTargetCount: practice.dailyTargetCount ?? null,
             defaultSessionCount: practice.defaultSessionCount ?? 108,
             imageKey: practice.imageKey ?? null,
+            originalImageKey:
+                DEFAULT_PRACTICES.find(row => row.id === id)?.imageKey ??
+                practice.originalImageKey ?? null,
             customImageUri: practice.customImageUri ?? null,
             isSeedPractice: SEEDED_IDS.has(id),
         };
@@ -943,6 +1008,9 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                 const practices = deps.practiceRepo.getAllPractices();
 
                 for (const practice of practices) {
+                    deps.appMetaRepo.deleteMeta(
+                        pendingPracticeImageRemovalKey(practice.id)
+                    );
                     const isSeeded = SEEDED_IDS.has(practice.id);
 
                     if (!isSeeded) {
@@ -961,6 +1029,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                                     targetCount: practice.targetCount,
                                     orderIndex: practice.orderIndex,
                                     imageKey: practice.imageKey ?? null,
+                                    originalImageKey: practice.originalImageKey ?? null,
                                     dailyTargetCount:
                                         practice.dailyTargetCount ?? null,
                                     defaultSessionCount:
@@ -996,6 +1065,17 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                         defaultPractice.name,
                         defaultPractice.targetCount,
                         restoreSyncMetadata
+                    );
+
+                    deps.practiceRepo.updatePracticeImage(
+                        practice.id,
+                        defaultPractice.imageKey,
+                        null,
+                        restoreSyncMetadata
+                    );
+                    deps.practiceRepo.setMissingOriginalImageKey(
+                        practice.id,
+                        defaultPractice.imageKey
                     );
 
                     deps.practiceRepo.updatePracticeDailyTargetCount(
@@ -1120,6 +1200,11 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         await deps.enqueueWrite(() => {
             deps.transaction(() => {
                 deps.sessionRepo.deleteAllSessions();
+                for (const practice of deps.practiceRepo.getAllPractices()) {
+                    deps.appMetaRepo.deleteMeta(
+                        pendingPracticeImageRemovalKey(practice.id)
+                    );
+                }
                 deps.practiceRepo.deleteAllPractices();
                 deps.deletedRecordRepo.deleteAllDeletedRecords();
 
@@ -1144,7 +1229,8 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
                         reminder?.minute ?? 0,
                         earliestSessionByPracticeId.get(practice.id) ??
                             importedAt,
-                        practice.customImageUri ?? null
+                        practice.customImageUri ?? null,
+                        practice.originalImageKey ?? null
                     );
                 });
 
@@ -1205,6 +1291,7 @@ export function createAppOperationEngine(deps: AppOperationEngineDeps) {
         getSessionsForPractice,
         getWriteSyncMetadata,
         restoreBackupData,
+        restoreOriginalPracticeImage,
         restoreDefaults,
         reorderPractices,
         replaceCustomPracticeImage,

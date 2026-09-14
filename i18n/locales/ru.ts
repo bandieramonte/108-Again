@@ -276,6 +276,7 @@ export const ru: Record<TranslationKey, string> = {
     "practiceImage.other": "Другое",
     "practiceImage.upload": "Загрузить изображение",
     "practiceImage.change": "Изменить изображение",
+    "practiceImage.restoreOriginal": "Восстановить исходное изображение",
     "practiceImage.uploadTitle": "Загрузить изображение практики",
     "practiceImage.uploadGuidance": "Изображение будет обрезано по центру до соотношения 9:10. Для лучшего качества используйте изображение не менее 385 × 430 пикселей (около {{pixels}} пикселей).",
     "practiceImage.browseFiles": "Выбрать файл",

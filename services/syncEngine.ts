@@ -1,5 +1,5 @@
 import { DEFAULT_PRACTICES, SEEDED_IDS } from "../constants/defaultPractices";
-import { CUSTOM_PRACTICE_IMAGE_KEY } from "../constants/customPracticeImages";
+import { CUSTOM_PRACTICE_IMAGE_KEY, pendingPracticeImageRemovalKey } from "../constants/customPracticeImages";
 import {
     formatCalendarDate,
     isCalendarDateString,
@@ -22,6 +22,7 @@ export type RemotePracticeRow = {
     target_count: number;
     order_index: number;
     image_key: string | null;
+    original_image_key?: string | null;
     custom_image_uri?: string | null;
     daily_target_count: number | null;
     default_session_count: number | null;
@@ -51,6 +52,7 @@ export type LocalPracticeRow = {
     targetCount: number;
     orderIndex: number;
     imageKey?: string | null;
+    originalImageKey?: string | null;
     customImageUri?: string | null;
     dailyTargetCount?: number | null;
     defaultSessionCount?: number | null;
@@ -91,6 +93,7 @@ type PracticeRepository = {
     getPracticeById(id: string): LocalPracticeRow | null;
     getAllPractices(): LocalPracticeRow[];
     getDirtyPractices(userId: string): LocalPracticeRow[];
+    setMissingOriginalImageKey(id: string, originalImageKey: string): void;
     markPracticeSynced(
         id: string,
         lastSyncedAt: number,
@@ -218,6 +221,28 @@ function isDirty(syncStatus: string | null | undefined) {
 export function createSyncEngine(deps: SyncEngineDeps) {
     const now = deps.now ?? Date.now;
     const logger = deps.logger ?? console;
+
+    async function removePendingPracticeImage(
+        userId: string,
+        practiceId: string
+    ) {
+        const key = pendingPracticeImageRemovalKey(practiceId);
+        if (deps.appMetaRepo.getMeta(key) !== userId) return;
+        if (
+            deps.practiceRepo.getPracticeById(practiceId)?.imageKey ===
+            CUSTOM_PRACTICE_IMAGE_KEY
+        ) {
+            deps.appMetaRepo.deleteMeta(key);
+            return;
+        }
+        if (!deps.customImageSync) {
+            throw new Error("Practice image storage is unavailable.");
+        }
+        await deps.customImageSync.remove(userId, practiceId);
+        if (deps.appMetaRepo.getMeta(key) === userId) {
+            deps.appMetaRepo.deleteMeta(key);
+        }
+    }
 
     async function hydrateRemotePractice(row: RemotePracticeRow) {
         if (
@@ -382,6 +407,7 @@ export function createSyncEngine(deps: SyncEngineDeps) {
                 }
 
                 deps.customImageSync?.deleteLocal(local?.customImageUri);
+                deps.appMetaRepo.deleteMeta(pendingPracticeImageRemovalKey(row.id));
                 deps.sessionRepo.deleteSessionsByPractice(row.id);
                 deps.practiceRepo.deletePractice(row.id);
                 continue;
@@ -405,6 +431,11 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             }
 
             if (remoteUpdatedAt > localUpdatedAt) {
+                if (row.image_key === CUSTOM_PRACTICE_IMAGE_KEY) {
+                    deps.appMetaRepo.deleteMeta(pendingPracticeImageRemovalKey(row.id));
+                } else {
+                    await removePendingPracticeImage(userId, row.id);
+                }
                 const hydrated = await hydrateRemotePractice(row);
                 deps.practiceRepo.upsertPracticeFromRemote(
                     hydrated
@@ -418,6 +449,11 @@ export function createSyncEngine(deps: SyncEngineDeps) {
                         local.customImageUri
                     );
                 }
+            } else if (!local.originalImageKey && row.original_image_key) {
+                deps.practiceRepo.setMissingOriginalImageKey(
+                    row.id,
+                    row.original_image_key
+                );
             }
         }
     }
@@ -535,6 +571,11 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             }
 
             if (remoteTimestamp(remote) > (row.updatedAt ?? 0)) {
+                if (remote.image_key === CUSTOM_PRACTICE_IMAGE_KEY) {
+                    deps.appMetaRepo.deleteMeta(pendingPracticeImageRemovalKey(row.id));
+                } else {
+                    await removePendingPracticeImage(userId, row.id);
+                }
                 if (remote.deleted_at) {
                     deps.customImageSync?.deleteLocal(row.customImageUri);
                 }
@@ -583,6 +624,7 @@ export function createSyncEngine(deps: SyncEngineDeps) {
                 target_count: row.targetCount,
                 order_index: row.orderIndex,
                 image_key: row.imageKey ?? null,
+                original_image_key: row.originalImageKey ?? null,
                 daily_target_count: row.dailyTargetCount ?? null,
                 default_session_count: defaultSessionCount,
                 total_offset: row.totalOffset ?? 0,
@@ -606,6 +648,9 @@ export function createSyncEngine(deps: SyncEngineDeps) {
         const syncedAt = now();
 
         for (const row of rowsToPush) {
+            if (row.imageKey !== CUSTOM_PRACTICE_IMAGE_KEY) {
+                await removePendingPracticeImage(userId, row.id);
+            }
             deps.practiceRepo.markPracticeSynced(
                 row.id,
                 syncedAt,
@@ -783,6 +828,7 @@ export function createSyncEngine(deps: SyncEngineDeps) {
             target_count: parsed.targetCount,
             order_index: parsed.orderIndex,
             image_key: parsed.imageKey ?? null,
+            original_image_key: parsed.originalImageKey ?? null,
             daily_target_count: parsed.dailyTargetCount ?? null,
             default_session_count: defaultSessionCount,
             total_offset: parsed.totalOffset ?? 0,
@@ -838,8 +884,8 @@ export function createSyncEngine(deps: SyncEngineDeps) {
         practices: RemotePracticeRow[],
         sessions: RemoteSessionRow[]
     ) {
-        const previousCustomImageUris = deps.practiceRepo
-            .getAllPractices()
+        const previousPractices = deps.practiceRepo.getAllPractices();
+        const previousCustomImageUris = previousPractices
             .map(practice => practice.customImageUri)
             .filter((uri): uri is string => typeof uri === "string");
         const hydratedPractices: RemotePracticeRow[] = [];
@@ -852,6 +898,9 @@ export function createSyncEngine(deps: SyncEngineDeps) {
         }
 
         deps.deletedRecordRepo.deleteAllDeletedRecords();
+        for (const practice of previousPractices) {
+            deps.appMetaRepo.deleteMeta(pendingPracticeImageRemovalKey(practice.id));
+        }
         deps.sessionRepo.deleteAllSessions();
         deps.practiceRepo.deleteAllPractices();
 

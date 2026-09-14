@@ -8,6 +8,7 @@ export type PracticeRow = {
     targetCount: number;
     orderIndex: number;
     imageKey?: string | null;
+    originalImageKey?: string | null;
     customImageUri?: string | null;
     dailyTargetCount?: number | null;
     defaultSessionCount?: number | null;
@@ -35,6 +36,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
       targetCount,
       orderIndex,
       imageKey,
+      originalImageKey,
       customImageUri,
       dailyTargetCount,
       defaultSessionCount,
@@ -63,6 +65,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
       targetCount,
       orderIndex,
       imageKey,
+      originalImageKey,
       customImageUri,
       dailyTargetCount,
       defaultSessionCount,
@@ -95,6 +98,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
         reminderMinute: number = 0,
         calendarStartDate: number | null = null,
         customImageUri: string | null = null,
+        originalImageKey?: string | null,
     ): void {
         const effectiveCalendarStartDate =
             calendarStartDate ??
@@ -108,6 +112,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
       targetCount,
       orderIndex,
       imageKey,
+      originalImageKey,
       customImageUri,
       dailyTargetCount,
       defaultSessionCount,
@@ -120,12 +125,17 @@ export function createPracticeRepo(database: SqliteDatabase) {
       updatedAt,
       syncStatus,
       lastSyncedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             id,
             name,
             target,
             orderIndex,
             imageKey ?? null,
+            originalImageKey === undefined
+                ? imageKey && imageKey !== CUSTOM_PRACTICE_IMAGE_KEY
+                    ? imageKey
+                    : null
+                : originalImageKey,
             customImageUri,
             dailyTargetCount,
             defaultSessionCount,
@@ -215,26 +225,42 @@ export function createPracticeRepo(database: SqliteDatabase) {
         );
     }
 
-    function updateCustomPracticeImage(
+    function updatePracticeImage(
         id: string,
-        customImageUri: string,
+        imageKey: string,
+        customImageUri: string | null,
         syncMetadata: SyncMetadata
     ): void {
         database.runSync(
             `UPDATE practices
      SET imageKey = ?,
+         originalImageKey = COALESCE(
+             originalImageKey,
+             CASE WHEN imageKey IS NOT NULL AND imageKey != ? THEN imageKey END
+         ),
          customImageUri = ?,
          userId = ?,
          updatedAt = COALESCE(?, updatedAt),
          syncStatus = COALESCE(?, syncStatus),
          lastSyncedAt = ?
      WHERE id = ?`,
+            imageKey,
             CUSTOM_PRACTICE_IMAGE_KEY,
             customImageUri,
             syncMetadata.userId,
             syncMetadata.updatedAt,
             syncMetadata.syncStatus,
             syncMetadata.lastSyncedAt,
+            id
+        );
+    }
+
+    function setMissingOriginalImageKey(id: string, originalImageKey: string): void {
+        database.runSync(
+            `UPDATE practices
+             SET originalImageKey = ?
+             WHERE id = ? AND originalImageKey IS NULL`,
+            originalImageKey,
             id
         );
     }
@@ -400,6 +426,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
       targetCount,
       orderIndex,
       imageKey,
+      originalImageKey,
       customImageUri,
       dailyTargetCount,
       defaultSessionCount,
@@ -465,6 +492,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
         target_count: number;
         order_index: number;
         image_key: string | null;
+        original_image_key?: string | null;
         custom_image_uri?: string | null;
         daily_target_count: number | null;
         default_session_count: number | null;
@@ -489,6 +517,7 @@ export function createPracticeRepo(database: SqliteDatabase) {
         targetCount,
         orderIndex,
         imageKey,
+        originalImageKey,
         customImageUri,
         dailyTargetCount,
         defaultSessionCount,
@@ -502,12 +531,13 @@ export function createPracticeRepo(database: SqliteDatabase) {
         syncStatus,
         lastSyncedAt
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
       ON CONFLICT(id) DO UPDATE SET
         name = excluded.name,
         targetCount = excluded.targetCount,
         orderIndex = excluded.orderIndex,
         imageKey = excluded.imageKey,
+        originalImageKey = COALESCE(excluded.originalImageKey, practices.originalImageKey),
         customImageUri = excluded.customImageUri,
         dailyTargetCount = excluded.dailyTargetCount,
         defaultSessionCount = excluded.defaultSessionCount,
@@ -526,6 +556,10 @@ export function createPracticeRepo(database: SqliteDatabase) {
             row.target_count,
             row.order_index,
             row.image_key,
+            row.original_image_key ??
+                (row.image_key && row.image_key !== CUSTOM_PRACTICE_IMAGE_KEY
+                    ? row.image_key
+                    : null),
             row.custom_image_uri ?? null,
             row.daily_target_count,
             row.default_session_count ?? 108,
@@ -641,7 +675,8 @@ export function createPracticeRepo(database: SqliteDatabase) {
         reassignAllPracticesToUser,
         resetAllSyncState,
         resetPracticeTotals,
-        updateCustomPracticeImage,
+        setMissingOriginalImageKey,
+        updatePracticeImage,
         updatePractice,
         updatePracticeDailyTargetCount,
         updatePracticeDefaultSessionCount,

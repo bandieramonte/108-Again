@@ -274,6 +274,7 @@ export const cs: Record<TranslationKey, string> = {
     "practiceImage.other": "Jiné",
     "practiceImage.upload": "Nahrát obrázek",
     "practiceImage.change": "Změnit obrázek",
+    "practiceImage.restoreOriginal": "Obnovit původní obrázek",
     "practiceImage.uploadTitle": "Nahrát obrázek praxe",
     "practiceImage.uploadGuidance": "Obrázek bude oříznut ze středu na poměr 9:10. Pro nejlepší kvalitu použij obrázek alespoň 385 × 430 pixelů (asi {{pixels}} pixelů).",
     "practiceImage.browseFiles": "Procházet soubory",
