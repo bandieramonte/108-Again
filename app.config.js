@@ -59,6 +59,8 @@ export default {
                     android: {
                         enableMinifyInReleaseBuilds: true,
                         enableShrinkResourcesInReleaseBuilds: true,
+                        extraProguardRules:
+                            "-keep class expo.modules.notifications.** { *; }",
                     },
                 },
             ],
