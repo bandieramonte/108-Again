@@ -8,7 +8,7 @@ export default {
         name: "108 Again",
         slug: "108-again",
         scheme,
-        version: "2.1.0",
+        version: "2.2.0",
 
         orientation: "portrait",
         icon: "./assets/images/icon.png",
