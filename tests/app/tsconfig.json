@@ -48,6 +48,7 @@
     "../../services/appUpdatePolicy.ts",
     "../../services/offlineFirstStartup.ts",
     "../../services/lastPracticeScreenService.ts",
+    "../../services/practiceReminderRefreshService.ts",
     "../../services/practiceReminderService.ts",
     "../../services/pullToSyncService.ts",
     "../../services/supabaseSyncRemote.ts",

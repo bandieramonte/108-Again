@@ -29,6 +29,7 @@ type RefreshReminderOptions = {
 };
 
 const pendingPracticeRefreshes = new Set<string>();
+const practiceRefreshes = new Map<string, Promise<unknown>>();
 let practiceRefreshTimer: TimerHandle | null = null;
 let allRefreshTimer: TimerHandle | null = null;
 const REMINDER_DB_MIGRATION_KEY =
@@ -168,7 +169,7 @@ export async function requestPracticeReminderPermission(
     return granted;
 }
 
-export async function refreshReminderForPractice(
+async function refreshReminderForPracticeNow(
     practiceId: string,
     options?: RefreshReminderOptions
 ): Promise<PracticeReminderSettings> {
@@ -203,6 +204,27 @@ export async function refreshReminderForPractice(
     }
 
     return settings;
+}
+
+export async function refreshReminderForPractice(
+    practiceId: string,
+    options?: RefreshReminderOptions
+): Promise<PracticeReminderSettings> {
+    const previousRefresh =
+        practiceRefreshes.get(practiceId) ?? Promise.resolve();
+    const refresh = previousRefresh
+        .catch(() => undefined)
+        .then(() => refreshReminderForPracticeNow(practiceId, options));
+
+    practiceRefreshes.set(practiceId, refresh);
+
+    try {
+        return await refresh;
+    } finally {
+        if (practiceRefreshes.get(practiceId) === refresh) {
+            practiceRefreshes.delete(practiceId);
+        }
+    }
 }
 
 async function refreshPracticeReminderIds(

@@ -482,26 +482,26 @@ export async function restorePracticeReminderBackupData(
     practiceIds: Set<string>
 ) {
     const existingEntries = await getReminderStorageEntries();
-
-    await Promise.all(
-        existingEntries.map(([key]) =>
-            clearPracticeReminderSettings(
-                key.slice(STORAGE_KEY_PREFIX.length)
-            )
-        )
-    );
-
-    await Promise.all(
+    const rowsByPracticeId = new Map(
         rows
             .filter(row => practiceIds.has(row.practiceId))
-            .map(row =>
-                saveSettings(row.practiceId, {
-                    enabled: row.enabled,
-                    hour: row.hour,
-                    minute: row.minute,
-                    scheduledNotifications: [],
-                })
+            .map(row => [row.practiceId, row])
+    );
+    const storedPracticeIds = existingEntries
+        .map(([key]) => key.slice(STORAGE_KEY_PREFIX.length))
+        .filter(Boolean);
+    const affectedPracticeIds = new Set([
+        ...storedPracticeIds,
+        ...rowsByPracticeId.keys(),
+    ]);
+
+    await Promise.all(
+        Array.from(affectedPracticeIds).map(practiceId =>
+            restorePracticeReminderBackupRow(
+                practiceId,
+                rowsByPracticeId.get(practiceId) ?? null
             )
+        )
     );
 }
 
@@ -509,9 +509,24 @@ export async function restorePracticeReminderBackupRow(
     practiceId: string,
     row: PracticeReminderBackupRow | null
 ) {
-    await clearPracticeReminderSettings(practiceId);
+    const current = await getPracticeReminderSettings(practiceId);
 
-    if (!row) return;
+    if (
+        row &&
+        current.enabled === row.enabled &&
+        current.hour === row.hour &&
+        current.minute === row.minute &&
+        (row.enabled || current.scheduledNotifications.length === 0)
+    ) {
+        return;
+    }
+
+    await cancelScheduledNotifications(current);
+
+    if (!row) {
+        await AsyncStorage.removeItem(getStorageKey(practiceId));
+        return;
+    }
 
     await saveSettings(practiceId, {
         enabled: row.enabled,

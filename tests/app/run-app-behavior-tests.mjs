@@ -213,6 +213,114 @@ async function withPracticeReminderServiceHarness(fn) {
   }
 }
 
+async function withPracticeReminderRefreshServiceHarness(fn) {
+  const servicePath = require.resolve(
+    "../.build/services/practiceReminderRefreshService.js"
+  );
+  const state = {
+    releaseFirstRestore: null,
+    restoreCalls: 0,
+    firstRestoreStarted: null,
+  };
+  const firstRestoreStarted = new Promise((resolve) => {
+    state.firstRestoreStarted = resolve;
+  });
+  const firstRestoreRelease = new Promise((resolve) => {
+    state.releaseFirstRestore = resolve;
+  });
+  const settings = {
+    enabled: true,
+    hour: 20,
+    minute: 30,
+    scheduledNotifications: [],
+  };
+
+  clearRequireCache(
+    "../.build/services/practiceReminderRefreshService.js"
+  );
+
+  Module._load = function loadWithPracticeReminderRefreshServiceHarness(
+    request,
+    parent,
+    isMain
+  ) {
+    if (parent?.filename === servicePath) {
+      if (request === "../i18n") {
+        return {
+          getRuntimeI18n: async () => ({ t: (key) => key }),
+        };
+      }
+
+      if (request === "../repositories/appMetaRepo") {
+        return {
+          getMeta: () => "true",
+          setMeta: () => {},
+        };
+      }
+
+      if (request === "../repositories/practiceRepo") {
+        return {
+          getAllPractices: () => [],
+          getPracticeById: () => ({
+            id: "rapid-session-practice",
+            name: "Rapid session practice",
+            dailyTargetCount: 1080,
+            reminderEnabled: 1,
+            reminderHour: 20,
+            reminderMinute: 30,
+          }),
+          updatePracticeReminderSettings: () => {},
+        };
+      }
+
+      if (request === "../repositories/sessionRepo") {
+        return { getDailyTotals: () => [] };
+      }
+
+      if (request === "./appOperationRuntime") {
+        return {
+          getAppOperationEngine: () => ({
+            updatePracticeReminderSettings: () => {},
+          }),
+        };
+      }
+
+      if (request === "./practiceReminderService") {
+        return {
+          disablePracticeReminder: async () => settings,
+          getPracticeIdsWithEnabledReminders: async () => [],
+          getPracticeReminderSettings: async () => settings,
+          refreshPracticeReminderSchedule: async () => settings,
+          restorePracticeReminderBackupData: async () => {},
+          restorePracticeReminderBackupRow: async () => {
+            state.restoreCalls += 1;
+
+            if (state.restoreCalls === 1) {
+              state.firstRestoreStarted();
+              await firstRestoreRelease;
+            }
+          },
+        };
+      }
+    }
+
+    return originalLoad.call(this, request, parent, isMain);
+  };
+
+  try {
+    const service = require(
+      "../.build/services/practiceReminderRefreshService.js"
+    );
+
+    return await fn(service, state, firstRestoreStarted);
+  } finally {
+    Module._load = originalLoad;
+    clearRequireCache(
+      "../.build/services/practiceReminderRefreshService.js"
+    );
+  }
+}
+
 const originalLoad = Module._load;
 Module._load = function loadWithAsyncStorageMock(request, parent, isMain) {
   if (request === "@react-native-async-storage/async-storage") {
@@ -3710,6 +3818,83 @@ await test(
           1,
           "Already granted permission is not requested again"
         );
+      }
+    );
+  }
+);
+
+await test(
+  "unchanged reminder restores preserve the active schedule",
+  async () => {
+    await withPracticeReminderServiceHarness(
+      async (practiceReminderService) => {
+        const practiceId = "unchanged-reminder-practice";
+        const backupRow = {
+          practiceId,
+          enabled: true,
+          hour: 20,
+          minute: 30,
+        };
+
+        await practiceReminderService.restorePracticeReminderBackupRow(
+          practiceId,
+          backupRow
+        );
+        await practiceReminderService.refreshPracticeReminderSchedule({
+          practiceId,
+          practiceName: "Unchanged reminder",
+          todayCount: 0,
+          dailyTargetCount: 108,
+        });
+
+        const scheduled =
+          await practiceReminderService.getPracticeReminderSettings(
+            practiceId
+          );
+
+        await practiceReminderService.restorePracticeReminderBackupRow(
+          practiceId,
+          backupRow
+        );
+
+        assert.deepEqual(
+          await practiceReminderService.getPracticeReminderSettings(
+            practiceId
+          ),
+          scheduled,
+          "Syncing unchanged database settings must not clear notifications"
+        );
+      }
+    );
+  }
+);
+
+await test(
+  "rapid reminder refreshes for one practice run sequentially",
+  async () => {
+    await withPracticeReminderRefreshServiceHarness(
+      async (service, state, firstRestoreStarted) => {
+        const first = service.refreshReminderForPractice(
+          "rapid-session-practice"
+        );
+
+        await firstRestoreStarted;
+
+        const second = service.refreshReminderForPractice(
+          "rapid-session-practice"
+        );
+
+        await Promise.resolve();
+        assert.equal(
+          state.restoreCalls,
+          1,
+          "A second refresh must wait for the first refresh to finish"
+        );
+
+        state.releaseFirstRestore();
+        await Promise.all([first, second]);
+
+        assert.equal(state.restoreCalls, 2);
       }
     );
   }
